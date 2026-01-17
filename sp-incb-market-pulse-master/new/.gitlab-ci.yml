@@ -1,0 +1,77 @@
+stages:
+  - extract
+
+variables:
+  # Oracle Instant Client configuration
+  ORACLE_HOME: /opt/oracle/instantclient_21_1
+  LD_LIBRARY_PATH: /opt/oracle/instantclient_21_1
+  TNS_ADMIN: /opt/oracle/instantclient_21_1/network/admin
+
+# Job to extract data from Oracle database
+extract_oracle_data:
+  stage: extract
+  # Using Oracle-enabled Python image
+  image: gvenzl/oracle-xe:21-slim-faststart
+  
+  before_script:
+    # Install Python and required system dependencies
+    - apt-get update -qq
+    - apt-get install -y -qq python3 python3-pip python3-dev build-essential libaio1 wget unzip
+    
+    # Install Oracle Instant Client (if not in image)
+    - |
+      if [ ! -d "$ORACLE_HOME" ]; then
+        mkdir -p /opt/oracle
+        cd /opt/oracle
+        wget -q https://download.oracle.com/otn_software/linux/instantclient/217000/instantclient-basic-linux.x64-21.7.0.0.0dbru.zip
+        unzip -qq instantclient-basic-linux.x64-21.7.0.0.0dbru.zip
+        mv instantclient_21_7 instantclient_21_1
+        echo /opt/oracle/instantclient_21_1 > /etc/ld.so.conf.d/oracle-instantclient.conf
+        ldconfig
+      fi
+    
+    # Install Python dependencies
+    - pip3 install --no-cache-dir -r scripts/requirements_extraction.txt
+    
+  script:
+    # Run the extraction script
+    - echo "Starting Oracle data extraction..."
+    - python3 scripts/extract_sample_data.py --env qa --limit 1000
+    
+  artifacts:
+    name: "oracle_sample_data_${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - sample_data/
+    expire_in: 7 days
+    when: always
+  
+  # Manual trigger - requires approval to run
+  when: manual
+  
+  # Only run on main/master branch or manual pipeline
+  only:
+    - main
+    - master
+    - web
+  
+  tags:
+    - docker
+    # If you have VPN-enabled runners, add tag here:
+    # - vpn-enabled
+  
+  allow_failure: false
+  
+  timeout: 30m
+
+# Alternative job using custom Docker image (if you have one)
+# extract_oracle_data_custom:
+#   stage: extract
+#   image: your-registry/python-oracle:3.11
+#   script:
+#     - pip install -r scripts/requirements_extraction.txt
+#     - python scripts/extract_sample_data.py --env qa --limit 1000
+#   artifacts:
+#     paths:
+#       - sample_data/
+#     expire_in: 7 days
+#   when: manual

@@ -1,0 +1,81 @@
+<div class="min-h-screen flex items-center justify-center bg-cover bg-center relative" 
+     style="background-image: url('assets/brands/Light.png')">
+  
+  <!-- Logo in top left corner -->
+  <div class="absolute top-6 left-6">
+    <img 
+      src="assets/logo/logo.png" 
+      alt="Market Pulse Logo" 
+      class="h-10 w-auto md:h-12"
+    >
+  </div>
+  
+  <!-- Market Pulse Title -->
+  <div class="absolute top-6 left-1/2 transform -translate-x-1/2 text-center text-white">
+
+  </div>
+
+  <!-- Centered Asset Selection Dialog -->
+  <div class="w-full max-w-md bg-white rounded-xl shadow-lg mx-4">
+    <!-- Dialog Header -->
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-800">Select your asset class</h2>
+    </div>
+
+    <!-- Dialog Body -->
+    <div class="p-6">
+      <!-- Description -->
+      <p class="text-gray-600 mb-6 leading-relaxed">
+        You can change asset class afterwards also and some random test to set them on the app.
+      </p>
+
+      <!-- Radio Options -->
+      <div class="space-y-3 mb-6">
+        <!-- US CLO Option -->
+        <div class="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+          <p-radioButton 
+            name="assetType" 
+            value="us-clo" 
+            [(ngModel)]="selectedAsset"
+            inputId="us-clo"
+          ></p-radioButton>
+          <label for="us-clo" class="ml-3 text-gray-700 font-medium cursor-pointer">US CLO</label>
+        </div>
+
+        <!-- European CLO Option -->
+        <div class="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+          <p-radioButton 
+            name="assetType" 
+            value="european-clo" 
+            [(ngModel)]="selectedAsset"
+            inputId="european-clo"
+          ></p-radioButton>
+          <label for="european-clo" class="ml-3 text-gray-700 font-medium cursor-pointer">European CLO</label>
+        </div>
+
+  
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex space-x-3 pt-4 border-t border-gray-200">
+        <button 
+          pButton
+          type="button"
+          (click)="onCancel()"
+          class="flex-1 p-button-outlined p-button-secondary"
+          label="Cancel"
+        >
+        </button>
+        <button 
+          pButton
+          type="button"
+          (click)="onOkay()"
+          [disabled]="!selectedAsset"
+          class="flex-1"
+          label="Okay"
+        >
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,24 @@
+boto3~=1.16.28
+click==7.1.2
+itsdangerous==1.1.0
+Jinja2==2.11.2
+MarkupSafe==1.1.1
+Werkzeug==1.0.1
+serverless-wsgi==1.7.6
+uvicorn~=0.29.0
+fastapi~=0.110.2
+starlette~=0.37.2
+mangum
+httpx
+python-multipart>=0.0.6  # For file upload support
+
+# Oracle Database connectivity (optional - install when Oracle is configured)
+oracledb>=2.0.0
+cx_Oracle>=8.3.0
+
+# AWS and data processing
+pandas>=2.0.0
+python-dotenv>=1.0.0
+openpyxl>=3.0.0  # For Excel file reading
+email-validator>=2.0.0  # For Pydantic EmailStr validation
+

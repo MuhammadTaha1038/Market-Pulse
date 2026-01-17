@@ -1,0 +1,947 @@
+<div class="p-4">
+  <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
+  <p class="text-gray-600 mt-2">Manage your asset class rules and preferences</p>
+  
+  <hr class="my-6 border-gray-300">
+  
+  <!-- Navigation Buttons -->
+  <div class="flex flex-wrap gap-2 mb-8">
+    <span (click)="scrollToSection('rules-section')" class="bg-white rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Rules</span>
+    <span (click)="scrollToSection('preset-section')" class="bg-white rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Preset</span>
+    <span (click)="scrollToSection('corn-jobs-section')" class="bg-white rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Corn Jobs</span>
+    <span (click)="scrollToSection('restore-email-section')" class="bg-white rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Restore & Email</span>
+  </div>
+
+  <!-- Main content row -->
+  <div id="rules-section" class="flex flex-col lg:flex-row gap-8">
+    <!-- Rules Section -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <div class="flex justify-between items-start mb-2">
+        <h2 class="text-lg font-semibold text-gray-900">Rules</h2>
+        <button class="text-gray-400 hover:text-gray-600" title="Help">
+          <i class="pi pi-question-circle"></i>
+        </button>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Add filters to exclude data from the auto cleaning process</p>
+      
+      <!-- Rules Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[600px]">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Rule Name</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Active</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">Remove DZ bank securities</td>
+              <td class="px-4 py-3">
+                <p-autoComplete 
+                  [(ngModel)]="selectedActive1" 
+                  [suggestions]="filteredActiveOptions" 
+                  (completeMethod)="filterActive($event)"
+                  field="label"
+                  [dropdown]="true"
+                  placeholder="Select"
+                  styleClass="w-24">
+                </p-autoComplete>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">Remove Performance Trust Offer</td>
+              <td class="px-4 py-3">
+                <p-autoComplete 
+                  [(ngModel)]="selectedActive2" 
+                  [suggestions]="filteredActiveOptions" 
+                  (completeMethod)="filterActive($event)"
+                  field="label"
+                  [dropdown]="true"
+                  placeholder="Select"
+                  styleClass="w-24">
+                </p-autoComplete>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Rule Creation Form -->
+      <div class="mt-6 bg-gray-50 rounded-lg p-4">
+        <input 
+          type="text" 
+          [(ngModel)]="newRuleName"
+          placeholder="Rule Name" 
+          class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        
+        <div class="space-y-3">
+          <!-- WHERE Condition (Always Visible) -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <span class="text-sm font-medium text-gray-700 w-20">Where</span>
+            <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors" title="Drag to reorder">
+              <i class="pi pi-bars text-xs"></i>
+            </button>
+            <p-autoComplete 
+              [(ngModel)]="ruleConditions[0].column" 
+              [suggestions]="filteredColumnOptions" 
+              (completeMethod)="filterColumn($event)"
+              field="label"
+              [dropdown]="true"
+              placeholder="Bwic Cover"
+              styleClass="w-full sm:flex-1">
+            </p-autoComplete>
+            <p-autoComplete 
+              [(ngModel)]="ruleConditions[0].operator" 
+              [suggestions]="filteredOperatorOptions" 
+              (completeMethod)="filterOperator($event)"
+              field="label"
+              [dropdown]="true"
+              placeholder="is equal to"
+              styleClass="w-full sm:flex-1">
+            </p-autoComplete>
+            <input 
+              type="text" 
+              [(ngModel)]="ruleConditions[0].value"
+              placeholder="JPMC" 
+              class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button class="text-gray-400 hover:text-red-600 transition-colors opacity-0 cursor-default" title="Remove condition" disabled>
+              <i class="pi pi-trash"></i>
+            </button>
+          </div>
+
+          <!-- Additional Conditions (Visible only when user adds them) -->
+          <div *ngIf="showAdditionalConditions">
+            <ng-container *ngFor="let condition of ruleConditions; let i = index">
+              <!-- Skip the first WHERE condition since it's always shown above -->
+              <ng-container *ngIf="i > 0">
+                
+                <!-- Regular Condition (AND/OR) -->
+                <div *ngIf="!condition.isSubgroup" class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <span class="text-sm font-medium text-gray-700 w-20">{{ getConditionLabel(condition, i) }}</span>
+                  <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors" title="Drag to reorder">
+                    <i class="pi pi-bars text-xs"></i>
+                  </button>
+                  <p-autoComplete 
+                    [(ngModel)]="condition.column" 
+                    [suggestions]="filteredColumnOptions" 
+                    (completeMethod)="filterColumn($event)"
+                    field="label"
+                    [dropdown]="true"
+                    placeholder="Bwic Cover"
+                    styleClass="w-full sm:flex-1">
+                  </p-autoComplete>
+                  <p-autoComplete 
+                    [(ngModel)]="condition.operator" 
+                    [suggestions]="filteredOperatorOptions" 
+                    (completeMethod)="filterOperator($event)"
+                    field="label"
+                    [dropdown]="true"
+                    placeholder="is equal to"
+                    styleClass="w-full sm:flex-1">
+                  </p-autoComplete>
+                  <input 
+                    type="text" 
+                    [(ngModel)]="condition.value"
+                    placeholder="JPMC" 
+                    class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <button (click)="removeCondition(i)" 
+                          class="text-gray-400 hover:text-red-600 transition-colors" 
+                          title="Remove condition">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+
+                <!-- Subgroup Condition -->
+                <div *ngIf="condition.isSubgroup" class="border border-gray-300 rounded-lg p-4 bg-white">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-gray-700">Subgroup</span>
+                    <button (click)="removeCondition(i)" 
+                            class="text-gray-400 hover:text-red-600 transition-colors" 
+                            title="Remove subgroup">
+                      <i class="pi pi-trash"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="space-y-3 ml-4">
+                    <ng-container *ngFor="let subCondition of condition.conditions; let j = index">
+                      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <span class="text-sm font-medium text-gray-700 w-16">{{ getConditionLabel(subCondition, j) }}</span>
+                        <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors" title="Drag to reorder">
+                          <i class="pi pi-bars text-xs"></i>
+                        </button>
+                        <p-autoComplete 
+                          [(ngModel)]="subCondition.column" 
+                          [suggestions]="filteredColumnOptions" 
+                          (completeMethod)="filterColumn($event)"
+                          field="label"
+                          [dropdown]="true"
+                          placeholder="Bwic Cover"
+                          styleClass="w-full sm:flex-1">
+                        </p-autoComplete>
+                        <p-autoComplete 
+                          [(ngModel)]="subCondition.operator" 
+                          [suggestions]="filteredOperatorOptions" 
+                          (completeMethod)="filterOperator($event)"
+                          field="label"
+                          [dropdown]="true"
+                          placeholder="is equal to"
+                          styleClass="w-full sm:flex-1">
+                        </p-autoComplete>
+                        <input 
+                          type="text" 
+                          [(ngModel)]="subCondition.value"
+                          placeholder="JPMC" 
+                          class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button (click)="removeSubgroupCondition(condition, j)" 
+                                class="text-gray-400 hover:text-red-600 transition-colors" 
+                                title="Remove condition">
+                          <i class="pi pi-trash"></i>
+                        </button>
+                      </div>
+                    </ng-container>
+                    
+                    <div class="flex flex-wrap gap-3 mt-2 ml-20">
+                      <button (click)="addSubgroupCondition(condition)"
+                              class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors" 
+                              title="Add condition to subgroup">
+                        <i class="pi pi-plus"></i>
+                        Add Condition
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </ng-container>
+            </ng-container>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mt-4">
+          <button (click)="addCondition()"
+                  class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors" 
+                  title="Add new condition">
+            <i class="pi pi-plus"></i>
+            Add Condition
+          </button>
+          <button (click)="addSubgroup()"
+                  class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors" 
+                  title="Add subgroup">
+            <i class="pi pi-plus"></i>
+            Add Subgroup
+          </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-6 pt-4 border-t border-gray-200 gap-4">
+          <div class="flex flex-wrap gap-3">
+            <button (click)="addCondition()"
+                    class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors" 
+                    title="Add condition">
+              <i class="pi pi-plus"></i>
+              Add Condition
+            </button>
+            <button (click)="addSubgroup()"
+                    class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors" 
+                    title="Add group">
+              <i class="pi pi-plus"></i>
+              Add Group
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" 
+                    title="Remove all exclusions">
+              <i class="pi pi-trash"></i>
+              Remove all exclusions
+            </button>
+            <button class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" 
+                    title="Save exclusions">
+              <i class="pi pi-save"></i>
+              Save Exclusions
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Colors Section -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <h2 class="text-lg font-semibold text-gray-900 mb-2">Manual Colors</h2>
+      <p class="text-sm text-gray-600 mb-4">The colors will be processed in the next automation cycle</p>
+      
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer">
+        <div class="flex flex-col items-center">
+          <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
+          <p class="text-sm font-medium text-gray-700 mb-1">Import Colors</p>
+          <p class="text-xs text-gray-500">Manual colors bulk upload via excel. <a href="#" class="text-blue-600 underline hover:text-blue-700">Click here</a> to download sample file</p>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+        <button class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" title="Remove manual file">
+          <i class="pi pi-trash"></i>
+          Remove manual file
+        </button>
+        <button class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" title="Save colors">
+          <i class="pi pi-save"></i>
+          Save Colors
+        </button>
+      </div>
+
+      <!-- Logs Section -->
+      <div class="mt-6 pt-6 border-t border-gray-200">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+          <h3 class="text-base font-semibold text-gray-900">Logs</h3>
+          <p class="text-xs text-gray-500">Undo up to your last 4 changes</p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+            <div>
+              <p class="text-sm text-gray-900">Change saved by Sheshank Srivastava</p>
+              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+            </div>
+          </div>
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+            <div>
+              <p class="text-sm text-gray-900">Change saved by Udit Sharma</p>
+              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+            </div>
+            <button class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors" title="Revert this change">
+              <i class="pi pi-undo text-xs"></i>
+              Revert
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Corn Jobs Section -->
+  <div id="corn-jobs-section" class="flex flex-col lg:flex-row gap-8 mt-8">
+    <!-- Left Panel: Corn Jobs -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <div class="flex justify-between items-start mb-2">
+        <h2 class="text-lg font-semibold text-gray-900">Corn Jobs</h2>
+        <button class="text-gray-400 hover:text-gray-600" title="Help">
+          <i class="pi pi-question-circle"></i>
+        </button>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Add timely batch for automated color processing</p>
+
+      <!-- Job Creation Form -->
+      <div class="bg-gray-50 rounded-lg p-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="text-xs text-gray-600 mb-1 block">Job name</label>
+            <input 
+              type="text" 
+              [(ngModel)]="newJobName"
+              placeholder="US CLO N1000 Batch" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-600 mb-1 block">Time (GMT)</label>
+            <input 
+              type="time" 
+              [(ngModel)]="newJobTime"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-600 mb-1 block">Frequency</label>
+            <div class="flex gap-1">
+              <button *ngFor="let day of daysOfWeek" 
+                      (click)="toggleDay(day)"
+                      [class]="getDayColor(day.label, daysOfWeek.indexOf(day)) + (day.selected ? ' text-white' : ' text-gray-600') + ' w-8 h-8 rounded flex items-center justify-center text-sm font-semibold hover:opacity-80 transition-all cursor-pointer'"
+                      [title]="day.selected ? 'Click to remove ' + day.label : 'Click to add ' + day.label">
+                {{day.label}}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div class="flex-1 w-full">
+            <label class="text-xs text-gray-600 mb-1 block">Repeat</label>
+            <p-autoComplete 
+              [(ngModel)]="newJobRepeat" 
+              [suggestions]="filteredRepeatOptions" 
+              (completeMethod)="filterRepeat($event)"
+              field="label"
+              [dropdown]="true"
+              placeholder="Yes"
+              styleClass="w-full">
+            </p-autoComplete>
+          </div>
+          <button 
+            (click)="addJob()"
+            [disabled]="!newJobName"
+            [class.opacity-50]="!newJobName"
+            [class.cursor-not-allowed]="!newJobName"
+            class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-50 flex items-center gap-2 transition-all w-full sm:w-auto"
+            title="Add new job">
+            <i class="pi pi-plus"></i>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Jobs Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[800px]">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Job Name</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Frequency</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Repeat</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let job of cornJobs; let i = index" 
+                class="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                [class.bg-blue-50]="job.isEditing">
+              <td class="px-4 py-3 text-sm text-gray-900">
+                <span *ngIf="!job.isEditing">{{job.name}}</span>
+                <input *ngIf="job.isEditing" 
+                       [(ngModel)]="job.name"
+                       class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900">
+                <span *ngIf="!job.isEditing">{{job.time}}</span>
+                <input *ngIf="job.isEditing" 
+                       type="time"
+                       [(ngModel)]="job.time"
+                       class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-1">
+                  <span *ngFor="let day of job.frequency; let j = index" 
+                        [class]="getDayColor(day, j) + ' w-8 h-8 rounded flex items-center justify-center text-sm font-semibold text-white cursor-help'"
+                        [title]="'Scheduled on ' + day">
+                    {{day}}
+                  </span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <p-autoComplete 
+                  [(ngModel)]="job.repeat" 
+                  [suggestions]="filteredRepeatOptions" 
+                  (completeMethod)="filterRepeat($event)"
+                  field="label"
+                  [dropdown]="true"
+                  [disabled]="!job.isEditing"
+                  styleClass="w-24">
+                </p-autoComplete>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button *ngIf="!job.isEditing" 
+                          (click)="editJob(job)"
+                          class="text-gray-600 hover:text-blue-600 transition-colors"
+                          title="Edit job">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button *ngIf="job.isEditing" 
+                          (click)="saveJob(job)"
+                          class="text-green-600 hover:text-green-700 transition-colors"
+                          title="Save changes">
+                    <i class="pi pi-check"></i>
+                  </button>
+                  <button *ngIf="job.isEditing" 
+                          (click)="cancelEdit(job)"
+                          class="text-gray-600 hover:text-red-600 transition-colors"
+                          title="Cancel editing">
+                    <i class="pi pi-times"></i>
+                  </button>
+                  <button (click)="deleteJob(job)" 
+                          class="text-gray-600 hover:text-red-600 transition-colors"
+                          title="Delete job">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Logs Section -->
+      <div class="mt-6 pt-6 border-t border-gray-200">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+          <h3 class="text-base font-semibold text-gray-900">Logs</h3>
+          <p class="text-xs text-gray-500">Undo up to your last 4 changes</p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+            <div>
+              <p class="text-sm text-gray-900">Change saved by Sheshank Srivastava</p>
+              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+            </div>
+          </div>
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+            <div>
+              <p class="text-sm text-gray-900">Change saved by Udit Sharma</p>
+              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+            </div>
+            <button class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                    title="Revert this change">
+              <i class="pi pi-undo text-xs"></i>
+              Revert
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Corn Schedule -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+        <h2 class="text-lg font-semibold text-gray-900">Corn Schedule</h2>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="flex items-center gap-1 cursor-help" title="Successful executions"><span class="w-2 h-2 bg-green-500 rounded-full"></span> Success</span>
+          <span class="flex items-center gap-1 cursor-help" title="Failed executions"><span class="w-2 h-2 bg-red-500 rounded-full"></span> Error</span>
+          <span class="flex items-center gap-1 cursor-help" title="Skipped executions"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> Skipped</span>
+          <span class="flex items-center gap-1 cursor-help" title="Manual overrides"><span class="w-2 h-2 bg-blue-400 rounded-full"></span> Override</span>
+          <span class="flex items-center gap-1 cursor-help" title="Pending executions"><span class="w-2 h-2 bg-yellow-500 rounded-full"></span> Not yet started</span>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">View automation schedule and status</p>
+
+      <!-- Calendar Header -->
+      <div class="mb-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+          <div class="flex items-center gap-2">
+            <button (click)="navigateCalendar('prev')" 
+                    class="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Previous month">
+              <i class="pi pi-chevron-left"></i>
+            </button>
+            <h3 class="text-lg font-semibold text-gray-900">{{currentMonth}}</h3>
+            <button (click)="navigateCalendar('next')" 
+                    class="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Next month">
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+          <div class="flex gap-1 border border-gray-300 rounded">
+            <button class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 transition-colors">Month</button>
+            <button class="px-2 py-1 text-xs hover:bg-gray-100 transition-colors">Week</button>
+            <button class="px-2 py-1 text-xs hover:bg-gray-100 transition-colors">Day</button>
+            <button class="px-2 py-1 text-xs hover:bg-gray-100 transition-colors">List</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div class="border border-gray-200 rounded-lg overflow-hidden">
+        <div class="grid grid-cols-7 bg-gray-50">
+          <div *ngFor="let day of weekDays" 
+               class="text-center text-xs font-medium text-gray-600 py-2 border-r border-gray-200 last:border-r-0">
+            {{day}}
+          </div>
+        </div>
+        <div class="grid grid-cols-7">
+          <div *ngFor="let date of calendarDates" 
+               (click)="selectDate(date)"
+               [class.bg-gray-50]="!date.isCurrentMonth"
+               [class.bg-blue-50]="date.isSelected"
+               [class.cursor-pointer]="date.isCurrentMonth"
+               [class.cursor-not-allowed]="!date.isCurrentMonth"
+               [class.hover:bg-gray-100]="date.isCurrentMonth && !date.isSelected"
+               class="min-h-20 sm:min-h-24 border-b border-r border-gray-200 last:border-r-0 p-1 sm:p-2 transition-colors"
+               [title]="date.isCurrentMonth ? 'Click to select September ' + date.day + ', 2024' : 'Not in current month'">
+            <div class="text-sm font-medium text-gray-900 mb-1">{{date.day}}</div>
+            <div class="space-y-1">
+              <div *ngFor="let event of date.events" 
+                   [class]="getEventColor(event.type) + ' text-xs text-white px-1 sm:px-2 py-1 rounded cursor-help truncate'"
+                   [title]="event.type + ' - ' + event.label">
+                {{event.label}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restore & Email Section -->
+  <div id="restore-email-section" class="mt-8">
+    <div class="bg-white p-6 rounded-lg border border-gray-200">
+      <div class="flex justify-between items-start mb-2">
+        <h2 class="text-lg font-semibold text-gray-900">Restore & Email</h2>
+        <button class="text-gray-400 hover:text-gray-600" title="Help">
+          <i class="pi pi-question-circle"></i>
+        </button>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Allows manual email sending and data restoration</p>
+
+      <!-- Main Table -->
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full min-w-[800px]">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Details</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time (GMT)</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Process</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">US OLONI8000 Batch</td>
+              <td class="px-4 py-3 text-sm text-gray-900">Nov. 22, 2005</td>
+              <td class="px-4 py-3 text-sm text-gray-900">08:03 AM</td>
+              <td class="px-4 py-3 text-sm text-gray-900">Automated</td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button (click)="sendEmail('US OLONI8000 Batch')"
+                          class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                          title="Send Email">
+                    <i class="pi pi-send"></i>
+                    Send Email
+                  </button>
+                  <button (click)="removeData('US OLONI8000 Batch')"
+                          class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors"
+                          title="Remove Data">
+                    <i class="pi pi-trash"></i>
+                    Remove Data
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">US OLONI8000 Batch</td>
+              <td class="px-4 py-3 text-sm text-gray-900">Nov. 22, 2005</td>
+              <td class="px-4 py-3 text-sm text-gray-900">08:03 AM</td>
+              <td class="px-4 py-3 text-sm text-gray-900">Manual</td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button (click)="sendEmail('US OLONI8000 Batch')"
+                          class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                          title="Send Email">
+                    <i class="pi pi-send"></i>
+                    Send Email
+                  </button>
+                  <button (click)="removeData('US OLONI8000 Batch')"
+                          class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors"
+                          title="Remove Data">
+                    <i class="pi pi-trash"></i>
+                    Remove Data
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Divider -->
+      <hr class="my-6 border-gray-300">
+
+      <!-- Logs Section -->
+      <div>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+          <h3 class="text-base font-semibold text-gray-900">Logs</h3>
+          <p class="text-xs text-gray-500">Restore-option usage tag</p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+            <div>
+              <p class="text-sm text-gray-900">Email sent by Shusharak Shwazhan</p>
+              <p class="text-xs text-gray-500">Nov. 22, 2005</p>
+            </div>
+          </div>
+          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+            <div>
+              <p class="text-sm text-gray-900">Removed data by LUIS Sharma</p>
+              <p class="text-xs text-gray-500">Nov. 22, 2005</p>
+            </div>
+            <button (click)="revertLog(restoreEmailLogs[1])"
+                    class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                    title="Revert this change">
+              <i class="pi pi-undo text-xs"></i>
+              Revert
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Presets Section -->
+  <div id="preset-section" class="flex flex-col lg:flex-row gap-8 mt-8">
+    <!-- Left Panel: Presets List -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <div class="flex justify-between items-start mb-2">
+        <h2 class="text-lg font-semibold text-gray-900">Presets</h2>
+        <div class="flex items-center gap-2 text-xs text-gray-500">
+          <i class="pi pi-info-circle"></i>
+          <span>Data once deleted cannot be restored</span>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Allows user to easily add set of filters in a single click</p>
+
+      <!-- Presets Table -->
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full min-w-[600px]">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Preset Name</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let preset of presets" 
+                class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">{{preset.name}}</td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2 justify-end">
+                  <button (click)="editPreset(preset)"
+                          class="text-gray-600 hover:text-gray-900 transition-colors" 
+                          title="Edit preset">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button (click)="deletePreset(preset)"
+                          class="text-gray-600 hover:text-red-600 transition-colors" 
+                          title="Delete preset">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Preset Creation Form -->
+      <div class="bg-gray-50 rounded-lg p-4">
+        <input 
+          type="text" 
+          [(ngModel)]="newPresetName"
+          placeholder="Preset Name" 
+          class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        
+        <div class="space-y-3">
+          <!-- WHERE Condition -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <span class="text-sm font-medium text-gray-700 w-20">Where</span>
+            <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors" title="Drag to reorder">
+              <i class="pi pi-bars text-xs"></i>
+            </button>
+            <p-autoComplete 
+              [(ngModel)]="presetConditions[0].column" 
+              [suggestions]="filteredColumnOptions" 
+              (completeMethod)="filterColumn($event)"
+              field="label"
+              [dropdown]="true"
+              placeholder="Bwic Cover"
+              styleClass="w-full sm:flex-1">
+            </p-autoComplete>
+            <p-autoComplete 
+              [(ngModel)]="presetConditions[0].operator" 
+              [suggestions]="filteredOperatorOptions" 
+              (completeMethod)="filterOperator($event)"
+              field="label"
+              [dropdown]="true"
+              placeholder="is equal to"
+              styleClass="w-full sm:flex-1">
+            </p-autoComplete>
+            <input 
+              type="text" 
+              [(ngModel)]="presetConditions[0].value"
+              placeholder="JPMC" 
+              class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button class="text-gray-400 hover:text-red-600 transition-colors opacity-0 cursor-default" disabled>
+              <i class="pi pi-trash"></i>
+            </button>
+          </div>
+
+          <!-- Additional Conditions -->
+          <ng-container *ngFor="let condition of presetConditions; let i = index">
+            <ng-container *ngIf="i > 0">
+              
+              <!-- Regular Condition -->
+              <div *ngIf="!condition.isSubgroup" class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 w-20">{{ getConditionLabel(condition, i) }}</span>
+                <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors" title="Drag to reorder">
+                  <i class="pi pi-bars text-xs"></i>
+                </button>
+                <p-autoComplete 
+                  [(ngModel)]="condition.column" 
+                  [suggestions]="filteredColumnOptions" 
+                  (completeMethod)="filterColumn($event)"
+                  field="label"
+                  [dropdown]="true"
+                  placeholder="Bwic Cover"
+                  styleClass="w-full sm:flex-1">
+                </p-autoComplete>
+                <p-autoComplete 
+                  [(ngModel)]="condition.operator" 
+                  [suggestions]="filteredOperatorOptions" 
+                  (completeMethod)="filterOperator($event)"
+                  field="label"
+                  [dropdown]="true"
+                  placeholder="is equal to"
+                  styleClass="w-full sm:flex-1">
+                </p-autoComplete>
+                <input 
+                  type="text" 
+                  [(ngModel)]="condition.value"
+                  placeholder="JPMC" 
+                  class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button (click)="removePresetCondition(i)" 
+                        class="text-gray-400 hover:text-red-600 transition-colors" 
+                        title="Remove condition">
+                  <i class="pi pi-trash"></i>
+                </button>
+              </div>
+
+              <!-- Subgroup Condition -->
+              <div *ngIf="condition.isSubgroup" class="border border-gray-300 rounded-lg p-4 bg-white">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-gray-700">Subgroup</span>
+                  <button (click)="removePresetCondition(i)" 
+                          class="text-gray-400 hover:text-red-600 transition-colors" 
+                          title="Remove subgroup">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+                
+                <div class="space-y-3 ml-4">
+                  <ng-container *ngFor="let subCondition of condition.conditions; let j = index">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <span class="text-sm font-medium text-gray-700 w-16">{{ getConditionLabel(subCondition, j) }}</span>
+                      <button class="w-8 h-8 bg-gray-700 text-white rounded flex items-center justify-center hover:bg-gray-800 transition-colors">
+                        <i class="pi pi-bars text-xs"></i>
+                      </button>
+                      <p-autoComplete 
+                        [(ngModel)]="subCondition.column" 
+                        [suggestions]="filteredColumnOptions" 
+                        (completeMethod)="filterColumn($event)"
+                        field="label"
+                        [dropdown]="true"
+                        placeholder="Bwic Cover"
+                        styleClass="w-full sm:flex-1">
+                      </p-autoComplete>
+                      <p-autoComplete 
+                        [(ngModel)]="subCondition.operator" 
+                        [suggestions]="filteredOperatorOptions" 
+                        (completeMethod)="filterOperator($event)"
+                        field="label"
+                        [dropdown]="true"
+                        placeholder="is equal to"
+                        styleClass="w-full sm:flex-1">
+                      </p-autoComplete>
+                      <input 
+                        type="text" 
+                        [(ngModel)]="subCondition.value"
+                        placeholder="JPMC" 
+                        class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <button (click)="removeSubgroupCondition(condition, j)" 
+                              class="text-gray-400 hover:text-red-600 transition-colors">
+                        <i class="pi pi-trash"></i>
+                      </button>
+                    </div>
+                  </ng-container>
+                  
+                  <div class="flex flex-wrap gap-3 mt-2 ml-20">
+                    <button (click)="addSubgroupCondition(condition)"
+                            class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                      <i class="pi pi-plus"></i>
+                      Add Condition
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mt-4">
+          <button (click)="addPresetCondition()"
+                  class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+            <i class="pi pi-plus"></i>
+            Add Condition
+          </button>
+          <button (click)="addPresetSubgroup()"
+                  class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+            <i class="pi pi-plus"></i>
+            Add Subgroup
+          </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-6 pt-4 border-t border-gray-200 gap-4">
+          <div class="flex flex-wrap gap-3">
+            <button (click)="addPresetCondition()"
+                    class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+              <i class="pi pi-plus"></i>
+              Add Condition
+            </button>
+            <button (click)="addPresetSubgroup()"
+                    class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+              <i class="pi pi-plus"></i>
+              Add Group
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button (click)="clearPreset()"
+                    class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors">
+              <i class="pi pi-times"></i>
+              Clear
+            </button>
+            <button (click)="savePreset()"
+                    [disabled]="!newPresetName"
+                    [class.opacity-50]="!newPresetName"
+                    [class.cursor-not-allowed]="!newPresetName"
+                    class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors">
+              <i class="pi pi-save"></i>
+              Save Preset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Logs -->
+    <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+        <h2 class="text-lg font-semibold text-gray-900">Logs</h2>
+        <p class="text-xs text-gray-500">Preset saved and deleted logs</p>
+      </div>
+
+      <div class="space-y-2">
+        <div *ngFor="let log of presetLogs" 
+             class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+          <div>
+            <p class="text-sm text-gray-900">{{log.description}}</p>
+            <p class="text-xs text-gray-500">{{log.date}}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

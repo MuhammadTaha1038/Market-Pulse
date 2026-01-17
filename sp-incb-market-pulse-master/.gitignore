@@ -1,0 +1,24 @@
+.idea/
+
+__pycache__/
+*.py[cod]
+
+venv/
+
+.terraform/
+planfile
+
+# Oracle sample data and credentials
+sample_data/
+*.csv
+*.sql
+*_sample_*.json
+
+# Environment files with credentials
+.env
+.env.local
+credentials.json
+
+# Oracle Instant Client
+instantclient*/
+

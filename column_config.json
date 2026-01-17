@@ -1,0 +1,151 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-01-17",
+  "oracle_table": "MARKET_COLORS",
+  "columns": [
+    {
+      "id": 1,
+      "oracle_name": "MESSAGE_ID",
+      "display_name": "Message ID",
+      "data_type": "INTEGER",
+      "required": true,
+      "description": "Unique message identifier"
+    },
+    {
+      "id": 2,
+      "oracle_name": "TICKER",
+      "display_name": "Ticker",
+      "data_type": "VARCHAR",
+      "required": true,
+      "description": "Security ticker symbol"
+    },
+    {
+      "id": 3,
+      "oracle_name": "SECTOR",
+      "display_name": "Sector",
+      "data_type": "VARCHAR",
+      "required": true,
+      "description": "Asset class/sector"
+    },
+    {
+      "id": 4,
+      "oracle_name": "CUSIP",
+      "display_name": "CUSIP",
+      "data_type": "VARCHAR",
+      "required": true,
+      "description": "CUSIP identifier"
+    },
+    {
+      "id": 5,
+      "oracle_name": "DATE",
+      "display_name": "Date",
+      "data_type": "DATE",
+      "required": true,
+      "description": "Trade/color date"
+    },
+    {
+      "id": 6,
+      "oracle_name": "PRICE_LEVEL",
+      "display_name": "Price Level",
+      "data_type": "FLOAT",
+      "required": true,
+      "description": "Price level"
+    },
+    {
+      "id": 7,
+      "oracle_name": "BID",
+      "display_name": "BID",
+      "data_type": "FLOAT",
+      "required": false,
+      "description": "Bid price"
+    },
+    {
+      "id": 8,
+      "oracle_name": "ASK",
+      "display_name": "ASK",
+      "data_type": "FLOAT",
+      "required": false,
+      "description": "Ask/Offer price"
+    },
+    {
+      "id": 9,
+      "oracle_name": "PX",
+      "display_name": "PX",
+      "data_type": "FLOAT",
+      "required": true,
+      "description": "Price (used for sorting)"
+    },
+    {
+      "id": 10,
+      "oracle_name": "SOURCE",
+      "display_name": "Source",
+      "data_type": "VARCHAR",
+      "required": true,
+      "description": "Data source/bank"
+    },
+    {
+      "id": 11,
+      "oracle_name": "BIAS",
+      "display_name": "Bias",
+      "data_type": "VARCHAR",
+      "required": true,
+      "description": "Color type (BID, OFFER, etc)"
+    },
+    {
+      "id": 12,
+      "oracle_name": "RANK",
+      "display_name": "Rank",
+      "data_type": "INTEGER",
+      "required": true,
+      "description": "Pre-calculated rank (1-6)"
+    },
+    {
+      "id": 13,
+      "oracle_name": "COV_PRICE",
+      "display_name": "Coverage Price",
+      "data_type": "FLOAT",
+      "required": false,
+      "description": "Coverage price reference"
+    },
+    {
+      "id": 14,
+      "oracle_name": "PERCENT_DIFF",
+      "display_name": "Percent Diff",
+      "data_type": "FLOAT",
+      "required": false,
+      "description": "Percentage difference"
+    },
+    {
+      "id": 15,
+      "oracle_name": "PRICE_DIFF",
+      "display_name": "Price Diff",
+      "data_type": "FLOAT",
+      "required": false,
+      "description": "Price difference"
+    },
+    {
+      "id": 16,
+      "oracle_name": "CONFIDENCE",
+      "display_name": "Confidence",
+      "data_type": "INTEGER",
+      "required": false,
+      "description": "Confidence score (0-10)"
+    },
+    {
+      "id": 17,
+      "oracle_name": "DATE_1",
+      "display_name": "Date 1",
+      "data_type": "DATE",
+      "required": false,
+      "description": "Secondary/fallback date"
+    },
+    {
+      "id": 18,
+      "oracle_name": "DIFF_STATUS",
+      "display_name": "Diff Status",
+      "data_type": "VARCHAR",
+      "required": false,
+      "description": "Difference status"
+    }
+  ]
+}

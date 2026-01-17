@@ -1,0 +1,102 @@
+<div class="p-6 space-y-4">
+
+  <!-- Top Toolbar -->
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        pInputText
+        [(ngModel)]="searchText"
+        placeholder="Search Message ID"
+        class="p-inputtext-sm w-64"
+      />
+      <button pButton label="Add New" icon="pi pi-plus" class="p-button-sm p-button-outlined"></button>
+      <button pButton label="Run Rules" icon="pi pi-cog" class="p-button-sm p-button-outlined"></button>
+      <button pButton label="Filters" icon="pi pi-filter" class="p-button-sm p-button-outlined"></button>
+      <button pButton label="Import via Excel" icon="pi pi-upload" class="p-button-sm p-button-outlined"
+        (click)="openImportDialog()"></button>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="text-sm text-gray-600">Total Count: <strong>{{ colors.length }}</strong></div>
+      <button
+        pButton
+        label="Run Automation"
+        icon="pi pi-play"
+        class="p-button-sm p-button-rounded"
+        style="background-color:white;color:#0b0b14;border-color:#d1d5db"
+        (click)="runAutomation()"
+      ></button>
+    </div>
+  </div>
+
+  <!-- PrimeNG Table -->
+  <p-table
+    [value]="colors"
+    [paginator]="true"
+    [rows]="10"
+    responsiveLayout="scroll"
+    [rowsPerPageOptions]="[5,10,20]"
+    class="shadow-md rounded-xl overflow-hidden"
+  >
+    <ng-template pTemplate="header">
+      <tr>
+        <th>#</th>
+        <th>Message ID</th>
+        <th>Ticket ID</th>
+        <th>CUSIP</th>
+        <th>Bias</th>
+        <th>Date</th>
+        <th>BID</th>
+        <th>MID</th>
+        <th>ASK</th>
+        <th>Source</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-row let-i="rowIndex">
+      <tr>
+        <td>{{ i + 1 }}</td>
+        <td>{{ row.messageId }}</td>
+        <td>{{ row.ticketId }}</td>
+        <td>{{ row.cusip }}</td>
+        <td>{{ row.bias }}</td>
+        <td>{{ row.date }}</td>
+        <td>{{ row.bid }}</td>
+        <td>{{ row.mid }}</td>
+        <td>{{ row.ask }}</td>
+        <td>{{ row.source }}</td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <!-- File Import Dialog -->
+  <p-dialog
+    header="Import Color File"
+    [(visible)]="showImportDialog"
+    [modal]="true"
+    [style]="{ width: '400px' }"
+    [closable]="false"
+  >
+    <div class="flex flex-col items-center justify-center text-center space-y-4 py-6">
+      <i class="pi pi-upload text-4xl text-gray-400"></i>
+      <p class="text-gray-600 text-sm">Drop your CSV or Excel file here to import color data.</p>
+
+      <p-fileUpload
+        mode="basic"
+        name="colorFile"
+        accept=".csv,.xlsx"
+        chooseLabel="Select File"
+        (onSelect)="onUpload($event)"
+      ></p-fileUpload>
+
+      <button
+        pButton
+        label="Cancel"
+        class="p-button-outlined p-button-sm"
+        (click)="onCancelUpload()"
+      ></button>
+    </div>
+  </p-dialog>
+
+</div>

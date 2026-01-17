@@ -1,0 +1,40 @@
+/* Custom styles for the filter dialog */
+:host ::ng-deep .filter-dialog .p-dialog-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .filter-dialog .p-dialog-content {
+  padding: 1.5rem;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete {
+  width: 100%;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete .p-autocomplete-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-items {
+  padding: 0.25rem 0;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-item:hover {
+  background-color: #f3f4f6;
+}

@@ -1,0 +1,9 @@
+# Lines starting with '#' are comments.
+# Each line is a file pattern followed by one or more owners.
+# Please find https://docs.gitlab.com/ee/user/project/code_owners.html for documentation
+
+# Ending a path in a `/` will specify the code owners for every file
+# nested in that directory, on any level
+/infra/ @pvr-cas-team
+
+CODEOWNERS  @pvr-cas-team

@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+@import 'tailwindcss-primeui';
+@custom-variant dark (&:where(.app-dark, .app-dark *));
+
+@theme {
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+    --breakpoint-2xl: 1920px;
+} 
+ 
+
+
+/* PrimeNG Theme Override - Remove ALL Green Colors */
+:root {
+  /* Override PrimeNG CSS variables */
+  --primary-50: #f8f9fa !important;
+  --primary-100: #e9ecef !important;
+  --primary-200: #dee2e6 !important;
+  --primary-300: #ced4da !important;
+  --primary-400: #adb5bd !important;
+  --primary-500: #6c757d !important;
+  --primary-600: #495057 !important;
+  --primary-700: #343a40 !important;
+  --primary-800: #212529 !important;
+  --primary-900: #121416 !important;
+  
+  --p-primary-50: #f8f9fa !important;
+  --p-primary-100: #e9ecef !important;
+  --p-primary-200: #dee2e6 !important;
+  --p-primary-300: #ced4da !important;
+  --p-primary-400: #adb5bd !important;
+  --p-primary-500: #6c757d !important;
+  --p-primary-600: #495057 !important;
+  --p-primary-700: #343a40 !important;
+  --p-primary-800: #212529 !important;
+  --p-primary-900: #121416 !important;
+  
+  --primary-color: #212529 !important;
+  --primary-color-text: #ffffff !important;
+}
+
+/* Force override ALL PrimeNG buttons */
+.p-button {
+  background-color: #212529 !important;
+  border-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+.p-button:enabled:hover {
+  background-color: #343a40 !important;
+  border-color: #343a40 !important;
+  color: #ffffff !important;
+}
+
+.p-button:enabled:active {
+  background-color: #121416 !important;
+  border-color: #121416 !important;
+  color: #ffffff !important;
+}
+
+.p-button:focus {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #212529 !important;
+}
+
+/* Outlined buttons */
+.p-button.p-button-outlined {
+  background-color: transparent !important;
+  color: #212529 !important;
+  border: 1px solid #212529 !important;
+}
+
+.p-button.p-button-outlined:enabled:hover {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+/* Text buttons */
+.p-button.p-button-text {
+  background-color: transparent !important;
+  color: #212529 !important;
+  border-color: transparent !important;
+}
+
+.p-button.p-button-text:enabled:hover {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+}
+
+/* Chips */
+.p-chip {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+  border: 1px solid #ced4da !important;
+}
+
+/* Badges */
+.p-badge {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+/* Input fields */
+.p-inputtext:enabled:focus {
+  border-color: #212529 !important;
+  box-shadow: 0 0 0 2px #212529 !important;
+}
+
+/* Dropdown */
+.p-dropdown:not(.p-disabled).p-focus {
+  border-color: #212529 !important;
+  box-shadow: 0 0 0 2px #212529 !important;
+}
+
+/* Menus */
+.p-menuitem-link:focus {
+  box-shadow: inset 0 0 0 0.15rem #212529 !important;
+}
+
+/* Remove any green from active states */
+.p-highlight {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+}
+
+/* Calendar/Datepicker */
+.p-datepicker .p-datepicker-today > span {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+.p-datepicker .p-datepicker-today > span:hover {
+  background-color: #343a40 !important;
+}
+
+
+
+/* Override any component that uses primary color */
+[class*="p-"] {
+  /* This will catch any component using primary color */
+}
