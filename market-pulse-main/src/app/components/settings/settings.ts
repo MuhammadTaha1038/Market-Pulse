@@ -3,6 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ActivatedRoute, Router } from '@angular/router';
+import { HttpClientModule } from '@angular/common/http';
+
+// Import API Services
+import { RulesService } from '../../services/rules.service';
+import { CronJobsService } from '../../services/cron-jobs.service';
+import { ManualUploadService } from '../../services/manual-upload.service';
+import { BackupService } from '../../services/backup.service';
+import { LogsService, UnifiedLogEntry } from '../../services/logs.service';
+import { ConfigService } from '../../services/config.service';
 
 interface CornJob {
   name: string;
@@ -64,7 +73,8 @@ interface RestoreData {
   imports: [
     CommonModule,
     FormsModule,
-    AutoCompleteModule
+    AutoCompleteModule,
+    HttpClientModule
   ],
   templateUrl: './settings.html'
 })
@@ -80,28 +90,25 @@ export class Settings implements OnInit {
   
   filteredActiveOptions: any[] = [];
 
-  // Column options for the rule builder
-  columnOptions: any[] = [
-    { label: 'Bwic Cover', value: 'Bwic Cover' },
-    { label: 'Security Name', value: 'Security Name' },
-    { label: 'Issuer', value: 'Issuer' },
-    { label: 'Cusip', value: 'Cusip' },
-    { label: 'Price', value: 'Price' },
-    { label: 'Yield', value: 'Yield' }
-  ];
+  // Column options for the rule builder (loaded dynamically from API)
+  columnOptions: any[] = [];
   
   filteredColumnOptions: any[] = [];
 
-  // Operator options
-  operatorOptions: any[] = [
-    { label: 'is equal to', value: 'is equal to' },
-    { label: 'is not equal to', value: 'is not equal to' },
-    { label: 'contains', value: 'contains' },
-    { label: 'does not contain', value: 'does not contain' },
-    { label: 'starts with', value: 'starts with' },
-    { label: 'ends with', value: 'ends with' },
-    { label: 'is greater than', value: 'is greater than' },
-    { label: 'is less than', value: 'is less than' }
+  // Operator options (Client-Specified)
+  // Numeric operators: Equal to, Not equal to, Less than, Greater than, Less than equal to, Greater than equal to, Between
+  // Text operators: Equal to (Exact words), Not equal to, Contains, Starts with, Ends with
+  operatorOptions: string[] = [
+    'equal to',
+    'not equal to',
+    'less than',
+    'greater than',
+    'less than equal to',
+    'greater than equal to',
+    'between',
+    'contains',
+    'starts with',
+    'ends with'
   ];
   
   filteredOperatorOptions: any[] = [];
@@ -118,6 +125,9 @@ export class Settings implements OnInit {
 
   showAdditionalConditions: boolean = false;
   newRuleName: string = '';
+
+  // Rules from backend API
+  displayedRules: any[] = [];
 
   // Corn Jobs data
   daysOfWeek: any[] = [
@@ -178,18 +188,16 @@ export class Settings implements OnInit {
     }
   ];
 
-  restoreEmailLogs: RestoreEmailLog[] = [
-    {
-      description: 'Email sent by Shusharak Shwazhan',
-      date: 'Nov. 22, 2005',
-      canRevert: false
-    },
-    {
-      description: 'Removed data by LUIS Sharma', 
-      date: 'Nov. 22, 2005',
-      canRevert: true
-    }
-  ];
+  // Manual upload history - will be loaded from backend
+  manualUploadHistory: any[] = [];
+
+  // Logs for each section - loaded from backend
+  ruleLogs: UnifiedLogEntry[] = [];
+  cronLogs: UnifiedLogEntry[] = [];
+  manualUploadLogs: UnifiedLogEntry[] = [];
+  backupLogs: UnifiedLogEntry[] = [];
+
+  restoreEmailLogs: RestoreEmailLog[] = [];
 
   restoreLogs: RestoreEmailLog[] = [
     {
@@ -243,7 +251,13 @@ export class Settings implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private rulesService: RulesService,
+    private cronJobsService: CronJobsService,
+    private manualUploadService: ManualUploadService,
+    private backupService: BackupService,
+    private logsService: LogsService,
+    private configService: ConfigService
   ) {
     this.generateCalendar();
   }
@@ -259,7 +273,504 @@ export class Settings implements OnInit {
         }, 100);
       }
     });
+  this.loadAllLogs();
+  
+    // Load data from APIs
+    this.loadColumnOptions();
+    this.loadRules();
+    this.loadCronJobs();
+    this.loadBackupHistory();
+    this.loadManualUploadHistory();
   }
+
+  // ===== API INTEGRATION METHODS =====
+
+  // Column Configuration API Methods
+  loadColumnOptions(): void {
+    this.configService.getAllColumns().subscribe({
+      next: (columns) => {
+        // Store column names directly as strings
+        this.columnOptions = columns;
+        
+        // Set default column if ruleConditions is empty or has default value
+        if (this.ruleConditions.length > 0 && this.columnOptions.length > 0) {
+          if (!this.ruleConditions[0].column || this.ruleConditions[0].column === 'Bwic Cover') {
+            this.ruleConditions[0].column = this.columnOptions[0];
+          }
+        }
+        
+        console.log('Loaded column options:', this.columnOptions);
+      },
+      error: (error) => {
+        console.error('Error loading column options:', error);
+        // Fallback to default columns if API fails
+        this.columnOptions = [
+          'Bwic Cover',
+          'Security Name',
+          'Issuer',
+          'Cusip'
+        ];
+      }
+    });
+  }
+
+  // Rules API Methods
+  loadRules(): void {
+    console.log('Loading rules from backend...');
+    this.rulesService.getAllRules().subscribe({
+      next: (response) => {
+        console.log('Rules response:', response);
+        if (response.rules && response.rules.length > 0) {
+          // Store rules for display in table
+          this.displayedRules = response.rules;
+          
+          // Also update ruleConditions for the form (flatten first rule's conditions)
+          const firstRule = response.rules[0];
+          if (firstRule.conditions && firstRule.conditions.length > 0) {
+            this.ruleConditions = firstRule.conditions.map((condition: any, index: number) => ({
+              type: index === 0 ? 'where' : condition.type,
+              column: condition.column,
+              operator: condition.operator,
+              value: condition.value
+            }));
+            
+            if (this.ruleConditions.length > 1) {
+              this.showAdditionalConditions = true;
+            }
+          }
+          
+          console.log('Displayed rules:', this.displayedRules);
+        } else {
+          console.log('No rules found');
+          this.displayedRules = [];
+          this.ruleConditions = [{
+            type: 'where',
+            column: 'Bwic Cover',
+            operator: 'is equal to',
+            value: ''
+          }];
+        }
+      },
+      error: (error) => {
+        console.error('Error loading rules:', error);
+        this.showToast('Failed to load rules from server');
+        this.displayedRules = [];
+      }
+    });
+  }
+
+  saveRule(): void {
+    if (!this.newRuleName) {
+      this.showToast('Please enter a rule name');
+      return;
+    }
+
+    // Convert rule conditions to backend format (conditions array)
+    const ruleData: any = {
+      name: this.newRuleName,
+      conditions: this.ruleConditions.map(condition => ({
+        type: condition.type,
+        column: condition.column,
+        operator: condition.operator,
+        value: condition.value
+      })),
+      is_active: true
+    };
+
+    console.log('Creating rule:', ruleData);
+
+    this.rulesService.createRule(ruleData as any).subscribe({
+      next: (response) => {
+        console.log('Rule created:', response);
+        if (response.message) {
+          this.showToast('Rule saved successfully!');
+          this.newRuleName = '';
+          // Reset to default WHERE condition
+          this.ruleConditions = [{
+            type: 'where',
+            column: 'Bwic Cover',
+            operator: 'is equal to',
+            value: ''
+          }];
+          this.showAdditionalConditions = false;
+          this.loadRules(); // Reload rules
+        }
+      },
+      error: (error) => {
+        console.error('Error saving rule:', error);
+        this.showToast('Failed to save rule');
+      }
+    });
+  }
+
+  deleteRule(ruleId: number): void {
+    if (!ruleId) {
+      this.showToast('Rule ID not found');
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this rule?')) {
+      this.rulesService.deleteRule(ruleId).subscribe({
+        next: (response) => {
+          if (response.message) {
+            this.showToast('Rule deleted successfully!');
+            this.loadRules(); // Reload rules
+          }
+        },
+        error: (error) => {
+          console.error('Error deleting rule:', error);
+          this.showToast('Failed to delete rule');
+        }
+      });
+    }
+  }
+
+  editRule(rule: any): void {
+    // Populate form with rule data for editing
+    this.newRuleName = rule.name;
+    if (rule.conditions && rule.conditions.length > 0) {
+      this.ruleConditions = rule.conditions.map((condition: any, index: number) => ({
+        type: index === 0 ? 'where' : condition.type,
+        column: condition.column,
+        operator: condition.operator,
+        value: condition.value
+      }));
+      
+      if (this.ruleConditions.length > 1) {
+        this.showAdditionalConditions = true;
+      }
+    }
+    
+    // Scroll to form
+    this.scrollToSection('rules-section');
+    this.showToast('Edit the rule and click "Save Exclusions" to update');
+  }
+
+  clearRule(): void {
+    // Reset form to initial state
+    this.newRuleName = '';
+    this.ruleConditions = [{
+      type: 'where',
+      column: 'Bwic Cover',
+      operator: 'is equal to',
+      value: ''
+    }];
+    this.showAdditionalConditions = false;
+    this.showToast('Rule form cleared');
+  }
+
+  // Cron Jobs API Methods
+  loadCronJobs(): void {
+    this.cronJobsService.getAllJobs().subscribe({
+      next: (response) => {
+        if (response.jobs && response.jobs.length > 0) {
+          // Convert API cron jobs to component format
+          this.cornJobs = response.jobs.map((job: any) => ({
+            name: job.name,
+            time: job.next_run || '6:30 PM',
+            frequency: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], // Default all days
+            repeat: job.is_active ? 'Yes' : 'No',
+            jobId: job.id,
+            active: job.is_active
+          }));
+        }
+      },
+      error: (error) => {
+        console.error('Error loading cron jobs:', error);
+        this.showToast('Failed to load cron jobs from server');
+      }
+    });
+  }
+
+  saveCronJob(): void {
+    if (!this.newJobName || !this.newJobTime) {
+      this.showToast('Please enter job name and time');
+      return;
+    }
+
+    // Parse time (e.g., "11:40" -> hour=11, minute=40)
+    const [hour, minute] = this.newJobTime.split(':');
+    
+    // Build cron expression: "minute hour * * *" (every day at specified time)
+    // Example: "40 11 * * *" means 11:40 AM every day
+    const cronExpression = `${minute} ${hour} * * *`;
+    
+    const jobData: any = {
+      name: this.newJobName,
+      schedule: cronExpression,  // Backend expects 'schedule' not 'schedule_config'
+      is_active: this.newJobRepeat === 'Yes'
+    };
+
+    this.cronJobsService.createJob(jobData).subscribe({
+      next: (response) => {
+        if (response.message) {
+          this.showToast('Cron job created successfully!');
+          this.newJobName = '';
+          this.newJobTime = '11:40';
+          this.newJobRepeat = 'Yes';
+          this.loadCronJobs(); // Reload jobs
+        }
+      },
+      error: (error) => {
+        console.error('Error creating cron job:', error);
+        this.showToast('Failed to create cron job');
+      }
+    });
+  }
+
+  triggerCronJob(jobId: number): void {
+    if (!jobId) {
+      this.showToast('Job ID not found');
+      return;
+    }
+
+    this.cronJobsService.triggerJob(jobId).subscribe({
+      next: (response) => {
+        if (response.message) {
+          this.showToast('Cron job triggered successfully!');
+        }
+      },
+      error: (error) => {
+        console.error('Error triggering cron job:', error);
+        this.showToast('Failed to trigger cron job');
+      }
+    });
+  }
+
+  deleteCronJob(jobId: number): void {
+    if (!jobId) {
+      this.showToast('Job ID not found');
+      return;
+    }
+
+    this.cronJobsService.deleteJob(jobId).subscribe({
+      next: (response) => {
+        if (response.message) {
+          this.showToast('Cron job deleted successfully!');
+          this.loadCronJobs(); // Reload jobs
+        }
+      },
+      error: (error) => {
+        console.error('Error deleting cron job:', error);
+        this.showToast('Failed to delete cron job');
+      }
+    });
+  }
+
+  // Backup & Restore API Methods
+  loadBackupHistory(): void {
+    this.backupService.getBackupHistory().subscribe({
+      next: (response) => {
+        if (response.backups && response.backups.length > 0) {
+          // Convert API backup history to component format
+          this.restoreData = response.backups.map((backup: any) => ({
+            details: backup.filename || backup.description || 'Backup',
+            date: new Date(backup.created_at).toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'short', 
+              day: '2-digit' 
+            }),
+            time: new Date(backup.created_at).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            process: 'Manual',
+            backupId: backup.id
+          }));
+        }
+      },
+      error: (error) => {
+        console.error('Error loading backup history:', error);
+        this.showToast('Failed to load backup history from server');
+      }
+    });
+    
+    // Load activity logs from backend
+    this.backupService.getActivityLogs().subscribe({
+      next: (response) => {
+        if (response.logs && response.logs.length > 0) {
+          this.restoreEmailLogs = response.logs.map((log: any) => ({
+            description: `${log.action} by ${log.user}`,  // Backend returns 'user' not 'performed_by'
+            date: new Date(log.timestamp).toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'short', 
+              day: '2-digit' 
+            }),
+            canRevert: log.action.toLowerCase().includes('delete') || log.action.toLowerCase().includes('remove')
+          }));
+        }
+      },
+      error: (error) => {
+        console.error('Error loading activity logs:', error);
+      }
+    });
+  }
+
+  createBackup(description: string = 'Manual Backup', createdBy: string = 'User'): void {
+    this.backupService.createBackup(description, createdBy).subscribe({
+      next: (response) => {
+        if (response.message) {
+          this.showToast('Backup created successfully!');
+          this.loadBackupHistory(); // Reload backup history
+        }
+      },
+      error: (error) => {
+        console.error('Error creating backup:', error);
+        this.showToast('Failed to create backup');
+      }
+    });
+  }
+
+  restoreFromBackup(backupId: number, restoredBy: string = 'User', reason: string = 'Restore from Settings page'): void {
+    if (!backupId) {
+      this.showToast('Backup ID not found');
+      return;
+    }
+
+    this.backupService.restoreBackup(backupId, restoredBy, reason).subscribe({
+      next: (response) => {
+        if (response.message) {
+          this.showToast('Backup restored successfully!');
+          // Reload all data after restore
+          this.loadRules();
+          this.loadCronJobs();
+          this.loadBackupHistory();
+        }
+      },
+      error: (error) => {
+        console.error('Error restoring backup:', error);
+        this.showToast('Failed to restore backup');
+      }
+    });
+  }
+
+  // Manual Upload API Methods
+  uploadFile(event: any): void {
+    const file = event.target?.files?.[0];
+    if (!file) {
+      this.showToast('No file selected');
+      return;
+    }
+
+    // Validate file type
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      this.showToast('Please upload an Excel file (.xlsx or .xls)');
+      return;
+    }
+
+    this.showToast('Uploading file... Please wait');
+
+    this.manualUploadService.uploadFile(file).subscribe({
+      next: (response) => {
+        if (response.success) {
+          // File is now buffered, not processed immediately
+          const rowsUploaded = response.rows_uploaded || 0;
+          const message = response.message || 'File uploaded successfully';
+          
+          this.showToast(`✅ Success! File buffered with ${rowsUploaded} rows. ${message}`);
+          
+          // Reload logs to show the pending upload
+          this.loadManualUploadHistory();
+          this.loadAllLogs();
+          
+          // No redirect - file will be processed in next cron run
+        } else {
+          // Show detailed error
+          const errorMsg = response.error || 'Upload failed';
+          const validationErrors = response.validation_errors?.join(', ') || '';
+          this.showToast(`❌ Upload failed: ${errorMsg}. ${validationErrors}`);
+        }
+      },
+      error: (error) => {
+        console.error('Error uploading file:', error);
+        const errorDetail = error.error?.detail || error.message || 'Unknown error';
+        this.showToast(`❌ Upload failed: ${errorDetail}`);
+      }
+    });
+  }
+
+  loadManualUploadHistory(): void {
+    this.manualUploadService.getUploadHistory().subscribe({
+      next: (response) => {
+        if (response.uploads && response.uploads.length > 0) {
+          this.manualUploadHistory = response.uploads.map((upload: any) => ({
+            id: upload.id,
+            filename: upload.filename,
+            uploadedBy: upload.uploaded_by,
+            uploadedAt: new Date(upload.uploaded_at).toLocaleString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            rowsProcessed: upload.rows_processed,
+            status: upload.status
+          }));
+        }
+      },
+      error: (error) => {
+        console.error('Error loading manual upload history:', error);
+      }
+    });
+  }
+
+  clearManualUpload(): void {
+    // Reset the file input
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+    this.showToast('File input cleared');
+  }
+
+  deleteManualUpload(uploadId: number): void {
+    if (!uploadId) {
+      this.showToast('Upload ID not found');
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this upload record?')) {
+      this.manualUploadService.deleteUpload(uploadId).subscribe({
+        next: (response) => {
+          if (response.message) {
+            this.showToast('Upload deleted successfully!');
+            this.loadManualUploadHistory(); // Reload history
+          }
+        },
+        error: (error) => {
+          console.error('Error deleting upload:', error);
+          this.showToast('Failed to delete upload');
+        }
+      });
+    }
+  }
+
+  // ===== END API INTEGRATION METHODS =====
+
+  // ===== LOGS LOADING METHODS =====
+
+  loadAllLogs(): void {
+    // Load recent logs from all sources (2 most recent per section)
+    this.logsService.getAllRecentLogs(2).subscribe({
+      next: (logs) => {
+        this.ruleLogs = logs.rules;
+        this.cronLogs = logs.cron;
+        this.manualUploadLogs = logs.manual;
+        this.backupLogs = logs.backup;
+      },
+      error: (error) => {
+        console.error('Error loading logs:', error);
+      }
+    });
+  }
+
+  formatLogTimestamp(timestamp: string): string {
+    return this.logsService.formatTimestamp(timestamp);
+  }
+
+  // ===== END LOGS METHODS =====
+
 
   // Navigation method - Updated with highlight effect
   scrollToSection(sectionId: string): void {
@@ -285,15 +796,15 @@ export class Settings implements OnInit {
 
   filterColumn(event: any): void {
     const query = event.query.toLowerCase();
-    this.filteredColumnOptions = this.columnOptions.filter(option =>
-      option.label.toLowerCase().includes(query)
+    this.filteredColumnOptions = this.columnOptions.filter(option => 
+      option.toLowerCase().includes(query)
     );
   }
 
   filterOperator(event: any): void {
     const query = event.query.toLowerCase();
     this.filteredOperatorOptions = this.operatorOptions.filter(option =>
-      option.label.toLowerCase().includes(query)
+      option.toLowerCase().includes(query)
     );
   }
 
@@ -370,21 +881,8 @@ export class Settings implements OnInit {
   }
 
   addJob(): void {
-    if (this.newJobName && this.newJobTime) {
-      const selectedDays = this.daysOfWeek.filter(d => d.selected).map(d => d.label);
-      this.cornJobs.push({
-        name: this.newJobName,
-        time: this.newJobTime,
-        frequency: selectedDays,
-        repeat: this.newJobRepeat
-      });
-      
-      // Reset form
-      this.newJobName = '';
-      this.newJobTime = '11:40';
-      this.newJobRepeat = 'Yes';
-      this.showToast('Job added successfully!');
-    }
+    // Call API method instead of directly manipulating array
+    this.saveCronJob();
   }
 
   editJob(job: CornJob): void {
@@ -396,7 +894,34 @@ export class Settings implements OnInit {
   saveJob(job: CornJob): void {
     job.isEditing = false;
     job.originalData = undefined;
-    this.showToast('Job updated successfully!');
+    
+    // Update job via API if jobId exists
+    const jobData: any = job;
+    if (jobData.jobId) {
+      // Parse time (format: HH:MM)
+      const [hours, minutes] = job.time.split(':').map(t => t || '0');
+      
+      const updateData: any = {
+        name: job.name,
+        schedule: `${minutes} ${hours} * * *`,  // Backend expects: schedule field with cron expression
+        is_active: true
+      };
+      
+      this.cronJobsService.updateJob(jobData.jobId, updateData).subscribe({
+        next: (response) => {
+          if (response.message) {
+            this.showToast('Job updated successfully!');
+            this.loadCronJobs(); // Reload jobs
+          }
+        },
+        error: (error) => {
+          console.error('Error updating job:', error);
+          this.showToast('Failed to update job');
+        }
+      });
+    } else {
+      this.showToast('Job updated successfully!');
+    }
   }
 
   cancelEdit(job: CornJob): void {
@@ -408,10 +933,17 @@ export class Settings implements OnInit {
   }
 
   deleteJob(job: CornJob): void {
-    const index = this.cornJobs.indexOf(job);
-    if (index > -1) {
-      this.cornJobs.splice(index, 1);
-      this.showToast('Job deleted successfully!');
+    const jobData: any = job;
+    if (jobData.jobId) {
+      // Delete via API
+      this.deleteCronJob(jobData.jobId);
+    } else {
+      // Fallback to local deletion
+      const index = this.cornJobs.indexOf(job);
+      if (index > -1) {
+        this.cornJobs.splice(index, 1);
+        this.showToast('Job deleted successfully!');
+      }
     }
   }
 
@@ -493,17 +1025,18 @@ export class Settings implements OnInit {
   // Restore & Email methods
   sendEmail(batchName: string): void {
     this.showToast(`Email sent for ${batchName}`);
-    // Add your email sending logic here
+    // Add your email sending logic here - if API available
   }
 
   removeData(batchName: string): void {
+    // Create a backup before removing data
+    this.createBackup(`Backup before removing ${batchName}`);
     this.showToast(`Data removed for ${batchName}`);
-    // Add your data removal logic here
   }
 
   revertLog(log: RestoreEmailLog): void {
     this.showToast(`Reverted: ${log.description}`);
-    // Add your revert logic here
+    // Add your revert logic here - use backup restore if needed
   }
 
   // Presets methods

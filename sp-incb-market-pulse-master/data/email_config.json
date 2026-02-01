@@ -1,0 +1,30 @@
+{
+  "smtp_config": {
+    "host": "",
+    "port": 587,
+    "use_tls": true,
+    "username": "",
+    "password": "",
+    "from_email": "",
+    "from_name": "Market Pulse System"
+  },
+  "recipients": {
+    "to_emails": [],
+    "cc_emails": [],
+    "bcc_emails": []
+  },
+  "templates": {
+    "subject": "Market Pulse Report - {{date}}",
+    "body_html": "<html><body><h2>Market Pulse Processing Report</h2><p>Date: {{date}}</p><p>Time: {{time}}</p><p><strong>Processing Summary:</strong></p><ul><li>Total Rows Processed: {{total_processed}}</li><li>Rows Excluded: {{total_excluded}}</li><li>Rules Applied: {{rules_applied}}</li><li>Duration: {{duration}}</li></ul><p>Please find the processed data attached.</p><p>---<br>Market Pulse Automated System</p></body></html>",
+    "body_text": "Market Pulse Processing Report\n\nDate: {{date}}\nTime: {{time}}\n\nProcessing Summary:\n- Total Rows Processed: {{total_processed}}\n- Rows Excluded: {{total_excluded}}\n- Rules Applied: {{rules_applied}}\n- Duration: {{duration}}\n\nPlease find the processed data attached.\n\n---\nMarket Pulse Automated System"
+  },
+  "settings": {
+    "is_active": false,
+    "send_on_automation": false,
+    "send_on_manual_upload": false,
+    "attach_output_file": true,
+    "attach_excluded_file": false
+  },
+  "updated_at": null,
+  "updated_by": "system"
+}

@@ -47,7 +47,19 @@ export class Home implements OnInit {
   columnOptions = ['Bwic Cover', 'Ticker', 'CUSIP', 'Bias', 'Date', 'Source'];
   filteredColumnOptions: string[] = [];
   
-  operatorOptions = ['is equal to', 'is not equal to', 'contains', 'does not contain', 'is greater than', 'is less than'];
+  // Client-Specified Operators
+  operatorOptions = [
+    'equal to',
+    'not equal to',
+    'less than',
+    'greater than',
+    'less than equal to',
+    'greater than equal to',
+    'between',
+    'contains',
+    'starts with',
+    'ends with'
+  ];
   filteredOperatorOptions: string[] = [];
 
   availableColorsChart: any;

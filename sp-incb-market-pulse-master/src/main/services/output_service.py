@@ -184,6 +184,55 @@ class OutputService:
         logger.warning("Clearing output file")
         self._initialize_output_file()
         logger.info("Output file cleared")
+    
+    def read_processed_colors(
+        self, 
+        processing_type: str = None,
+        limit: int = None,
+        cusip: str = None
+    ) -> List[dict]:
+        """
+        Read processed colors from output Excel file
+        
+        Args:
+            processing_type: Filter by "AUTOMATED" or "MANUAL" (None = all)
+            limit: Maximum number of records to return
+            cusip: Filter by specific CUSIP
+            
+        Returns:
+            List of color dictionaries
+        """
+        try:
+            df = pd.read_excel(self.output_file_path)
+            
+            if len(df) == 0:
+                logger.warning("Output file is empty")
+                return []
+            
+            # Apply filters
+            if processing_type:
+                df = df[df['PROCESSING_TYPE'] == processing_type]
+            
+            if cusip:
+                df = df[df['CUSIP'] == cusip]
+            
+            # Sort by most recent first
+            if 'PROCESSED_AT' in df.columns:
+                df = df.sort_values('PROCESSED_AT', ascending=False)
+            
+            # Apply limit
+            if limit:
+                df = df.head(limit)
+            
+            # Convert to list of dicts
+            records = df.to_dict('records')
+            
+            logger.info(f"Read {len(records)} processed colors from output file")
+            return records
+            
+        except Exception as e:
+            logger.error(f"Error reading processed colors: {e}")
+            return []
 
 
 # Singleton instance

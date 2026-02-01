@@ -1,0 +1,20 @@
+{
+  "logs": [
+    {
+      "id": 2,
+      "action": "Rule created",
+      "rule_name": "testing rule1",
+      "details": "Created with 1 conditions",
+      "timestamp": "2026-01-26T23:25:32.477561",
+      "user": "admin"
+    },
+    {
+      "id": 1,
+      "action": "Rule deleted",
+      "rule_name": "hahaha",
+      "details": "Deleted rule ID 3",
+      "timestamp": "2026-01-26T21:29:52.433679",
+      "user": "admin"
+    }
+  ]
+}

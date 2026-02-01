@@ -35,49 +35,28 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-gray-900">Remove DZ bank securities</td>
-              <td class="px-4 py-3">
-                <p-autoComplete 
-                  [(ngModel)]="selectedActive1" 
-                  [suggestions]="filteredActiveOptions" 
-                  (completeMethod)="filterActive($event)"
-                  field="label"
-                  [dropdown]="true"
-                  placeholder="Select"
-                  styleClass="w-24">
-                </p-autoComplete>
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex gap-2">
-                  <button class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
-                    <i class="pi pi-pencil"></i>
-                  </button>
-                  <button class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
-                    <i class="pi pi-trash"></i>
-                  </button>
-                </div>
+            <!-- Display message if no rules -->
+            <tr *ngIf="displayedRules.length === 0">
+              <td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">
+                No rules found. Create your first rule below.
               </td>
             </tr>
-            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-gray-900">Remove Performance Trust Offer</td>
+            
+            <!-- Loop through rules from API -->
+            <tr *ngFor="let rule of displayedRules" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">{{ rule.name }}</td>
               <td class="px-4 py-3">
-                <p-autoComplete 
-                  [(ngModel)]="selectedActive2" 
-                  [suggestions]="filteredActiveOptions" 
-                  (completeMethod)="filterActive($event)"
-                  field="label"
-                  [dropdown]="true"
-                  placeholder="Select"
-                  styleClass="w-24">
-                </p-autoComplete>
+                <span class="px-2 py-1 text-xs rounded" 
+                      [ngClass]="rule.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
+                  {{ rule.is_active ? 'Yes' : 'No' }}
+                </span>
               </td>
               <td class="px-4 py-3">
                 <div class="flex gap-2">
-                  <button class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
+                  <button (click)="editRule(rule)" class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
                     <i class="pi pi-pencil"></i>
                   </button>
-                  <button class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
+                  <button (click)="deleteRule(rule.id)" class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
                     <i class="pi pi-trash"></i>
                   </button>
                 </div>
@@ -106,7 +85,6 @@
               [(ngModel)]="ruleConditions[0].column" 
               [suggestions]="filteredColumnOptions" 
               (completeMethod)="filterColumn($event)"
-              field="label"
               [dropdown]="true"
               placeholder="Bwic Cover"
               styleClass="w-full sm:flex-1">
@@ -115,7 +93,6 @@
               [(ngModel)]="ruleConditions[0].operator" 
               [suggestions]="filteredOperatorOptions" 
               (completeMethod)="filterOperator($event)"
-              field="label"
               [dropdown]="true"
               placeholder="is equal to"
               styleClass="w-full sm:flex-1">
@@ -146,7 +123,6 @@
                     [(ngModel)]="condition.column" 
                     [suggestions]="filteredColumnOptions" 
                     (completeMethod)="filterColumn($event)"
-                    field="label"
                     [dropdown]="true"
                     placeholder="Bwic Cover"
                     styleClass="w-full sm:flex-1">
@@ -155,7 +131,6 @@
                     [(ngModel)]="condition.operator" 
                     [suggestions]="filteredOperatorOptions" 
                     (completeMethod)="filterOperator($event)"
-                    field="label"
                     [dropdown]="true"
                     placeholder="is equal to"
                     styleClass="w-full sm:flex-1">
@@ -267,12 +242,14 @@
             </button>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" 
+            <button (click)="clearRule()" 
+                    class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" 
                     title="Remove all exclusions">
               <i class="pi pi-trash"></i>
               Remove all exclusions
             </button>
-            <button class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" 
+            <button (click)="saveRule()" 
+                    class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" 
                     title="Save exclusions">
               <i class="pi pi-save"></i>
               Save Exclusions
@@ -287,22 +264,35 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-2">Manual Colors</h2>
       <p class="text-sm text-gray-600 mb-4">The colors will be processed in the next automation cycle</p>
       
-      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer">
+      <!-- Hidden file input -->
+      <input type="file" 
+             #fileInput 
+             (change)="uploadFile($event)" 
+             accept=".xlsx,.xls" 
+             class="hidden">
+      
+      <!-- Upload area that triggers file input -->
+      <div (click)="fileInput.click()" 
+           class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer">
         <div class="flex flex-col items-center">
-          <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
+          <i class="pi pi-upload text-3xl text-gray-400 mb-3"></i>
           <p class="text-sm font-medium text-gray-700 mb-1">Import Colors</p>
-          <p class="text-xs text-gray-500">Manual colors bulk upload via excel. <a href="#" class="text-blue-600 underline hover:text-blue-700">Click here</a> to download sample file</p>
+          <p class="text-xs text-gray-500">Manual colors bulk upload via excel. Click here to upload file</p>
         </div>
       </div>
 
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-        <button class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" title="Remove manual file">
+        <button (click)="clearManualUpload()" 
+                class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" 
+                title="Remove manual file">
           <i class="pi pi-trash"></i>
           Remove manual file
         </button>
-        <button class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" title="Save colors">
-          <i class="pi pi-save"></i>
-          Save Colors
+        <button (click)="fileInput.click()" 
+                class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" 
+                title="Upload new file">
+          <i class="pi pi-upload"></i>
+          Upload File
         </button>
       </div>
 
@@ -314,20 +304,23 @@
         </div>
 
         <div class="space-y-2">
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-            <div>
-              <p class="text-sm text-gray-900">Change saved by Sheshank Srivastava</p>
-              <p class="text-xs text-gray-500">Nov 22, 2025</p>
-            </div>
+          <!-- Show message if no upload history -->
+          <div *ngIf="manualUploadHistory.length === 0" class="p-4 text-center text-sm text-gray-500">
+            No manual upload history found.
           </div>
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+          
+          <!-- Loop through upload history from backend -->
+          <div *ngFor="let upload of manualUploadHistory.slice(0, 4)" 
+               class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
             <div>
-              <p class="text-sm text-gray-900">Change saved by Udit Sharma</p>
-              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+              <p class="text-sm text-gray-900">{{ upload.filename }} - {{ upload.status }}</p>
+              <p class="text-xs text-gray-500">{{ upload.uploadedAt }} | {{ upload.rowsProcessed || 0 }} rows</p>
             </div>
-            <button class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors" title="Revert this change">
-              <i class="pi pi-undo text-xs"></i>
-              Revert
+            <button (click)="deleteManualUpload(upload.id)"
+                    class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors" 
+                    title="Delete upload">
+              <i class="pi pi-trash text-xs"></i>
+              Delete
             </button>
           </div>
         </div>
@@ -489,26 +482,22 @@
       <div class="mt-6 pt-6 border-t border-gray-200">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
           <h3 class="text-base font-semibold text-gray-900">Logs</h3>
-          <p class="text-xs text-gray-500">Undo up to your last 4 changes</p>
+          <p class="text-xs text-gray-500">Recent cron job executions</p>
         </div>
 
         <div class="space-y-2">
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-            <div>
-              <p class="text-sm text-gray-900">Change saved by Sheshank Srivastava</p>
-              <p class="text-xs text-gray-500">Nov 22, 2025</p>
-            </div>
+          <!-- Show message if no logs -->
+          <div *ngIf="cronLogs.length === 0" class="p-4 text-center text-sm text-gray-500">
+            No cron job execution logs found.
           </div>
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+          
+          <!-- Loop through cron logs from backend -->
+          <div *ngFor="let log of cronLogs.slice(0, 2)" 
+               class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
             <div>
-              <p class="text-sm text-gray-900">Change saved by Udit Sharma</p>
-              <p class="text-xs text-gray-500">Nov 22, 2025</p>
+              <p class="text-sm text-gray-900">{{ log.action }}</p>
+              <p class="text-xs text-gray-500">{{ formatLogTimestamp(log.timestamp) }} | {{ log.details }}</p>
             </div>
-            <button class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
-                    title="Revert this change">
-              <i class="pi pi-undo text-xs"></i>
-              Revert
-            </button>
           </div>
         </div>
       </div>
@@ -609,33 +598,19 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-gray-900">US OLONI8000 Batch</td>
-              <td class="px-4 py-3 text-sm text-gray-900">Nov. 22, 2005</td>
-              <td class="px-4 py-3 text-sm text-gray-900">08:03 AM</td>
-              <td class="px-4 py-3 text-sm text-gray-900">Automated</td>
-              <td class="px-4 py-3">
-                <div class="flex gap-2">
-                  <button (click)="sendEmail('US OLONI8000 Batch')"
-                          class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
-                          title="Send Email">
-                    <i class="pi pi-send"></i>
-                    Send Email
-                  </button>
-                  <button (click)="removeData('US OLONI8000 Batch')"
-                          class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors"
-                          title="Remove Data">
-                    <i class="pi pi-trash"></i>
-                    Remove Data
-                  </button>
-                </div>
+            <!-- Show message if no restore data -->
+            <tr *ngIf="restoreData.length === 0">
+              <td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">
+                No restore data found.
               </td>
             </tr>
-            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-gray-900">US OLONI8000 Batch</td>
-              <td class="px-4 py-3 text-sm text-gray-900">Nov. 22, 2005</td>
-              <td class="px-4 py-3 text-sm text-gray-900">08:03 AM</td>
-              <td class="px-4 py-3 text-sm text-gray-900">Manual</td>
+            
+            <!-- Loop through restore data from backend -->
+            <tr *ngFor="let restore of restoreData" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-900">{{ restore.details }}</td>
+              <td class="px-4 py-3 text-sm text-gray-900">{{ restore.date }}</td>
+              <td class="px-4 py-3 text-sm text-gray-900">{{ restore.time }}</td>
+              <td class="px-4 py-3 text-sm text-gray-900">{{ restore.process }}</td>
               <td class="px-4 py-3">
                 <div class="flex gap-2">
                   <button (click)="sendEmail('US OLONI8000 Batch')"
@@ -668,18 +643,19 @@
         </div>
 
         <div class="space-y-2">
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-            <div>
-              <p class="text-sm text-gray-900">Email sent by Shusharak Shwazhan</p>
-              <p class="text-xs text-gray-500">Nov. 22, 2005</p>
-            </div>
+          <!-- Show message if no logs -->
+          <div *ngIf="restoreEmailLogs.length === 0" class="p-4 text-center text-sm text-gray-500">
+            No activity logs found.
           </div>
-          <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+          
+          <!-- Loop through real logs from backend -->
+          <div *ngFor="let log of restoreEmailLogs" class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
             <div>
-              <p class="text-sm text-gray-900">Removed data by LUIS Sharma</p>
-              <p class="text-xs text-gray-500">Nov. 22, 2005</p>
+              <p class="text-sm text-gray-900">{{ log.description }}</p>
+              <p class="text-xs text-gray-500">{{ log.date }}</p>
             </div>
-            <button (click)="revertLog(restoreEmailLogs[1])"
+            <button *ngIf="log.canRevert" 
+                    (click)="revertLog(log)"
                     class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
                     title="Revert this change">
               <i class="pi pi-undo text-xs"></i>
@@ -929,15 +905,21 @@
     <div class="bg-white p-6 rounded-lg border border-gray-200 lg:flex-1 w-full min-w-0">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
         <h2 class="text-lg font-semibold text-gray-900">Logs</h2>
-        <p class="text-xs text-gray-500">Preset saved and deleted logs</p>
+        <p class="text-xs text-gray-500">Recent rule operations</p>
       </div>
 
       <div class="space-y-2">
-        <div *ngFor="let log of presetLogs" 
+        <!-- Show message if no logs -->
+        <div *ngIf="ruleLogs.length === 0" class="p-4 text-center text-sm text-gray-500">
+          No rule operation logs found.
+        </div>
+        
+        <!-- Loop through rule logs from backend -->
+        <div *ngFor="let log of ruleLogs.slice(0, 2)" 
              class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
           <div>
-            <p class="text-sm text-gray-900">{{log.description}}</p>
-            <p class="text-xs text-gray-500">{{log.date}}</p>
+            <p class="text-sm text-gray-900">{{ log.action }}</p>
+            <p class="text-xs text-gray-500">{{ formatLogTimestamp(log.timestamp) }} | {{ log.details }}</p>
           </div>
         </div>
       </div>

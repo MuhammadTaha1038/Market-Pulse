@@ -1,0 +1,22 @@
+{
+  "backups": [
+    {
+      "id": 2,
+      "backup_type": "manual",
+      "created_at": "2026-02-01T16:25:08.180725",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Manual backup"
+    },
+    {
+      "id": 1,
+      "backup_type": "manual",
+      "created_at": "2026-01-26T16:53:50.255438",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Initial backup"
+    }
+  ]
+}

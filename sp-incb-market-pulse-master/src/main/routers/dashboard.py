@@ -6,10 +6,17 @@ Dashboard Router - APIs for Angular frontend dashboard
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List
 import logging
+import os
+import sys
+import pandas as pd
 from models.color import ColorResponse, MonthlyStatsResponse, MonthlyStats
 from services.database_service import DatabaseService
 from services.ranking_engine import RankingEngine
 from services.output_service import get_output_service
+
+# Import rules service for exclusion logic
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from rules_service import apply_rules
 
 logger = logging.getLogger(__name__)
 
@@ -55,24 +62,24 @@ async def get_todays_colors(
     limit: int = Query(100, ge=1, le=1000, description="Number of records to return")
 ):
     """
-    Get today's colors with parent-child hierarchy
+    Get processed colors from output file (S3 in production)
     
     This endpoint:
-    1. Fetches raw colors from database
-    2. Applies ranking algorithm (DATE > RANK > PX)
-    3. Returns parent-child hierarchy
+    1. Reads PROCESSED colors from output Excel file
+    2. Filters by asset class if specified
+    3. Returns parent-child hierarchy with pagination
     
-    Used by Angular frontend to display the main data table
+    Note: This shows FINAL processed data (after ranking, rules applied)
+    Both AUTOMATED (from Oracle + cron jobs) and MANUAL uploads are included
     """
     try:
-        logger.info(f"Fetching colors: asset_class={asset_class}, skip={skip}, limit={limit}")
+        logger.info(f"Fetching processed colors: asset_class={asset_class}, skip={skip}, limit={limit}")
         
-        # Fetch raw colors from database
-        asset_classes = [asset_class] if asset_class else None
-        raw_colors = db_service.fetch_all_colors(asset_classes=asset_classes)
+        # Read processed colors from output file (replaces S3 in production)
+        processed_records = output_service.read_processed_colors(limit=5000)  # Get recent 5000
         
-        if not raw_colors:
-            logger.warning("No colors found")
+        if not processed_records:
+            logger.warning("No processed colors found in output file")
             return ColorResponse(
                 total_count=0,
                 page=1,
@@ -80,20 +87,67 @@ async def get_todays_colors(
                 colors=[]
             )
         
-        # Apply ranking algorithm
-        logger.info(f"Applying ranking engine to {len(raw_colors)} colors")
-        processed_colors = ranking_engine.run_colors(raw_colors)
+        logger.info(f"Read {len(processed_records)} processed colors from output file")
         
-        # Save processed colors to output Excel (AUTOMATED type)
-        logger.info("Saving processed colors to output file")
-        saved_count = output_service.append_processed_colors(processed_colors, processing_type="AUTOMATED")
-        logger.info(f"✅ Saved {saved_count} processed colors to Excel")
+        # Filter by asset class if specified
+        if asset_class:
+            processed_records = [r for r in processed_records if r.get('SECTOR') == asset_class]
+            logger.info(f"Filtered to {len(processed_records)} colors for sector: {asset_class}")
+        
+        # Convert to ColorProcessed objects for the response
+        from models.color import ColorProcessed
+        processed_colors = []
+        
+        for record in processed_records:
+            try:
+                # Parse dates safely
+                date_val = pd.to_datetime(record.get('DATE')) if record.get('DATE') else None
+                date_1_val = pd.to_datetime(record.get('DATE_1')) if record.get('DATE_1') else date_val
+                
+                # Handle NaN values safely
+                def safe_int(val, default=0):
+                    if pd.isna(val) or val is None:
+                        return default
+                    return int(float(val))
+                
+                def safe_float(val, default=0.0):
+                    if pd.isna(val) or val is None:
+                        return default
+                    return float(val)
+                
+                color = ColorProcessed(
+                    message_id=safe_int(record.get('MESSAGE_ID'), 0),
+                    ticker=str(record.get('TICKER', '')),
+                    sector=str(record.get('SECTOR', '')),
+                    cusip=str(record.get('CUSIP', '')),
+                    date=date_val,
+                    price_level=safe_float(record.get('PRICE_LEVEL'), 0.0),
+                    bid=safe_float(record.get('BID'), 0.0),
+                    ask=safe_float(record.get('ASK'), 0.0),
+                    px=safe_float(record.get('PX'), 0.0),
+                    source=str(record.get('SOURCE', '')),
+                    bias=str(record.get('BIAS', '')),
+                    rank=safe_int(record.get('RANK'), 5),
+                    cov_price=safe_float(record.get('COV_PRICE'), 0.0),
+                    percent_diff=safe_float(record.get('PERCENT_DIFF'), 0.0),
+                    price_diff=safe_float(record.get('PRICE_DIFF'), 0.0),
+                    confidence=safe_int(record.get('CONFIDENCE'), 5),
+                    date_1=date_1_val,
+                    diff_status=str(record.get('DIFF_STATUS', '')),
+                    is_parent=bool(record.get('IS_PARENT', False)),
+                    parent_message_id=safe_int(record.get('PARENT_MESSAGE_ID')) if not pd.isna(record.get('PARENT_MESSAGE_ID')) else None,
+                    children_count=safe_int(record.get('CHILDREN_COUNT'), 0)
+                )
+                processed_colors.append(color)
+            except Exception as e:
+                logger.warning(f"Skipping invalid record: {e}")
+                continue
         
         # Apply pagination
         total_count = len(processed_colors)
         paginated_colors = processed_colors[skip:skip + limit]
         
-        logger.info(f"Returning {len(paginated_colors)} of {total_count} colors")
+        logger.info(f"Returning {len(paginated_colors)} of {total_count} processed colors")
         
         return ColorResponse(
             total_count=total_count,
@@ -103,7 +157,7 @@ async def get_todays_colors(
         )
         
     except Exception as e:
-        logger.error(f"Error fetching colors: {e}")
+        logger.error(f"Error fetching processed colors: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
