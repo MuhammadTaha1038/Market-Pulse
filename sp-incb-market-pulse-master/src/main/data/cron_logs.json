@@ -3,6 +3,23 @@
     {
       "job_id": 1,
       "job_name": "kkkkk",
+      "triggered_by": "manual_override",
+      "start_time": "2026-02-02T21:57:35.595763",
+      "status": "success",
+      "end_time": "2026-02-02T21:57:36.332890",
+      "duration_seconds": 0.737127,
+      "original_count": 50,
+      "excluded_count": 4,
+      "processed_count": 46,
+      "rules_applied": 1,
+      "manual_files_processed": 0,
+      "manual_files_failed": 0,
+      "email_sent": false,
+      "id": 4
+    },
+    {
+      "job_id": 1,
+      "job_name": "kkkkk",
       "triggered_by": "manual",
       "start_time": "2026-02-02T20:36:41.793597",
       "status": "success",
