@@ -26,3 +26,6 @@ pandas>=2.0.0
 python-dotenv>=1.0.0  # For .env file support
 openpyxl>=3.0.0  # For Excel file reading/writing
 requests>=2.31.0  # For Oracle credentials API calls
+email-validator>=2.0.0  # For Pydantic EmailStr validation
+apscheduler>=3.10.0  # For cron job scheduling
+pytz>=2021.1  # For timezone support
