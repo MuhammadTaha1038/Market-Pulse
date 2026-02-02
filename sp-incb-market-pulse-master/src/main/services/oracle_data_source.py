@@ -14,9 +14,20 @@ from data_source_interface import DataSourceInterface
 try:
     import oracledb
     ORACLE_DRIVER_AVAILABLE = True
+    
+    # Initialize thick mode for Network Encryption support
+    _thick_mode_initialized = False
+    try:
+        oracledb.init_oracle_client()
+        _thick_mode_initialized = True
+    except Exception:
+        # Thick mode not available, will use thin mode (limited encryption)
+        pass
+        
 except ImportError:
     ORACLE_DRIVER_AVAILABLE = False
     oracledb = None
+    _thick_mode_initialized = False
 
 
 class OracleDataSource(DataSourceInterface):
@@ -281,9 +292,26 @@ class OracleDataSource(DataSourceInterface):
             cursor.close()
             connection.close()
             
+            thick_mode_status = "enabled" if _thick_mode_initialized else "disabled (thin mode)"
+            
             return {
                 "status": "success",
-                "message": f"Oracle connection successful. Table has {row_count} rows."
+                "message": f"Oracle connection successful. Table has {row_count} rows. Thick mode: {thick_mode_status}"
+            }
+            
+        except oracledb.Error as e:
+            error_msg = str(e)
+            
+            # Check for encryption error
+            if "DPY-3001" in error_msg or "Network Encryption" in error_msg:
+                return {
+                    "status": "error",
+                    "message": "Oracle connection failed: Database requires Network Encryption. Please install Oracle Instant Client and ensure it's in your PATH. Download from: https://www.oracle.com/database/technologies/instant-client/downloads.html"
+                }
+            
+            return {
+                "status": "error",
+                "message": f"Oracle connection failed: {error_msg}"
             }
             
         except Exception as e:
@@ -299,11 +327,14 @@ class OracleDataSource(DataSourceInterface):
         Returns:
             Dict with source type and connection details
         """
+        thick_mode_status = "enabled" if _thick_mode_initialized else "disabled"
+        
         return {
             "type": "Oracle",
             "host": self.oracle_host,
             "port": str(self.oracle_port),
             "service": self.oracle_service,
             "table": self.oracle_table,
-            "credentials_api_configured": str(bool(self.credentials_api_url))
+            "credentials_api_configured": str(bool(self.credentials_api_url)),
+            "thick_mode": thick_mode_status
         }
