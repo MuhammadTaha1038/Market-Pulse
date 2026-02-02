@@ -3,6 +3,19 @@
     {
       "job_id": 1,
       "job_name": "kkkkk",
+      "triggered_by": "scheduled",
+      "start_time": "2026-02-02T23:16:00.012372",
+      "status": "failed",
+      "end_time": "2026-02-02T23:16:00.683597",
+      "duration_seconds": 0.671225,
+      "error": "Excel file not found: D:\\SKILL\\watsapp project\\fast api project\\Data-main\\sp-incb-market-pulse-master\\Color today.xlsx",
+      "manual_files_processed": 1,
+      "manual_files_failed": 0,
+      "id": 5
+    },
+    {
+      "job_id": 1,
+      "job_name": "kkkkk",
       "triggered_by": "manual_override",
       "start_time": "2026-02-02T21:57:35.595763",
       "status": "success",

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-02-02T16:12:01.013240",
+  "last_updated": "2026-02-02T23:11:59.277249",
   "mappings": [
     {
       "clo_id": "EURO_ABS",
@@ -76,15 +76,15 @@
         "PRICE_DIFF",
         "CONFIDENCE",
         "DATE_1",
-        "DIFF_STATUS"
+        "DIFF_STATUS",
+        "MESSAGE_ID"
       ],
       "hidden_columns": [
-        "MESSAGE_ID",
         "BID",
         "ASK"
       ],
       "updated_by": "admin",
-      "updated_at": "2026-02-02T16:12:01.013215"
+      "updated_at": "2026-02-02T23:11:59.275282"
     },
     {
       "clo_id": "EURO_ABS_BTLRMBS",

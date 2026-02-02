@@ -1,6 +1,20 @@
 {
   "uploads": [
     {
+      "id": 7,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-02-02T23:15:24.735339",
+      "status": "success",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "Processed in scheduled run",
+      "processing_time": "2026-02-02T23:16:00.639275",
+      "duration_seconds": 0.608635,
+      "rows_processed": 50,
+      "rows_valid": 50
+    },
+    {
       "id": 6,
       "filename": "Color today.xlsx",
       "uploaded_by": "admin",
