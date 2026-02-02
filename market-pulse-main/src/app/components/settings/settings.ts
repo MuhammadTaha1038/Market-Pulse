@@ -12,6 +12,9 @@ import { ManualUploadService } from '../../services/manual-upload.service';
 import { BackupService } from '../../services/backup.service';
 import { LogsService, UnifiedLogEntry } from '../../services/logs.service';
 import { ConfigService } from '../../services/config.service';
+import { PresetsService, Preset as PresetModel } from '../../services/presets.service';
+import { CLOSelectionService, UserCLOSelection } from '../../services/clo-selection.service';
+import { getVisibleColumnDefinitions } from '../../utils/column-definitions';
 
 interface CornJob {
   name: string;
@@ -50,6 +53,7 @@ interface RuleCondition {
 }
 
 interface Preset {
+  id?: number;
   name: string;
   conditions: PresetCondition[];
 }
@@ -257,12 +261,14 @@ export class Settings implements OnInit {
     private manualUploadService: ManualUploadService,
     private backupService: BackupService,
     private logsService: LogsService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private presetsService: PresetsService,
+    private cloSelectionService: CLOSelectionService
   ) {
     this.generateCalendar();
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     // Subscribe to query parameters to handle section navigation
     this.route.queryParams.subscribe(params => {
       const section = params['section'];
@@ -275,43 +281,60 @@ export class Settings implements OnInit {
     });
   this.loadAllLogs();
   
+    // Refresh CLO columns from backend to ensure we have the latest configuration
+    await this.cloSelectionService.refreshColumnsFromBackend();
+    
     // Load data from APIs
     this.loadColumnOptions();
     this.loadRules();
     this.loadCronJobs();
     this.loadBackupHistory();
     this.loadManualUploadHistory();
+    this.loadPresets();
   }
 
   // ===== API INTEGRATION METHODS =====
 
   // Column Configuration API Methods
   loadColumnOptions(): void {
-    this.configService.getAllColumns().subscribe({
-      next: (columns) => {
-        // Store column names directly as strings
-        this.columnOptions = columns;
-        
-        // Set default column if ruleConditions is empty or has default value
-        if (this.ruleConditions.length > 0 && this.columnOptions.length > 0) {
-          if (!this.ruleConditions[0].column || this.ruleConditions[0].column === 'Bwic Cover') {
-            this.ruleConditions[0].column = this.columnOptions[0];
-          }
+    // Get visible columns from CLO selection
+    const cloSelection = this.cloSelectionService.getCurrentSelection();
+    
+    if (cloSelection && cloSelection.visibleColumns) {
+      // Use only visible columns from CLO mapping
+      const visibleColumnDefs = getVisibleColumnDefinitions(cloSelection.visibleColumns);
+      this.columnOptions = visibleColumnDefs.map(col => col.displayName);
+      
+      console.log('✅ Loaded CLO-filtered column options:', this.columnOptions);
+      console.log('📊 CLO:', cloSelection.cloName, '- Visible columns:', this.columnOptions.length);
+      
+      // Set default column if ruleConditions is empty or has default value
+      if (this.ruleConditions.length > 0 && this.columnOptions.length > 0) {
+        if (!this.ruleConditions[0].column || !this.columnOptions.includes(this.ruleConditions[0].column)) {
+          this.ruleConditions[0].column = this.columnOptions[0];
         }
-        
-        console.log('Loaded column options:', this.columnOptions);
-      },
-      error: (error) => {
-        console.error('Error loading column options:', error);
-        // Fallback to default columns if API fails
-        this.columnOptions = [
-          'Bwic Cover',
-          'Security Name',
-          'Issuer',
-          'Cusip'
-        ];
       }
-    });
+      
+      // Update preset conditions default column too
+      if (this.presetConditions.length > 0 && this.columnOptions.length > 0) {
+        if (!this.presetConditions[0].column || !this.columnOptions.includes(this.presetConditions[0].column)) {
+          this.presetConditions[0].column = this.columnOptions[0];
+        }
+      }
+    } else {
+      // Fallback to API if no CLO selection (should not happen)
+      console.warn('⚠️ No CLO selection found, loading all columns from API');
+      this.configService.getAllColumns().subscribe({
+        next: (columns) => {
+          this.columnOptions = columns;
+          console.log('Loaded column options from API:', this.columnOptions);
+        },
+        error: (error) => {
+          console.error('Error loading column options:', error);
+          this.columnOptions = ['Ticker', 'CUSIP', 'Date', 'Source'];
+        }
+      });
+    }
   }
 
   // Rules API Methods
@@ -751,8 +774,8 @@ export class Settings implements OnInit {
   // ===== LOGS LOADING METHODS =====
 
   loadAllLogs(): void {
-    // Load recent logs from all sources (2 most recent per section)
-    this.logsService.getAllRecentLogs(2).subscribe({
+    // Load recent logs from all sources (4 most recent per section)
+    this.logsService.getAllRecentLogs(4).subscribe({
       next: (logs) => {
         this.ruleLogs = logs.rules;
         this.cronLogs = logs.cron;
@@ -769,7 +792,86 @@ export class Settings implements OnInit {
     return this.logsService.formatTimestamp(timestamp);
   }
 
+  revertLog(logId: number): void {
+    if (!confirm('Are you sure you want to revert this operation?')) {
+      return;
+    }
+
+    this.logsService.revertLog(logId, 'admin').subscribe({
+      next: (response) => {
+        alert(response.message || 'Operation reverted successfully');
+        // Reload logs and rules to show updated state
+        this.loadAllLogs();
+        this.loadRules();
+      },
+      error: (error) => {
+        console.error('Error reverting log:', error);
+        alert('Failed to revert operation: ' + (error.error?.detail || error.message));
+      }
+    });
+  }
+
   // ===== END LOGS METHODS =====
+
+  // ===== PRESETS METHODS =====
+
+  loadPresets(): void {
+    this.presetsService.getAllPresets().subscribe({
+      next: (response) => {
+        // Map backend presets to component format
+        this.presets = response.presets.map(preset => ({
+          id: preset.id,  // Map the ID from backend
+          name: preset.name,
+          conditions: preset.conditions.map(cond => ({
+            owner: cond.column,
+            operator: cond.operator,
+            value: cond.value
+          }))
+        }));
+      },
+      error: (error) => {
+        console.error('Error loading presets:', error);
+      }
+    });
+  }
+
+  savePreset(): void {
+    if (!this.newPresetName || this.newPresetName.trim() === '') {
+      alert('Please enter a preset name');
+      return;
+    }
+
+    const preset: PresetModel = {
+      name: this.newPresetName,
+      description: '',
+      conditions: this.presetConditions.map(cond => ({
+        column: cond.column,
+        operator: cond.operator,
+        value: cond.value
+      }))
+    };
+
+    this.presetsService.createPreset(preset).subscribe({
+      next: (response) => {
+        alert(response.message);
+        this.loadPresets();
+        this.newPresetName = '';
+        // Reset preset conditions
+        this.presetConditions = [{
+          type: 'where',
+          column: 'Bwic Cover',
+          operator: 'is equal to',
+          value: 'JPMC'
+        }];
+      },
+      error: (error) => {
+        console.error('Error saving preset:', error);
+        alert('Failed to save preset: ' + (error.error?.detail || error.message));
+      }
+    });
+  }
+
+  // ===== END PRESETS METHODS =====
 
 
   // Navigation method - Updated with highlight effect
@@ -1034,11 +1136,6 @@ export class Settings implements OnInit {
     this.showToast(`Data removed for ${batchName}`);
   }
 
-  revertLog(log: RestoreEmailLog): void {
-    this.showToast(`Reverted: ${log.description}`);
-    // Add your revert logic here - use backup restore if needed
-  }
-
   // Presets methods
   togglePresetForm(): void {
     this.showPresetForm = !this.showPresetForm;
@@ -1087,25 +1184,6 @@ export class Settings implements OnInit {
     this.presetConditions.splice(index, 1);
   }
 
-  savePreset(): void {
-    if (this.newPresetName) {
-      // Convert conditions to preset format
-      const conditions = this.presetConditions.map(c => ({
-        owner: c.column,
-        operator: c.operator,
-        value: c.value
-      }));
-      
-      this.presets.push({
-        name: this.newPresetName,
-        conditions: conditions
-      });
-      
-      this.showToast('Preset saved successfully!');
-      this.togglePresetForm();
-    }
-  }
-
   clearPreset(): void {
     this.newPresetName = '';
     this.presetConditions = [
@@ -1124,11 +1202,33 @@ export class Settings implements OnInit {
   }
 
   deletePreset(preset: Preset): void {
-    const index = this.presets.indexOf(preset);
-    if (index > -1) {
-      this.presets.splice(index, 1);
-      this.showToast('Preset deleted successfully!');
+    if (!preset.id) {
+      console.error('Cannot delete preset: missing ID');
+      this.showToast('Cannot delete preset: missing ID');
+      return;
     }
+
+    if (!confirm('Are you sure you want to delete this preset?')) {
+      return;
+    }
+
+    // Call backend API to delete
+    this.presetsService.deletePreset(preset.id).subscribe({
+      next: (response) => {
+        // Remove from local array after successful backend deletion
+        const index = this.presets.indexOf(preset);
+        if (index > -1) {
+          this.presets.splice(index, 1);
+        }
+        
+        this.showToast('Preset deleted successfully!');
+        console.log('✅ Preset deleted:', preset.name);
+      },
+      error: (error) => {
+        console.error('❌ Failed to delete preset:', error);
+        this.showToast('Failed to delete preset: ' + (error.error?.detail || error.message));
+      }
+    });
   }
 
   // Utility methods

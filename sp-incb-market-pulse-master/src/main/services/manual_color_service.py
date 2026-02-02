@@ -112,7 +112,9 @@ def import_manual_colors(
         logger.info(f"✅ Read {len(df)} rows from Excel")
         
         # Validate required columns
-        required_cols = column_config.get_required_columns()
+        required_cols_objs = column_config.get_required_columns()
+        # Extract just the oracle_name from each column object
+        required_cols = [col['oracle_name'] for col in required_cols_objs if isinstance(col, dict)]
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise ValueError(f"Missing required columns: {', '.join(missing_cols)}")
@@ -124,17 +126,24 @@ def import_manual_colors(
         for idx, row in df.iterrows():
             try:
                 color_raw = ColorRaw(
-                    message_id=row.get('MESSAGE_ID', f"MANUAL_{idx}"),
-                    cusip=row['CUSIP'],
-                    ticker=row.get('TICKER', ''),
-                    date=pd.to_datetime(row['DATE']),
-                    rank=int(row.get('RANK', 0)),
-                    px=float(row.get('PX', 0)) if pd.notna(row.get('PX')) else None,
-                    bid=float(row.get('BID', 0)) if pd.notna(row.get('BID')) else None,
-                    mid=float(row.get('MID', 0)) if pd.notna(row.get('MID')) else None,
-                    ask=float(row.get('ASK', 0)) if pd.notna(row.get('ASK')) else None,
-                    source=row.get('SOURCE', 'MANUAL'),
-                    bias=row.get('BIAS', '')
+                    message_id=int(row.get('MESSAGE_ID', idx)) if pd.notna(row.get('MESSAGE_ID')) else idx,
+                    ticker=str(row.get('TICKER', '')) if pd.notna(row.get('TICKER')) else '',
+                    sector=str(row.get('SECTOR', '')) if pd.notna(row.get('SECTOR')) else '',
+                    cusip=str(row['CUSIP']) if pd.notna(row.get('CUSIP')) else '',
+                    date=pd.to_datetime(row['DATE']) if pd.notna(row.get('DATE')) else datetime.now(),
+                    price_level=float(row.get('PRICE_LEVEL', 0)) if pd.notna(row.get('PRICE_LEVEL')) else 0.0,
+                    bid=float(row.get('BID', 0)) if pd.notna(row.get('BID')) else 0.0,
+                    ask=float(row.get('ASK', 0)) if pd.notna(row.get('ASK')) else 0.0,
+                    px=float(row.get('PX', 0)) if pd.notna(row.get('PX')) else 0.0,
+                    source=str(row.get('SOURCE', 'MANUAL')) if pd.notna(row.get('SOURCE')) else 'MANUAL',
+                    bias=str(row.get('BIAS', '')) if pd.notna(row.get('BIAS')) else '',
+                    rank=int(row.get('RANK', 1)) if pd.notna(row.get('RANK')) else 1,
+                    cov_price=float(row.get('COV_PRICE', 0)) if pd.notna(row.get('COV_PRICE')) else 0.0,
+                    percent_diff=float(row.get('PERCENT_DIFF', 0)) if pd.notna(row.get('PERCENT_DIFF')) else 0.0,
+                    price_diff=float(row.get('PRICE_DIFF', 0)) if pd.notna(row.get('PRICE_DIFF')) else 0.0,
+                    confidence=int(row.get('CONFIDENCE', 5)) if pd.notna(row.get('CONFIDENCE')) else 5,
+                    date_1=pd.to_datetime(row.get('DATE_1', row.get('DATE', datetime.now()))) if pd.notna(row.get('DATE_1')) or pd.notna(row.get('DATE')) else datetime.now(),
+                    diff_status=str(row.get('DIFF_STATUS', '')) if pd.notna(row.get('DIFF_STATUS')) else ''
                 )
                 raw_colors.append(color_raw)
             except Exception as e:
@@ -157,16 +166,23 @@ def import_manual_colors(
             {
                 "row_id": idx,
                 "message_id": c.message_id,
-                "cusip": c.cusip,
                 "ticker": c.ticker,
+                "sector": c.sector,
+                "cusip": c.cusip,
                 "date": c.date.isoformat(),
-                "rank": c.rank,
-                "px": c.px,
+                "price_level": c.price_level,
                 "bid": c.bid,
-                "mid": c.mid,
                 "ask": c.ask,
+                "px": c.px,
                 "source": c.source,
-                "bias": c.bias
+                "bias": c.bias,
+                "rank": c.rank,
+                "cov_price": c.cov_price,
+                "percent_diff": c.percent_diff,
+                "price_diff": c.price_diff,
+                "confidence": c.confidence,
+                "date_1": c.date_1.isoformat(),
+                "diff_status": c.diff_status
             }
             for idx, c in enumerate(raw_colors)
         ]
@@ -175,20 +191,26 @@ def import_manual_colors(
             {
                 "row_id": idx,
                 "message_id": c.message_id,
-                "cusip": c.cusip,
                 "ticker": c.ticker,
-                "date": c.date.isoformat(),
-                "rank": c.rank,
-                "px": c.px,
+                "sector": c.sector,
+                "cusip": c.cusip,
+                "date": c.date.isoformat() if c.date else None,
+                "price_level": c.price_level,
                 "bid": c.bid,
-                "mid": c.mid,
                 "ask": c.ask,
+                "px": c.px,
                 "source": c.source,
                 "bias": c.bias,
+                "rank": c.rank,
+                "cov_price": c.cov_price,
+                "percent_diff": c.percent_diff,
+                "price_diff": c.price_diff,
+                "confidence": c.confidence,
+                "date_1": c.date_1.isoformat() if c.date_1 else None,
+                "diff_status": c.diff_status,
                 "is_parent": c.is_parent,
-                "parent_id": c.parent_id,
-                "child_count": c.child_count,
-                "color": c.color
+                "parent_message_id": c.parent_message_id,
+                "children_count": c.children_count
             }
             for idx, c in enumerate(sorted_colors)
         ]
@@ -308,8 +330,12 @@ def delete_rows(session_id: str, row_ids: List[int]) -> Dict:
         return {
             "success": True,
             "deleted_count": len(row_ids),
-            "remaining_rows": len(updated_data),
-            "data": updated_data
+            "remaining_count": len(updated_data),
+            "updated_preview": updated_data,
+            "statistics": {
+                "total_deleted": len(deleted_rows),
+                "remaining_rows": len(updated_data)
+            }
         }
     except Exception as e:
         logger.error(f"❌ Failed to delete rows: {e}")
@@ -366,7 +392,12 @@ def apply_selected_rules(session_id: str, rule_ids: List[int]) -> Dict:
             "rules_applied": len(rule_ids),
             "excluded_count": excluded_count,
             "remaining_rows": len(filtered_data),
-            "data": filtered_data,
+            "updated_preview": filtered_data,
+            "statistics": {
+                "total_rows": len(current_data),
+                "excluded_rows": excluded_count,
+                "remaining_rows": len(filtered_data)
+            },
             "rules_info": rules_applied_info
         }
     except Exception as e:
@@ -393,7 +424,11 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
     try:
         session = ManualColorSession(session_id)
         
-        final_data = session.data.get("filtered_data", [])
+        # Get the current filtered/edited data from the session
+        final_data = session.data.get("filtered_data")
+        if not final_data:
+            # If no filtered data exists, use the sorted preview
+            final_data = session.data.get("sorted_preview", [])
         
         if not final_data:
             return {
@@ -403,49 +438,58 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
         
         logger.info(f"💾 Saving {len(final_data)} manual colors to output file")
         
-        # Convert back to ColorProcessed objects
+        # Convert dict data back to ColorProcessed objects
         processed_colors = []
         for row in final_data:
-            color = ColorProcessed(
-                message_id=row["message_id"],
-                cusip=row["cusip"],
-                ticker=row.get("ticker", ""),
-                date=pd.to_datetime(row["date"]),
-                rank=row["rank"],
-                px=row.get("px"),
-                bid=row.get("bid"),
-                mid=row.get("mid"),
-                ask=row.get("ask"),
-                source=row.get("source", "MANUAL"),
-                bias=row.get("bias", ""),
-                is_parent=row["is_parent"],
-                parent_id=row.get("parent_id"),
-                child_count=row.get("child_count", 0),
-                color=row.get("color", "")
-            )
-            processed_colors.append(color)
+            try:
+                color = ColorProcessed(
+                    message_id=row.get("message_id"),
+                    ticker=row.get("ticker", ""),
+                    sector=row.get("sector", ""),
+                    cusip=row.get("cusip", ""),
+                    date=pd.to_datetime(row.get("date")) if row.get("date") else None,
+                    price_level=row.get("price_level", 0.0),
+                    bid=row.get("bid", 0.0),
+                    ask=row.get("ask", 0.0),
+                    px=row.get("px", 0.0),
+                    source=row.get("source", "MANUAL"),
+                    bias=row.get("bias", ""),
+                    rank=row.get("rank", 1),
+                    cov_price=row.get("cov_price", 0.0),
+                    percent_diff=row.get("percent_diff", 0.0),
+                    price_diff=row.get("price_diff", 0.0),
+                    confidence=row.get("confidence", 5),
+                    date_1=pd.to_datetime(row.get("date_1")) if row.get("date_1") else None,
+                    diff_status=row.get("diff_status", ""),
+                    is_parent=row.get("is_parent", False),
+                    parent_message_id=row.get("parent_message_id"),
+                    children_count=row.get("children_count", 0)
+                )
+                processed_colors.append(color)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to parse row {row.get('row_id', '?')}: {e}")
+                continue
+        
+        if not processed_colors:
+            return {
+                "success": False,
+                "error": "No valid data to save after parsing"
+            }
+        
+        logger.info(f"📦 Converted {len(processed_colors)} rows to ColorProcessed objects")
         
         # Save to output file using output service
-        output_result = output_service.save_colors(
-            processed_colors,
-            source="manual_color_processing",
-            metadata={
-                "session_id": session_id,
-                "original_filename": session.data.get("original_filename"),
-                "user_id": user_id,
-                "applied_rules": session.data.get("applied_rules", []),
-                "deleted_rows_count": len(session.data.get("deleted_rows", []))
-            }
+        rows_saved = output_service.append_processed_colors(
+            colors=processed_colors,
+            processing_type="MANUAL"
         )
-        
-        if not output_result.get("success"):
-            raise Exception(output_result.get("error", "Failed to save output"))
         
         # Update session status
         session.update(
             status="saved",
-            output_file=output_result.get("output_file"),
-            saved_at=datetime.now().isoformat()
+            output_file=output_service.output_file_path,
+            saved_at=datetime.now().isoformat(),
+            rows_saved=rows_saved
         )
         
         duration = (datetime.now() - start_time).total_seconds()
@@ -455,8 +499,8 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
         return {
             "success": True,
             "session_id": session_id,
-            "rows_saved": len(final_data),
-            "output_file": output_result.get("output_file"),
+            "rows_saved": rows_saved,
+            "output_file": output_service.output_file_path,
             "duration_seconds": duration,
             "metadata": {
                 "applied_rules_count": len(session.data.get("applied_rules", [])),

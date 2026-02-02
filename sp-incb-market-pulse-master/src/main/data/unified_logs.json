@@ -1,6 +1,186 @@
 {
   "logs": [
     {
+      "log_id": 14,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: lksdj",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T18:33:22.678087",
+      "entity_id": 3,
+      "entity_name": "lksdj",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 3,
+          "name": "lksdj",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "is less than",
+              "value": "5000"
+            }
+          ],
+          "created_at": "2026-02-02T00:20:19.880010",
+          "updated_at": "2026-02-02T00:20:19.880017"
+        }
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
+      "log_id": 13,
+      "module": "rules",
+      "action": "create",
+      "description": "Created rule: 100",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T18:33:15.395578",
+      "entity_id": 4,
+      "entity_name": "100",
+      "can_revert": true,
+      "revert_data": {
+        "action": "delete",
+        "rule_id": 4
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1,
+        "is_active": true
+      }
+    },
+    {
+      "log_id": 12,
+      "module": "rules",
+      "action": "revert",
+      "description": "Reverted: Deleted rule: lksdj",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T00:39:14.809771",
+      "entity_id": 3,
+      "entity_name": "lksdj",
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "original_log_id": 10,
+        "original_action": "delete"
+      }
+    },
+    {
+      "log_id": 11,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: testing rule3",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T00:39:08.715173",
+      "entity_id": 2,
+      "entity_name": "testing rule3",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 2,
+          "name": "testing rule3",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "Price",
+              "operator": "is less than",
+              "value": "1000000"
+            }
+          ],
+          "created_at": "2026-02-01T16:23:00.430775",
+          "updated_at": "2026-02-01T16:23:00.430804"
+        }
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
+      "log_id": 10,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: lksdj",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T00:38:50.276884",
+      "entity_id": 3,
+      "entity_name": "lksdj",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 3,
+          "name": "lksdj",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "is less than",
+              "value": "5000"
+            }
+          ],
+          "created_at": "2026-02-02T00:20:19.880010",
+          "updated_at": "2026-02-02T00:20:19.880017"
+        }
+      },
+      "reverted_at": "2026-02-02T00:39:14.791601",
+      "reverted_by": "admin",
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
+      "log_id": 9,
+      "module": "rules",
+      "action": "revert",
+      "description": "Reverted: Created rule: lksdj",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T00:38:50.256153",
+      "entity_id": 3,
+      "entity_name": "lksdj",
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "original_log_id": 8,
+        "original_action": "create"
+      }
+    },
+    {
+      "log_id": 8,
+      "module": "rules",
+      "action": "create",
+      "description": "Created rule: lksdj",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T00:20:20.178626",
+      "entity_id": 3,
+      "entity_name": "lksdj",
+      "can_revert": true,
+      "revert_data": {
+        "action": "delete",
+        "rule_id": 3
+      },
+      "reverted_at": "2026-02-02T00:38:50.221972",
+      "reverted_by": "admin",
+      "metadata": {
+        "conditions_count": 1,
+        "is_active": true
+      }
+    },
+    {
       "log_id": 7,
       "module": "rules",
       "action": "delete",
@@ -205,5 +385,5 @@
       }
     }
   ],
-  "next_id": 8
+  "next_id": 15
 }

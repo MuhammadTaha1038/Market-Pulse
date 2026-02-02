@@ -1,4 +1,7 @@
 <div class="min-h-screen bg-gray-50 p-8 space-y-8">
+  <!-- Toast Messages -->
+  <p-toast></p-toast>
+  
   <!-- Hidden file input for import -->
   <input
     #fileInput
@@ -54,15 +57,23 @@
                 <span class="text-gray-600 text-sm flex items-center gap-1">
                     Next Run in :
                 </span>
-                <span class="text-gray-800 font-bold text-lg">7H : 52M : 25S</span>
+                <span class="text-gray-800 font-bold text-lg">{{ nextRun }}</span>
             </div>
             
             <!-- Run Automation -->
-            <div class="flex items-center justify-center p-3">
-                <button class="px-4 py-2 rounded-lg font-semibold flex items-center gap-2">
-                    <img src="./assets/icon/settings.png" alt="Play" class="w-4 h-4">
-                    Run Automation
+            <div class="flex flex-col items-center justify-center p-3 gap-2">
+                <button 
+                    (click)="runAutomation(overrideSchedule)" 
+                    [disabled]="uploading"
+                    class="px-4 py-2 rounded-lg font-semibold flex items-center gap-2 bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <i class="pi pi-play" *ngIf="!uploading"></i>
+                    <i class="pi pi-spin pi-spinner" *ngIf="uploading"></i>
+                    {{ uploading ? 'Running...' : 'Run Automation' }}
                 </button>
+                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input type="checkbox" [(ngModel)]="overrideSchedule" class="w-4 h-4">
+                    <span>Override scheduled run</span>
+                </label>
             </div>
         </div>
     </div>
@@ -136,11 +147,13 @@
       <!-- Import button on the right -->
       <button 
         type="button" 
-        class="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white text-sm md:text-base font-medium px-8 py-3 shadow-sm hover:bg-gray-800"
+        class="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white text-sm md:text-base font-medium px-8 py-3 shadow-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         (click)="fileInput.click()"
+        [disabled]="uploading"
       >
-        <i class="pi pi-upload"></i>
-        Import
+        <i *ngIf="!uploading" class="pi pi-upload"></i>
+        <i *ngIf="uploading" class="pi pi-spin pi-spinner"></i>
+        {{ uploading ? 'Uploading...' : 'Import' }}
       </button>
     </div>
   </section>

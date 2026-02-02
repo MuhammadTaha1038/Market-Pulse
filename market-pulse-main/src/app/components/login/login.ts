@@ -13,8 +13,11 @@ export class Login {
   constructor(private router: Router) {}
 
   onLogin() {
-    // Bypass authentication for testing - navigate directly to home
+    // Navigate to CLO selection page after login
     // TODO: Implement Microsoft SSO in production
-    this.router.navigate(['/home']);
+    // After SSO integration, check if CLO type is provided in claims
+    // If CLO type exists in SSO claims, auto-select and go to /home
+    // Otherwise, go to /clo-selection
+    this.router.navigate(['/clo-selection']);
   }
 }

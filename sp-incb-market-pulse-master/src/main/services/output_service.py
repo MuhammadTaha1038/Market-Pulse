@@ -3,6 +3,12 @@
 """
 Output Service - Write processed colors to Excel file
 This will be replaced with S3 integration in future milestone
+
+TESTING MODE:
+- File auto-clears if it exceeds 5 MB
+- Keeps only last 100 existing records when appending
+- Limits total records to 150 for fast testing
+- In production with S3, these limits will be removed
 """
 import pandas as pd
 from typing import List
@@ -40,7 +46,14 @@ class OutputService:
         self._initialize_output_file()
     
     def _initialize_output_file(self):
-        """Create output file with headers if it doesn't exist"""
+        """Create output file with headers if it doesn't exist or clear if too large"""
+        # Check if file exists and is too large (> 5 MB)
+        if os.path.exists(self.output_file_path):
+            file_size_mb = os.path.getsize(self.output_file_path) / (1024 * 1024)
+            if file_size_mb > 5:
+                logger.warning(f"Output file is {file_size_mb:.2f} MB - creating fresh file for testing")
+                os.remove(self.output_file_path)
+        
         if not os.path.exists(self.output_file_path):
             logger.info("Creating new output file with headers")
             # Create empty DataFrame with all columns
@@ -131,12 +144,22 @@ class OutputService:
         try:
             existing_df = pd.read_excel(self.output_file_path)
             logger.info(f"Existing records: {len(existing_df)}")
+            
+            # Keep only last 100 records for testing (prevent file bloat)
+            if len(existing_df) > 100:
+                logger.info(f"Keeping only last 100 records (was {len(existing_df)})")
+                existing_df = existing_df.tail(100)
         except Exception as e:
             logger.warning(f"Could not read existing file: {e}. Creating new one.")
             existing_df = pd.DataFrame()
         
         # Append new data
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        
+        # Limit to 150 total records for testing
+        if len(combined_df) > 150:
+            logger.info(f"Trimming to 150 records (was {len(combined_df)})")
+            combined_df = combined_df.tail(150)
         
         # Write back to Excel
         combined_df.to_excel(self.output_file_path, index=False)
@@ -189,36 +212,95 @@ class OutputService:
         self, 
         processing_type: str = None,
         limit: int = None,
-        cusip: str = None
+        cusip: str = None,
+        ticker: str = None,
+        message_id: int = None,
+        date_from: str = None,
+        date_to: str = None
     ) -> List[dict]:
         """
-        Read processed colors from output Excel file
+        Read processed colors from output Excel file (or S3 in future)
+        
+        **S3 MIGRATION NOTE:**
+        When migrating to S3:
+        1. Replace pd.read_excel() with boto3.client('s3').get_object()
+        2. Use S3 Select for server-side filtering (faster)
+        3. Apply same filters to S3 query for consistency
         
         Args:
             processing_type: Filter by "AUTOMATED" or "MANUAL" (None = all)
             limit: Maximum number of records to return
             cusip: Filter by specific CUSIP
+            ticker: Filter by ticker symbol
+            message_id: Filter by message ID
+            date_from: Start date filter (YYYY-MM-DD)
+            date_to: End date filter (YYYY-MM-DD)
             
         Returns:
             List of color dictionaries
         """
         try:
-            df = pd.read_excel(self.output_file_path)
+            # PERFORMANCE OPTIMIZATION: Only read what we need
+            # If limit is small (< 100), read only a reasonable chunk
+            if limit and limit < 100:
+                # Read only 10x the limit to account for filtering
+                # This dramatically speeds up queries for small previews
+                nrows_to_read = min(limit * 10, 2000)
+                logger.info(f"PERFORMANCE: Reading only {nrows_to_read} rows for limit={limit}")
+                df = pd.read_excel(self.output_file_path, nrows=nrows_to_read)
+            else:
+                # For larger requests or no limit, read everything (slower)
+                logger.info("Reading all rows from output file")
+                df = pd.read_excel(self.output_file_path)
             
             if len(df) == 0:
                 logger.warning("Output file is empty")
                 return []
             
-            # Apply filters
+            logger.info(f"Initial data loaded: {len(df)} rows")
+            
+            # Apply filters (in S3, these would be in the query itself)
             if processing_type:
                 df = df[df['PROCESSING_TYPE'] == processing_type]
+                logger.info(f"After processing_type filter: {len(df)} rows")
             
             if cusip:
-                df = df[df['CUSIP'] == cusip]
+                df = df[df['CUSIP'].str.upper() == cusip.upper()]
+                logger.info(f"After cusip filter: {len(df)} rows")
             
-            # Sort by most recent first
-            if 'PROCESSED_AT' in df.columns:
+            if ticker:
+                df = df[df['TICKER'].str.upper() == ticker.upper()]
+                logger.info(f"After ticker filter: {len(df)} rows")
+            
+            if message_id:
+                df = df[df['MESSAGE_ID'] == message_id]
+                logger.info(f"After message_id filter: {len(df)} rows")
+            
+            # Date range filtering
+            if date_from or date_to:
+                df['DATE_PARSED'] = pd.to_datetime(df['DATE'], errors='coerce')
+                if date_from:
+                    df = df[df['DATE_PARSED'] >= pd.to_datetime(date_from)]
+                if date_to:
+                    df = df[df['DATE_PARSED'] <= pd.to_datetime(date_to)]
+                df = df.drop('DATE_PARSED', axis=1)
+                logger.info(f"After date range filter: {len(df)} rows")
+            
+            # Sort by most recent date first (primary), then processed time (secondary)
+            if 'DATE' in df.columns:
+                df['DATE_PARSED'] = pd.to_datetime(df['DATE'], errors='coerce')
+                if 'PROCESSED_AT' in df.columns:
+                    df['PROCESSED_AT_PARSED'] = pd.to_datetime(df['PROCESSED_AT'], errors='coerce')
+                    df = df.sort_values(['DATE_PARSED', 'PROCESSED_AT_PARSED'], ascending=[False, False])
+                    df = df.drop('PROCESSED_AT_PARSED', axis=1)
+                else:
+                    df = df.sort_values('DATE_PARSED', ascending=False)
+                df = df.drop('DATE_PARSED', axis=1)
+                logger.info("Sorted by DATE (most recent first)")
+            elif 'PROCESSED_AT' in df.columns:
+                # Fallback if DATE column missing
                 df = df.sort_values('PROCESSED_AT', ascending=False)
+                logger.info("Sorted by PROCESSED_AT (fallback)")
             
             # Apply limit
             if limit:
@@ -227,7 +309,7 @@ class OutputService:
             # Convert to list of dicts
             records = df.to_dict('records')
             
-            logger.info(f"Read {len(records)} processed colors from output file")
+            logger.info(f"✅ Returning {len(records)} processed colors")
             return records
             
         except Exception as e:

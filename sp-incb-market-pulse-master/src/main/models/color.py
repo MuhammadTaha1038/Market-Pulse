@@ -62,7 +62,30 @@ class ColorProcessed(ColorRaw):
     """
     Processed color with parent-child hierarchy
     Extends ColorRaw with computed fields
+    
+    Fields are Optional to support CLO-based column filtering (simulates Oracle SELECT with specific columns)
     """
+    # Override parent class fields to make them optional for column filtering
+    message_id: Optional[int] = Field(None, description="Unique message identifier")
+    ticker: Optional[str] = Field(None, description="Security ticker symbol")
+    sector: Optional[str] = Field(None, description="Asset class/sector")
+    cusip: Optional[str] = Field(None, description="CUSIP identifier")
+    date: Optional[datetime] = Field(None, description="Trade/color date")
+    price_level: Optional[float] = Field(None, description="Price level")
+    bid: Optional[float] = Field(None, description="Bid price (0.0 if not applicable)")
+    ask: Optional[float] = Field(None, description="Ask/Offer price (0.0 if not applicable)")
+    px: Optional[float] = Field(None, description="Price (same as price_level)")
+    source: Optional[str] = Field(None, description="Data source/bank")
+    bias: Optional[str] = Field(None, description="Color type (BID, OFFER, BWIC COVER, etc)")
+    rank: Optional[int] = Field(None, ge=1, le=6, description="Pre-calculated rank (1=highest priority)")
+    cov_price: Optional[float] = Field(None, description="Coverage price reference")
+    percent_diff: Optional[float] = Field(None, description="Percentage difference")
+    price_diff: Optional[float] = Field(None, description="Price difference")
+    confidence: Optional[int] = Field(None, ge=0, le=10, description="Confidence score")
+    date_1: Optional[datetime] = Field(None, description="Secondary/fallback date")
+    diff_status: Optional[str] = Field(None, description="Difference status")
+    
+    # System fields - always included
     is_parent: bool = Field(default=False, description="True if this is the parent color")
     parent_message_id: Optional[int] = Field(default=None, description="Message ID of parent (for children)")
     children_count: int = Field(default=0, description="Number of children (for parents)")

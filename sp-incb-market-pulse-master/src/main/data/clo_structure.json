@@ -1,0 +1,265 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-02-02",
+  "description": "CLO type hierarchy for column visibility mapping",
+  "main_clos": [
+    {
+      "id": "EURO_ABS",
+      "name": "EURO_ABS",
+      "display_name": "Euro ABS",
+      "description": "European Asset-Backed Securities",
+      "sub_clos": [
+        {
+          "id": "EURO_ABS_AUTO_LEASE",
+          "name": "Auto Lease",
+          "display_name": "Auto Lease",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_AUTO_LOAN",
+          "name": "Auto Loan",
+          "display_name": "Auto Loan",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_BTLRMBS",
+          "name": "BTL/RMBS",
+          "display_name": "BTL/RMBS",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_CDO",
+          "name": "CDO",
+          "display_name": "Collateralized Debt Obligation",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_CMBS",
+          "name": "CMBS",
+          "display_name": "Commercial Mortgage-Backed Securities",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_CREDIT_CARD",
+          "name": "Credit Card",
+          "display_name": "Credit Card",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_HELOC",
+          "name": "HELOC",
+          "display_name": "Home Equity Line of Credit",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_MIXED_ASSETS",
+          "name": "Mixed Assets",
+          "display_name": "Mixed Assets",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_OTHER",
+          "name": "Other",
+          "display_name": "Other",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_OTHER_CONSUMER_LOAN",
+          "name": "Other Consumer Loan",
+          "display_name": "Other Consumer Loan",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_PRMBS",
+          "name": "PRMBS",
+          "display_name": "Prime Residential Mortgage-Backed Securities",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_PROPERTY_LEASING",
+          "name": "Property Leasing",
+          "display_name": "Property Leasing",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_RECEIVABLES",
+          "name": "Receivables",
+          "display_name": "Receivables",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_RMBS",
+          "name": "RMBS",
+          "display_name": "Residential Mortgage-Backed Securities",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_RESIDENTIAL_BUSINESS_LOAN",
+          "name": "Residential Business Loan",
+          "display_name": "Residential Business Loan",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_SPRMBS",
+          "name": "SPRMBS",
+          "display_name": "Sub-Prime Residential Mortgage-Backed Securities",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_SPVCASH",
+          "name": "SPVCASH",
+          "display_name": "Special Purpose Vehicle Cash",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_STUDENT_LOAN",
+          "name": "Student Loan",
+          "display_name": "Student Loan",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_TRADE_RECEIVABLE",
+          "name": "Trade Receivable",
+          "display_name": "Trade Receivable",
+          "parent_clo_id": "EURO_ABS"
+        },
+        {
+          "id": "EURO_ABS_WHOLE_BUSINESS_SECURITISATION",
+          "name": "Whole Business Securitisation",
+          "display_name": "Whole Business Securitisation",
+          "parent_clo_id": "EURO_ABS"
+        }
+      ]
+    },
+    {
+      "id": "CLO",
+      "name": "CLO",
+      "display_name": "Collateralized Loan Obligation",
+      "description": "CLO Securities",
+      "sub_clos": [
+        {
+          "id": "CLO_US_CLO",
+          "name": "US CLO",
+          "display_name": "US CLO",
+          "parent_clo_id": "CLO"
+        },
+        {
+          "id": "CLO_EUROPE_CLO",
+          "name": "Europe CLO",
+          "display_name": "Europe CLO",
+          "parent_clo_id": "CLO"
+        }
+      ]
+    },
+    {
+      "id": "USABS",
+      "name": "USABS",
+      "display_name": "US Asset-Backed Securities",
+      "description": "United States Asset-Backed Securities",
+      "sub_clos": [
+        {
+          "id": "USABS_AGENCYCMO",
+          "name": "AgencyCMO",
+          "display_name": "Agency Collateralized Mortgage Obligation",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AGENCYPOOL",
+          "name": "AgencyPool",
+          "display_name": "Agency Pool",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AGENCYREVERSE",
+          "name": "AgencyReverse",
+          "display_name": "Agency Reverse Mortgage",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AIRCRAFT",
+          "name": "AIRCRAFT",
+          "display_name": "Aircraft",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AUTO_FLOOR",
+          "name": "AUTO_FLOOR",
+          "display_name": "Auto Floor Plan",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AUTO_LEASE",
+          "name": "AUTO_LEASE",
+          "display_name": "Auto Lease",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_AUTO_LOANS",
+          "name": "AUTO_LOANS",
+          "display_name": "Auto Loans",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_CANADIANABS",
+          "name": "CanadianABS",
+          "display_name": "Canadian ABS",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_CELL_TOWERS",
+          "name": "CELL TOWERS",
+          "display_name": "Cell Towers",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_CMBS",
+          "name": "CMBS",
+          "display_name": "Commercial Mortgage-Backed Securities",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_CREDIT_CARDS",
+          "name": "CREDIT_CARDS",
+          "display_name": "Credit Cards",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_EQUIPMENT",
+          "name": "EQUIPMENT",
+          "display_name": "Equipment",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_MULTIFAMILY",
+          "name": "MULTIFAMILY",
+          "display_name": "Multifamily",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_NON_AGENCY",
+          "name": "NON-AGENCY",
+          "display_name": "Non-Agency",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_OTHERS",
+          "name": "OTHERS",
+          "display_name": "Others",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_RECEIVABLES",
+          "name": "RECEIVABLES",
+          "display_name": "Receivables",
+          "parent_clo_id": "USABS"
+        },
+        {
+          "id": "USABS_STUDENT_LOANS",
+          "name": "STUDENT_LOANS",
+          "display_name": "Student Loans",
+          "parent_clo_id": "USABS"
+        }
+      ]
+    }
+  ]
+}

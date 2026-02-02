@@ -8,12 +8,14 @@ import { environment } from '../../enviornments/environment';
  * Unified Log Entry - Standard format for all log types
  */
 export interface UnifiedLogEntry {
-  id: number | string;
+  id: number;
   action: string;
   details: string;
   timestamp: string;
   user?: string;
   source: 'rules' | 'cron' | 'manual' | 'backup' | 'preset';
+  canRevert?: boolean;
+  revertData?: any;
 }
 
 /**
@@ -28,19 +30,21 @@ export class LogsService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Get recent rule logs
+   * Get recent rule logs from unified logs endpoint
    */
   getRuleLogs(limit: number = 2): Observable<UnifiedLogEntry[]> {
-    return this.http.get<any>(`${this.baseUrl}/rules/logs?limit=${limit}`).pipe(
+    return this.http.get<any>(`${this.baseUrl}/logs/rules?limit=${limit}`).pipe(
       map(response => {
         if (!response.logs) return [];
         return response.logs.map((log: any) => ({
-          id: log.id,
+          id: log.log_id,
           action: log.action,
-          details: `${log.rule_name}${log.details ? ' - ' + log.details : ''}`,
-          timestamp: log.timestamp,
-          user: log.user,
-          source: 'rules' as const
+          details: log.description,
+          timestamp: log.performed_at,
+          user: log.performed_by,
+          source: 'rules' as const,
+          canRevert: log.can_revert,
+          revertData: log.revert_data
         }));
       })
     );
@@ -155,5 +159,12 @@ export class LogsService {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  /**
+   * Revert a log entry (undo operation)
+   */
+  revertLog(logId: number, revertedBy: string = 'admin'): Observable<any> {
+    return this.http.post(`${this.baseUrl}/logs/${logId}/revert`, { reverted_by: revertedBy });
   }
 }

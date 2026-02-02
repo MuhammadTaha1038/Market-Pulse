@@ -1,19 +1,19 @@
 {
   "rules": [
     {
-      "id": 2,
-      "name": "testing rule3",
+      "id": 4,
+      "name": "100",
       "is_active": true,
       "conditions": [
         {
           "type": "where",
-          "column": "Price",
-          "operator": "is less than",
-          "value": "1000000"
+          "column": "PX",
+          "operator": "equal to",
+          "value": "100"
         }
       ],
-      "created_at": "2026-02-01T16:23:00.430775",
-      "updated_at": "2026-02-01T16:23:00.430804"
+      "created_at": "2026-02-02T18:33:15.394417",
+      "updated_at": "2026-02-02T18:33:15.394424"
     }
   ]
 }

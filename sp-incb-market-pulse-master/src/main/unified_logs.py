@@ -38,14 +38,14 @@ class RevertRequest(BaseModel):
 
 @router.get("", response_model=Dict)
 async def get_all_logs(
-    module: Optional[str] = Query(None, description="Filter by module (rules, presets, cron, restore, email)"),
+    module: Optional[str] = Query(None, description="Filter by module (rules, cron, restore, email)"),
     limit: int = Query(4, description="Number of logs to return (default: 4 for last 4 changes)")
 ):
     """
     Get unified logs across all modules
     
     Query Parameters:
-        - module: Optional module filter (rules, presets, cron, restore, email)
+        - module: Optional module filter (rules, cron, restore, email)
         - limit: Number of logs to return (default: 4)
     
     Returns:
@@ -85,25 +85,6 @@ async def get_rules_logs(limit: int = Query(4, description="Number of logs")):
         }
     except Exception as e:
         logger.error(f"Error fetching rules logs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/presets", response_model=Dict)
-async def get_presets_logs(limit: int = Query(4, description="Number of logs")):
-    """
-    Get last 4 changes for presets module
-    
-    Returns recent preset operations
-    """
-    try:
-        logs = logging_service.get_logs(module='presets', limit=limit)
-        return {
-            "logs": logs,
-            "count": len(logs),
-            "module": "presets"
-        }
-    except Exception as e:
-        logger.error(f"Error fetching presets logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -173,7 +154,6 @@ async def revert_log_entry(log_id: int, request: RevertRequest):
     
     Applies revert logic based on the module:
     - Rules: Restore deleted rules, undo updates
-    - Presets: Restore deleted presets
     - Restore: Revert data restore operations
     - Cron: Not revertable (read-only logs)
     

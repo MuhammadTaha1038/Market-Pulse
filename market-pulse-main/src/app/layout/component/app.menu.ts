@@ -68,6 +68,18 @@ export class AppMenu {
             queryParams: { section: 'restore-email' }
           },
         ]
+      },
+
+      {
+        label: 'Super Admin',
+        items: [
+          { 
+            label: 'CLO Mappings', 
+            icon: 'pi pi-fw pi-shield', 
+            routerLink: ['/clo-mappings'],
+            title: 'Configure column visibility for each CLO type'
+          },
+        ]
       }
     ];
   }

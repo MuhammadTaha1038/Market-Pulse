@@ -1,4 +1,24 @@
 <div class="p-6 space-y-4">
+  
+  <!-- Toast Messages -->
+  <p-toast></p-toast>
+
+  <!-- Statistics Banner -->
+  <div *ngIf="sessionId" class="flex flex-wrap items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div class="flex items-center gap-2">
+      <i class="pi pi-file text-blue-600"></i>
+      <span class="text-sm font-medium text-gray-700">File:</span>
+      <span class="text-sm text-gray-900">{{ filename }}</span>
+    </div>
+    <div class="h-4 border-l border-blue-300"></div>
+    <div *ngFor="let key of ['total_rows', 'valid_rows', 'deleted_rows', 'rules_applied_count'] | slice:0:4" 
+         class="flex items-center gap-2">
+      <p-tag 
+        [value]="formatKey(key) + ': ' + (statistics[key] || 0)" 
+        [severity]="getSeverity(key)">
+      </p-tag>
+    </div>
+  </div>
 
   <!-- Top Toolbar -->
   <div class="flex flex-wrap items-center justify-between gap-3">
@@ -7,14 +27,71 @@
         type="text"
         pInputText
         [(ngModel)]="searchText"
-        placeholder="Search Message ID"
+        placeholder="Search in table"
         class="p-inputtext-sm w-64"
       />
-      <button pButton label="Add New" icon="pi pi-plus" class="p-button-sm p-button-outlined"></button>
-      <button pButton label="Run Rules" icon="pi pi-cog" class="p-button-sm p-button-outlined"></button>
-      <button pButton label="Filters" icon="pi pi-filter" class="p-button-sm p-button-outlined"></button>
-      <button pButton label="Import via Excel" icon="pi pi-upload" class="p-button-sm p-button-outlined"
-        (click)="openImportDialog()"></button>
+      
+      <!-- Delete Selected Button -->
+      <button 
+        pButton 
+        label="Delete Selected" 
+        icon="pi pi-trash" 
+        class="p-button-sm p-button-danger p-button-outlined"
+        [disabled]="selectedRows.length === 0 || isProcessing"
+        (click)="deleteSelectedRows()">
+      </button>
+      
+      <!-- Run Rules with Dropdown -->
+      <div class="flex items-center gap-2">
+        <p-multiSelect
+          [(ngModel)]="selectedRules"
+          [options]="availableRules"
+          optionLabel="name"
+          placeholder="Select Rules"
+          [filter]="true"
+          [showHeader]="false"
+          class="w-64"
+          [disabled]="!sessionId || isProcessing"
+        ></p-multiSelect>
+        <button 
+          pButton 
+          label="Apply Rules" 
+          icon="pi pi-cog" 
+          class="p-button-sm p-button-outlined"
+          [disabled]="selectedRules.length === 0 || isProcessing"
+          (click)="applySelectedRules()">
+        </button>
+      </div>
+      
+      <!-- Filters Button (Presets) -->
+      <button 
+        pButton 
+        label="Filters" 
+        icon="pi pi-filter" 
+        class="p-button-sm p-button-outlined" 
+        (click)="openFilterDialog()">
+      </button>
+      
+      <!-- Import Button -->
+      <button 
+        pButton 
+        label="Import via Excel" 
+        icon="pi pi-upload" 
+        class="p-button-sm p-button-outlined"
+        [disabled]="isUploading"
+        (click)="openImportDialog()">
+      </button>
+      
+      <!-- Clear/Reset Button -->
+      <button 
+        pButton 
+        label="Clear Data" 
+        icon="pi pi-times" 
+        class="p-button-sm p-button-outlined p-button-danger"
+        [disabled]="colors.length === 0"
+        (click)="resetSession()"
+        pTooltip="Clear all data and start fresh">
+      </button>
     </div>
 
     <div class="flex items-center gap-3">
@@ -25,9 +102,18 @@
         icon="pi pi-play"
         class="p-button-sm p-button-rounded"
         style="background-color:white;color:#0b0b14;border-color:#d1d5db"
+        [disabled]="colors.length === 0 || isSaving || isUploading"
         (click)="runAutomation()"
-      ></button>
+      >
+        <i *ngIf="isSaving" class="pi pi-spin pi-spinner mr-2"></i>
+      </button>
     </div>
+  </div>
+
+  <!-- Loading Spinner Overlay -->
+  <div *ngIf="isProcessing || isUploading" class="flex items-center justify-center p-8">
+    <p-progressSpinner></p-progressSpinner>
+    <span class="ml-3 text-gray-600">{{ isUploading ? 'Uploading...' : 'Processing...' }}</span>
   </div>
 
   <!-- PrimeNG Table -->
@@ -36,36 +122,40 @@
     [paginator]="true"
     [rows]="10"
     responsiveLayout="scroll"
-    [rowsPerPageOptions]="[5,10,20]"
+    [rowsPerPageOptions]="[5,10,20,50]"
     class="shadow-md rounded-xl overflow-hidden"
+    [(selection)]="selectedRows"
+    dataKey="messageId"
+    [loading]="isUploading || isProcessing"
   >
     <ng-template pTemplate="header">
       <tr>
+        <th style="width: 3rem">
+          <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+        </th>
         <th>#</th>
-        <th>Message ID</th>
-        <th>Ticket ID</th>
-        <th>CUSIP</th>
-        <th>Bias</th>
-        <th>Date</th>
-        <th>BID</th>
-        <th>MID</th>
-        <th>ASK</th>
-        <th>Source</th>
+        <th *ngFor="let col of columns">{{ col.header }}</th>
       </tr>
     </ng-template>
 
     <ng-template pTemplate="body" let-row let-i="rowIndex">
-      <tr>
+      <tr [pSelectableRow]="row">
+        <td>
+          <p-tableCheckbox [value]="row"></p-tableCheckbox>
+        </td>
         <td>{{ i + 1 }}</td>
-        <td>{{ row.messageId }}</td>
-        <td>{{ row.ticketId }}</td>
-        <td>{{ row.cusip }}</td>
-        <td>{{ row.bias }}</td>
-        <td>{{ row.date }}</td>
-        <td>{{ row.bid }}</td>
-        <td>{{ row.mid }}</td>
-        <td>{{ row.ask }}</td>
-        <td>{{ row.source }}</td>
+        <td *ngFor="let col of columns">{{ row[col.field] }}</td>
+      </tr>
+    </ng-template>
+    
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td [attr.colspan]="columns.length + 2" class="text-center">
+          <div class="py-8 text-gray-500">
+            <i class="pi pi-inbox text-4xl mb-3"></i>
+            <p>No data available. Import an Excel file to get started.</p>
+          </div>
+        </td>
       </tr>
     </ng-template>
   </p-table>
@@ -96,6 +186,51 @@
         class="p-button-outlined p-button-sm"
         (click)="onCancelUpload()"
       ></button>
+    </div>
+  </p-dialog>
+
+  <!-- Filter Dialog with Presets -->
+  <p-dialog
+    header="Filter"
+    [(visible)]="showFilterDialog"
+    [modal]="true"
+    [style]="{ width: '600px' }"
+    [closable]="true"
+  >
+    <div class="space-y-4">
+      <div class="flex items-center gap-3">
+        <label class="text-sm font-medium text-gray-700">Select Preset:</label>
+        <p-autocomplete
+          [(ngModel)]="selectedPreset"
+          [suggestions]="filteredPresets"
+          (completeMethod)="searchPreset($event)"
+          field="name"
+          [forceSelection]="true"
+          placeholder="Choose a saved filter preset"
+          [dropdown]="true"
+          class="flex-1"
+        >
+          <ng-template let-preset pTemplate="item">
+            <div>{{ preset.name }}</div>
+          </ng-template>
+        </p-autocomplete>
+      </div>
+
+      <div class="flex justify-between items-center pt-4 border-t">
+        <button
+          pButton
+          label="Remove all filters"
+          class="p-button-text p-button-sm text-gray-600"
+          (click)="removeAllFilters()"
+        ></button>
+        <button
+          pButton
+          label="Apply Filters"
+          class="p-button-sm"
+          [disabled]="!selectedPreset"
+          (click)="applyPreset()"
+        ></button>
+      </div>
     </div>
   </p-dialog>
 

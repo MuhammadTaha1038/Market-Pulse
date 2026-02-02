@@ -1,0 +1,32 @@
+[
+  {
+    "id": 5,
+    "name": "new3",
+    "description": "",
+    "conditions": [
+      {
+        "column": "PX",
+        "operator": "equal to",
+        "value": "100"
+      }
+    ],
+    "created_at": "2026-02-02T18:25:43.100791",
+    "created_by": "admin",
+    "updated_at": "2026-02-02T18:25:43.100800"
+  },
+  {
+    "id": 6,
+    "name": "new4",
+    "description": "",
+    "conditions": [
+      {
+        "column": "PX",
+        "operator": "is equal to",
+        "value": "100"
+      }
+    ],
+    "created_at": "2026-02-02T21:30:39.800816",
+    "created_by": "admin",
+    "updated_at": "2026-02-02T21:30:39.800880"
+  }
+]

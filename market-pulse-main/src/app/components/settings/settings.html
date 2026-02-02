@@ -654,13 +654,7 @@
               <p class="text-sm text-gray-900">{{ log.description }}</p>
               <p class="text-xs text-gray-500">{{ log.date }}</p>
             </div>
-            <button *ngIf="log.canRevert" 
-                    (click)="revertLog(log)"
-                    class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
-                    title="Revert this change">
-              <i class="pi pi-undo text-xs"></i>
-              Revert
-            </button>
+            <!-- Restore logs don't use backend revert - they use showToast -->
           </div>
         </div>
       </div>
@@ -915,12 +909,18 @@
         </div>
         
         <!-- Loop through rule logs from backend -->
-        <div *ngFor="let log of ruleLogs.slice(0, 2)" 
+        <div *ngFor="let log of ruleLogs.slice(0, 4)" 
              class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-          <div>
-            <p class="text-sm text-gray-900">{{ log.action }}</p>
+          <div class="flex-1">
+            <p class="text-sm text-gray-900 capitalize">{{ log.action }}</p>
             <p class="text-xs text-gray-500">{{ formatLogTimestamp(log.timestamp) }} | {{ log.details }}</p>
           </div>
+          <!-- Revert button if can_revert is true -->
+          <button *ngIf="log.canRevert" 
+                  (click)="revertLog(log.id)"
+                  class="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1">
+            ↩️ Revert
+          </button>
         </div>
       </div>
     </div>

@@ -144,8 +144,17 @@ def evaluate_condition(row: Dict, condition: Dict) -> bool:
     # Map to normalized operator
     operator = operator_map.get(operator, operator)
     
-    # Get row value (handle missing columns)
-    row_value = str(row.get(column, ''))
+    # Get row value (handle missing columns with case-insensitive lookup)
+    row_value = None
+    for key in row.keys():
+        if key.lower() == column.lower():
+            row_value = str(row[key])
+            break
+    
+    # If column not found, use empty string
+    if row_value is None:
+        row_value = ''
+    
     compare_value = str(value)
     
     # Text operators (case-insensitive)

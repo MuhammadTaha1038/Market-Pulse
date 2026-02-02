@@ -79,20 +79,6 @@ def revert_backup_operation(revert_data: Dict, entity_id: int) -> Dict:
     raise ValueError(f"Unknown backup revert action: {action}")
 
 
-def revert_preset_operation(revert_data: Dict, entity_id: int) -> Dict:
-    """
-    Revert a preset operation (to be implemented when presets are added)
-    
-    Args:
-        revert_data: Revert instructions
-        entity_id: ID of the affected entity
-    
-    Returns:
-        Result of revert operation
-    """
-    # Placeholder for future preset implementation
-    raise NotImplementedError("Preset revert not yet implemented")
-
 
 def apply_revert(log_id: int, reverted_by: str = "admin") -> Dict:
     """
@@ -118,8 +104,6 @@ def apply_revert(log_id: int, reverted_by: str = "admin") -> Dict:
         operation_result = revert_rules_operation(revert_data, entity_id)
     elif module == 'backup' or module == 'restore':
         operation_result = revert_backup_operation(revert_data, entity_id)
-    elif module == 'presets':
-        operation_result = revert_preset_operation(revert_data, entity_id)
     else:
         raise ValueError(f"Revert not supported for module: {module}")
     

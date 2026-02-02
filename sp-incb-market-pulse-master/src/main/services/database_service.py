@@ -308,7 +308,7 @@ class DatabaseService:
     
     def fetch_monthly_stats(self, months: int = 12) -> List[dict]:
         """
-        Get color count by month for dashboard chart
+        Get color count by month for dashboard chart from OUTPUT file
         
         Args:
             months: Number of months to look back
@@ -316,48 +316,50 @@ class DatabaseService:
         Returns:
             List of {"month": "2026-01", "count": 1234}
         """
-        df = self._load_data()
-        
-        # For sample data (single date), generate mock monthly stats
-        # In production, this will query actual date ranges
-        logger.info("Generating monthly stats (mock data for sample)")
-        
-        # Get unique month from data
-        df['month'] = pd.to_datetime(df['DATE']).dt.strftime('%Y-%m')
-        monthly_counts = df.groupby('month').size().reset_index(name='count')
-        
-        # If only one month, generate mock historical data for chart
-        if len(monthly_counts) == 1:
-            current_month = monthly_counts.iloc[0]['month']
-            current_count = monthly_counts.iloc[0]['count']
+        try:
+            # Read from OUTPUT file instead of input data
+            from services.output_service import get_output_service
+            output_service = get_output_service()
             
-            # Generate 11 previous months with varying counts
-            stats = []
-            base_date = datetime.strptime(current_month, '%Y-%m')
+            # Read ALL processed colors from output file to count by month
+            import pandas as pd
+            df_output = pd.read_excel(output_service.output_file_path)
             
-            for i in range(11, -1, -1):
-                month_date = base_date - timedelta(days=30 * i)
-                month_str = month_date.strftime('%Y-%m')
-                
-                # Mock data with alternating pattern (like frontend expects)
-                if i == 0:
-                    count = current_count
-                else:
-                    count = 1200 if i % 2 == 0 else 2100
-                
-                stats.append({"month": month_str, "count": count})
+            if len(df_output) == 0:
+                logger.warning("No data in output file for monthly stats")
+                return []
             
-            return stats
-        
-        # Real data with multiple months
-        result = []
-        for _, row in monthly_counts.iterrows():
-            result.append({
-                "month": row['month'],
-                "count": int(row['count'])
-            })
-        
-        return result
+            logger.info(f"Computing monthly stats from {len(df_output)} output records")
+            
+            # Use PROCESSED_AT or DATE column for grouping
+            date_column = 'PROCESSED_AT' if 'PROCESSED_AT' in df_output.columns else 'DATE'
+            
+            # Convert to datetime and extract month
+            df_output['month'] = pd.to_datetime(df_output[date_column], errors='coerce').dt.strftime('%Y-%m')
+            
+            # Group by month and count
+            monthly_counts = df_output.groupby('month').size().reset_index(name='count')
+            monthly_counts = monthly_counts.sort_values('month')
+            
+            # Get last N months
+            if len(monthly_counts) > months:
+                monthly_counts = monthly_counts.tail(months)
+            
+            # Convert to list of dicts
+            result = []
+            for _, row in monthly_counts.iterrows():
+                if pd.notna(row['month']):  # Skip null months
+                    result.append({
+                        "month": str(row['month']),
+                        "count": int(row['count'])
+                    })
+            
+            logger.info(f"Returning {len(result)} months of stats")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error computing monthly stats: {e}")
+            return []
     
     def get_available_sectors(self) -> List[str]:
         """

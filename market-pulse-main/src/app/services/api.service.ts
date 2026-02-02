@@ -4,18 +4,30 @@ import { Observable } from 'rxjs';
 import { environment } from '../../enviornments/environment';
 
 export interface ColorData {
-  message_id: string;
-  ticker: string;
-  cusip: string;
-  bias: string;
-  date: string;
-  price: number;
-  spread: number;
-  source: string;
-  rank: number;
-  is_parent: boolean;
-  parent_message_id?: string;
+  message_id: number;
+  ticker?: string;
+  sector?: string;
+  cusip?: string;
+  date?: string;
+  price_level?: number;
+  bid?: number;
+  ask?: number;
+  px?: number;
+  source?: string;
+  bias?: string;
+  rank?: number;
+  cov_price?: number;
+  percent_diff?: number;
+  price_diff?: number;
+  confidence?: number;
+  date_1?: string;
+  diff_status?: string;
+  is_parent?: boolean;
+  parent_message_id?: number;
   children_count?: number;
+  // Legacy fields for backwards compatibility
+  price?: number;
+  spread?: number;
 }
 
 export interface ColorsResponse {
@@ -64,15 +76,49 @@ export class ApiService {
   }
 
   /**
-   * Get colors with pagination and filtering
+   * Get colors with pagination, filtering, and CLO-based column visibility
    */
-  getColors(skip: number = 0, limit: number = 50, assetClass?: string): Observable<ColorsResponse> {
+  getColors(
+    skip: number = 0, 
+    limit: number = 50, 
+    assetClass?: string, 
+    cloId?: string,
+    cusip?: string,
+    ticker?: string,
+    messageId?: number,
+    source?: string,
+    bias?: string
+  ): Observable<ColorsResponse> {
     let params = new HttpParams()
       .set('skip', skip.toString())
       .set('limit', limit.toString());
     
     if (assetClass) {
       params = params.set('asset_class', assetClass);
+    }
+    
+    if (cloId) {
+      params = params.set('clo_id', cloId);
+    }
+    
+    if (cusip) {
+      params = params.set('cusip', cusip);
+    }
+    
+    if (ticker) {
+      params = params.set('ticker', ticker);
+    }
+    
+    if (messageId) {
+      params = params.set('message_id', messageId.toString());
+    }
+    
+    if (source) {
+      params = params.set('source', source);
+    }
+    
+    if (bias) {
+      params = params.set('bias', bias);
     }
     
     return this.http.get<ColorsResponse>(`${this.baseUrl}/api/dashboard/colors`, { params });

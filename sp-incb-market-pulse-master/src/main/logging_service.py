@@ -21,7 +21,7 @@ class LogEntry:
     def __init__(
         self,
         log_id: int,
-        module: str,  # 'rules', 'presets', 'cron', 'restore', 'email'
+        module: str,  # 'rules', 'cron', 'restore', 'email'
         action: str,  # 'create', 'update', 'delete', 'toggle', 'restore', 'send', etc.
         description: str,
         performed_by: str,
@@ -102,11 +102,11 @@ def add_log(
     Add a log entry
     
     Args:
-        module: Module name ('rules', 'presets', 'cron', 'restore', 'email')
+        module: Module name ('rules', 'cron', 'restore', 'email')
         action: Action performed ('create', 'update', 'delete', 'toggle', etc.)
         description: Human-readable description
         performed_by: User who performed the action
-        entity_id: ID of the entity (rule_id, preset_id, etc.)
+        entity_id: ID of the entity (rule_id, cron_id, etc.)
         entity_name: Name of the entity
         can_revert: Whether this action can be reverted
         revert_data: Data snapshot for reverting (full entity before change)

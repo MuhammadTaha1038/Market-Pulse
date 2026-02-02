@@ -165,10 +165,11 @@ export class CronJobsService {
   /**
    * Manually trigger job execution
    * @param id - Job ID
+   * @param override - If true, cancels next scheduled run. If false, keeps scheduled run.
    * @returns Observable of execution result
    */
-  triggerJob(id: number): Observable<TriggerResponse> {
-    return this.http.post<TriggerResponse>(`${this.baseUrl}/${id}/trigger`, {});
+  triggerJob(id: number, override: boolean = false): Observable<TriggerResponse> {
+    return this.http.post<TriggerResponse>(`${this.baseUrl}/${id}/trigger?override=${override}`, {});
   }
 
   /**
