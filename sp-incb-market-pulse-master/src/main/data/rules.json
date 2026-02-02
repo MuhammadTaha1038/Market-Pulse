@@ -14,6 +14,21 @@
       ],
       "created_at": "2026-02-02T18:33:15.394417",
       "updated_at": "2026-02-02T18:33:15.394424"
+    },
+    {
+      "id": 5,
+      "name": "greater than 100",
+      "is_active": true,
+      "conditions": [
+        {
+          "type": "where",
+          "column": "PX",
+          "operator": "greater than",
+          "value": "100"
+        }
+      ],
+      "created_at": "2026-02-02T22:57:19.740689",
+      "updated_at": "2026-02-02T22:57:19.740719"
     }
   ]
 }

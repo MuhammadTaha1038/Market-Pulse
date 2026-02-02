@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Output Service - Write processed colors to Excel file
-This will be replaced with S3 integration in future milestone
+Output Service - Write processed colors to output destination
+Supports: Local Excel files, AWS S3, or both
 
 TESTING MODE:
 - File auto-clears if it exceeds 5 MB
@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 import logging
 from models.color import ColorProcessed
+from services.output_destination_factory import get_output_destination
 import os
 
 logger = logging.getLogger(__name__)
@@ -23,16 +24,16 @@ logger = logging.getLogger(__name__)
 
 class OutputService:
     """
-    Service for writing processed color data to output Excel file
-    Future: Replace with S3 bucket integration
+    Service for writing processed color data to configured output destination(s)
+    Supports: Local Excel files, AWS S3, or both
     """
     
     def __init__(self, output_file_path: str = None):
         """
-        Initialize output service
+        Initialize output service with configured destination(s)
         
         Args:
-            output_file_path: Path to output Excel file
+            output_file_path: Path to output Excel file (used for local destination)
         """
         if output_file_path is None:
             # Store output in Data-main directory
@@ -40,10 +41,23 @@ class OutputService:
             output_file_path = base_dir / "Processed_Colors_Output.xlsx"
         
         self.output_file_path = str(output_file_path)
-        logger.info(f"OutputService initialized with output file: {self.output_file_path}")
         
-        # Create file with headers if it doesn't exist
+        # Get configured output destination(s)
+        self.destination = get_output_destination()
+        self.use_multiple_destinations = isinstance(self.destination, list)
+        
+        logger.info(f"OutputService initialized with: {self._get_destination_summary()}")
+        
+        # Create file with headers if using local Excel destination
         self._initialize_output_file()
+    
+    def _get_destination_summary(self) -> str:
+        """Get summary of configured destinations"""
+        if self.use_multiple_destinations:
+            types = [d.get_destination_info()['type'] for d in self.destination]
+            return f"Multiple destinations: {', '.join(types)}"
+        else:
+            return f"{self.destination.get_destination_info()['type']} destination"
     
     def _initialize_output_file(self):
         """Create output file with headers if it doesn't exist or clear if too large"""
@@ -164,18 +178,51 @@ class OutputService:
         # Write back to Excel
         combined_df.to_excel(self.output_file_path, index=False)
         
+        # Also save to configured destination(s) if not already local Excel
+        self._save_to_destinations(combined_df, "Processed_Colors_Output.xlsx")
+        
         logger.info(f"✅ Appended {len(records)} records. Total records: {len(combined_df)}")
         return len(records)
     
+    def _save_to_destinations(self, df: pd.DataFrame, filename: str):
+        """
+        Save DataFrame to configured output destination(s)
+        
+        Args:
+            df: DataFrame to save
+            filename: Base filename for the output
+        """
+        try:
+            if self.use_multiple_destinations:
+                # Save to multiple destinations
+                for dest in self.destination:
+                    result = dest.save_output(df, filename)
+                    if result['status'] == 'success':
+                        logger.info(f"✅ {result['message']}")
+                    else:
+                        logger.error(f"❌ {result['message']}")
+            else:
+                # Save to single destination
+                result = self.destination.save_output(df, filename)
+                if result['status'] == 'success':
+                    logger.info(f"✅ {result['message']}")
+                else:
+                    logger.error(f"❌ {result['message']}")
+        except Exception as e:
+            logger.error(f"Error saving to destination(s): {str(e)}")
+    
     def get_processed_count(self) -> dict:
         """
-        Get statistics about processed data
+        Get statistics about processed data from configured destination
         
         Returns:
             Dictionary with counts by processing type
         """
         try:
-            df = pd.read_excel(self.output_file_path)
+            # Use abstracted reader
+            from services.processed_data_reader import get_processed_data_reader
+            reader = get_processed_data_reader()
+            df = reader.read_processed_data()
             
             total = len(df)
             automated = len(df[df['PROCESSING_TYPE'] == 'AUTOMATED'])
@@ -192,7 +239,7 @@ class OutputService:
                 'output_file': self.output_file_path
             }
         except Exception as e:
-            logger.error(f"Error reading output file: {e}")
+            logger.error(f"Error reading processed data: {e}")
             return {
                 'total_processed': 0,
                 'automated': 0,
@@ -219,13 +266,8 @@ class OutputService:
         date_to: str = None
     ) -> List[dict]:
         """
-        Read processed colors from output Excel file (or S3 in future)
-        
-        **S3 MIGRATION NOTE:**
-        When migrating to S3:
-        1. Replace pd.read_excel() with boto3.client('s3').get_object()
-        2. Use S3 Select for server-side filtering (faster)
-        3. Apply same filters to S3 query for consistency
+        Read processed colors from configured output destination (local Excel or S3)
+        FULLY ABSTRACTED - reads from local or S3 based on .env configuration
         
         Args:
             processing_type: Filter by "AUTOMATED" or "MANUAL" (None = all)
@@ -240,6 +282,10 @@ class OutputService:
             List of color dictionaries
         """
         try:
+            # Use abstracted reader (works with local Excel or S3)
+            from services.processed_data_reader import get_processed_data_reader
+            reader = get_processed_data_reader()
+            
             # PERFORMANCE OPTIMIZATION: Only read what we need
             # If limit is small (< 100), read only a reasonable chunk
             if limit and limit < 100:
@@ -247,19 +293,19 @@ class OutputService:
                 # This dramatically speeds up queries for small previews
                 nrows_to_read = min(limit * 10, 2000)
                 logger.info(f"PERFORMANCE: Reading only {nrows_to_read} rows for limit={limit}")
-                df = pd.read_excel(self.output_file_path, nrows=nrows_to_read)
+                df = reader.read_processed_data(nrows=nrows_to_read)
             else:
                 # For larger requests or no limit, read everything (slower)
-                logger.info("Reading all rows from output file")
-                df = pd.read_excel(self.output_file_path)
+                logger.info("Reading all rows from processed data")
+                df = reader.read_processed_data()
             
             if len(df) == 0:
-                logger.warning("Output file is empty")
+                logger.warning("Processed data is empty")
                 return []
             
             logger.info(f"Initial data loaded: {len(df)} rows")
             
-            # Apply filters (in S3, these would be in the query itself)
+            # Apply filters
             if processing_type:
                 df = df[df['PROCESSING_TYPE'] == processing_type]
                 logger.info(f"After processing_type filter: {len(df)} rows")

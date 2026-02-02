@@ -12,14 +12,17 @@ mangum
 httpx
 python-multipart>=0.0.6  # For file upload support
 
-# Oracle Database connectivity (optional - install when Oracle is configured)
-oracledb>=2.0.0
-cx_Oracle>=8.3.0
+# Oracle Database connectivity (install when Oracle integration is configured)
+# Uncomment when setting DATA_SOURCE=oracle in .env
+# oracledb>=2.0.0
 
-# AWS and data processing
+# AWS S3 (install when S3 integration is configured)
+# Uncomment when setting OUTPUT_DESTINATION=s3 or OUTPUT_DESTINATION=both in .env
+# boto3>=1.26.0
+# botocore>=1.29.0
+
+# Data processing and utilities
 pandas>=2.0.0
-python-dotenv>=1.0.0
-openpyxl>=3.0.0  # For Excel file reading
-email-validator>=2.0.0  # For Pydantic EmailStr validation
-APScheduler>=3.10.0  # For cron job scheduling
-
+python-dotenv>=1.0.0  # For .env file support
+openpyxl>=3.0.0  # For Excel file reading/writing
+requests>=2.31.0  # For Oracle credentials API calls

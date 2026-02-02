@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 import logging
 from services.column_config_service import get_column_config
 from services.database_service import DatabaseService
+from services.data_source_factory import get_data_source, get_data_source_info
+from services.output_destination_factory import get_output_destination, get_output_destination_info
 
 logger = logging.getLogger(__name__)
 
@@ -258,4 +260,96 @@ async def get_connection_info():
         }
     except Exception as e:
         logger.error(f"Error getting connection info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/system-status")
+async def get_system_status():
+    """
+    Get comprehensive system status including data source and output destination
+    
+    Returns:
+        - Data source type and connection status
+        - Output destination type and connection status
+        - Configuration details
+        - Integration readiness
+    """
+    try:
+        # Get data source information
+        data_source = get_data_source()
+        data_source_info = data_source.get_source_info()
+        data_source_test = data_source.test_connection()
+        
+        # Get output destination information
+        output_destination = get_output_destination()
+        output_dest_info = get_output_destination_info()
+        
+        # Test output destination(s)
+        if isinstance(output_destination, list):
+            output_dest_tests = []
+            for dest in output_destination:
+                test_result = dest.test_connection()
+                output_dest_tests.append({
+                    "type": dest.get_destination_info()['type'],
+                    "status": test_result['status'],
+                    "message": test_result['message']
+                })
+            output_dest_status = {
+                "mode": "multiple",
+                "tests": output_dest_tests
+            }
+        else:
+            output_dest_test = output_destination.test_connection()
+            output_dest_status = {
+                "mode": "single",
+                "type": output_dest_info['type'],
+                "status": output_dest_test['status'],
+                "message": output_dest_test['message']
+            }
+        
+        # Overall readiness assessment
+        data_source_ready = data_source_test['status'] == 'success'
+        
+        if isinstance(output_destination, list):
+            output_ready = all(test['status'] == 'success' for test in output_dest_tests)
+        else:
+            output_ready = output_dest_test['status'] == 'success'
+        
+        overall_ready = data_source_ready and output_ready
+        
+        return {
+            "success": True,
+            "overall_status": "ready" if overall_ready else "not_ready",
+            "data_source": {
+                "info": data_source_info,
+                "connection_test": data_source_test,
+                "ready": data_source_ready
+            },
+            "output_destination": {
+                "info": output_dest_info,
+                "connection_test": output_dest_status,
+                "ready": output_ready
+            },
+            "integrations": {
+                "oracle": {
+                    "configured": data_source_info.get('type') == 'Oracle',
+                    "ready": data_source_ready if data_source_info.get('type') == 'Oracle' else False,
+                    "instructions": "Set environment variables in .env file (see .env.example)"
+                },
+                "s3": {
+                    "configured": output_dest_info.get('type') == 'AWS S3' or 
+                                   (output_dest_info.get('mode') == 'multiple' and 
+                                    any(d.get('type') == 'AWS S3' for d in output_dest_info.get('destinations', []))),
+                    "ready": output_ready if (output_dest_info.get('type') == 'AWS S3' or 
+                                              (output_dest_info.get('mode') == 'multiple' and 
+                                               any(d.get('type') == 'AWS S3' for d in output_dest_info.get('destinations', [])))) else False,
+                    "instructions": "Set environment variables in .env file (see .env.example)"
+                }
+            },
+            "configuration_file": ".env (copy from .env.example if not exists)"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

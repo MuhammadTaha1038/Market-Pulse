@@ -1,23 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Database Service - Data fetching from Excel/Oracle
+Database Service - Data fetching abstraction layer
 
-IMPORTANT FOR CLIENT:
-======================
-Current Mode: EXCEL (temporary for demo)
-Production Mode: ORACLE (via Lambda + Terraform)
+FULLY ABSTRACTED - Configuration-based switching:
+==================================================
+Input Source (RAW data):
+- Excel: Set DATA_SOURCE=excel in .env
+- Oracle: Set DATA_SOURCE=oracle in .env
 
-To enable Oracle:
-1. Lambda function will extract data from Oracle
-2. Terraform will manage infrastructure
-3. GitLab pipeline will deploy
-4. Set ORACLE_ENABLED = True
-5. Configure AWS credentials in SSM Parameter Store
-6. Admin API will handle connection management
-
-This file is ready for Oracle integration once infrastructure is deployed.
-======================
+This service now uses the data_source_factory pattern for complete abstraction.
+No code changes needed - just update .env file!
+==================================================
 """
 import pandas as pd
 from typing import List, Optional
@@ -26,146 +20,57 @@ from pathlib import Path
 import logging
 from models.color import ColorRaw
 from services.column_config_service import get_column_config
+from services.data_source_factory import get_data_source
 
 logger = logging.getLogger(__name__)
-
-# Oracle connection flag - Client will enable this after AWS setup
-ORACLE_ENABLED = False
-
-try:
-    import oracledb
-    ORACLE_AVAILABLE = True
-    logger.info("Oracle driver (oracledb) is available")
-except ImportError:
-    ORACLE_AVAILABLE = False
-    logger.warning("Oracle driver not installed. Run: pip install oracledb")
 
 
 class DatabaseService:
     """
-    Database operations for color data
-    Supports Excel (temporary) and Oracle (production) with dynamic columns
+    Database operations for RAW color data (input source)
+    Uses data_source_factory for abstraction - configured via .env
     """
     
-    def __init__(
-        self, 
-        data_file_path: str = None,
-        oracle_config: dict = None,
-        use_oracle: bool = False
-    ):
+    def __init__(self, clo_id: Optional[str] = None):
         """
-        Initialize database service
+        Initialize database service with abstracted data source
         
         Args:
-            data_file_path: Path to Excel file (fallback)
-            oracle_config: Oracle connection config (host, port, service_name, user, password)
-            use_oracle: Whether to use Oracle (requires ORACLE_ENABLED=True)
+            clo_id: Optional CLO identifier for column mapping
         """
         # Column configuration service
         self.column_config = get_column_config()
         
-        # Excel fallback
-        if data_file_path is None:
-            base_dir = Path(__file__).parent.parent.parent.parent.parent
-            data_file_path = base_dir / "Color today.xlsx"
-        self.data_file_path = str(data_file_path)
+        # Get configured data source (Excel or Oracle based on .env)
+        self.data_source = get_data_source()
+        self.clo_id = clo_id
         
-        # Oracle configuration
-        self.oracle_config = oracle_config or self._get_default_oracle_config()
-        self.use_oracle = use_oracle and ORACLE_ENABLED and ORACLE_AVAILABLE
-        
-        # Data cache
+        # Data cache (for Excel mode performance)
         self._data_cache = None
         
-        if self.use_oracle:
-            logger.info("DatabaseService initialized with ORACLE connection")
-            logger.info(f"Oracle host: {self.oracle_config.get('host')}")
-        else:
-            logger.info(f"DatabaseService initialized with EXCEL fallback: {self.data_file_path}")
-    
-    def _get_default_oracle_config(self) -> dict:
-        """
-        Get default Oracle configuration
-        In production, load from AWS SSM Parameter Store or environment variables
-        """
-        return {
-            'host': 'oracle-db.example.com',  # To be configured
-            'port': 1521,
-            'service_name': 'ORCL',  # To be configured
-            'user': 'market_pulse_user',  # To be configured from AWS
-            'password': 'PLACEHOLDER',  # Load from AWS SSM/Secrets Manager
-            'encoding': 'UTF-8'
-        }
-    
-    def _get_oracle_connection(self):
-        """
-        Create Oracle database connection
-        Uses oracledb (python-oracledb) driver
-        """
-        if not ORACLE_AVAILABLE:
-            raise RuntimeError("Oracle driver not installed. Install: pip install oracledb")
-        
-        try:
-            dsn = oracledb.makedsn(
-                self.oracle_config['host'],
-                self.oracle_config['port'],
-                service_name=self.oracle_config['service_name']
-            )
-            
-            connection = oracledb.connect(
-                user=self.oracle_config['user'],
-                password=self.oracle_config['password'],
-                dsn=dsn,
-                encoding=self.oracle_config.get('encoding', 'UTF-8')
-            )
-            
-            logger.info("✅ Oracle connection established")
-            return connection
-            
-        except Exception as e:
-            logger.error(f"❌ Oracle connection failed: {e}")
-            raise
-    
-    def _load_data_from_oracle(self, where_clause: str = "") -> pd.DataFrame:
-        """
-        Load data from Oracle using dynamic column configuration
-        
-        Args:
-            where_clause: Optional SQL WHERE clause
-            
-        Returns:
-            DataFrame with data from Oracle
-        """
-        logger.info("Loading data from Oracle database")
-        
-        # Generate SQL using column config
-        sql = self.column_config.generate_sql_select(where_clause)
-        
-        # Execute query
-        connection = self._get_oracle_connection()
-        try:
-            df = pd.read_sql(sql, connection)
-            logger.info(f"✅ Loaded {len(df)} records from Oracle")
-            return df
-        finally:
-            connection.close()
-            logger.info("Oracle connection closed")
+        source_info = self.data_source.get_source_info()
+        logger.info(f"DatabaseService initialized with {source_info['type']} data source")
     
     def _load_data(self) -> pd.DataFrame:
         """
-        Load data from either Oracle or Excel based on configuration
-        Uses caching for Excel mode
+        Load RAW data from configured source (Excel or Oracle)
+        Uses abstraction layer for automatic source selection
         """
-        if self.use_oracle:
-            # Oracle mode: no caching, always fetch fresh data
-            return self._load_data_from_oracle()
-        else:
-            # Excel mode: cache data for performance
+        source_info = self.data_source.get_source_info()
+        
+        # Use caching for Excel, fresh data for Oracle
+        if source_info['type'] == 'Excel':
             if self._data_cache is None:
-                logger.info(f"Loading data from Excel: {self.data_file_path}")
-                self._data_cache = pd.read_excel(self.data_file_path)
-                logger.info(f"✅ Loaded {len(self._data_cache)} records from Excel")
+                logger.info("Fetching data from Excel data source")
+                self._data_cache = self.data_source.fetch_data(clo_id=self.clo_id)
+                logger.info(f"✅ Loaded {len(self._data_cache)} records from Excel (cached)")
             return self._data_cache
+        else:
+            # Oracle or other sources - always fetch fresh
+            logger.info("Fetching fresh data from Oracle data source")
+            df = self.data_source.fetch_data(clo_id=self.clo_id)
+            logger.info(f"✅ Loaded {len(df)} records from Oracle")
+            return df
     
     def fetch_all_colors(self, asset_classes: Optional[List[str]] = None) -> List[ColorRaw]:
         """
@@ -308,7 +213,8 @@ class DatabaseService:
     
     def fetch_monthly_stats(self, months: int = 12) -> List[dict]:
         """
-        Get color count by month for dashboard chart from OUTPUT file
+        Get color count by month for dashboard chart from PROCESSED output data
+        Reads from configured destination (local Excel or S3)
         
         Args:
             months: Number of months to look back
@@ -317,19 +223,18 @@ class DatabaseService:
             List of {"month": "2026-01", "count": 1234}
         """
         try:
-            # Read from OUTPUT file instead of input data
-            from services.output_service import get_output_service
-            output_service = get_output_service()
+            # Read from PROCESSED data (using abstraction for local or S3)
+            from services.processed_data_reader import get_processed_data_reader
+            reader = get_processed_data_reader()
             
-            # Read ALL processed colors from output file to count by month
-            import pandas as pd
-            df_output = pd.read_excel(output_service.output_file_path)
+            # Read ALL processed colors to count by month
+            df_output = reader.read_processed_data()
             
             if len(df_output) == 0:
-                logger.warning("No data in output file for monthly stats")
+                logger.warning("No data in processed output for monthly stats")
                 return []
             
-            logger.info(f"Computing monthly stats from {len(df_output)} output records")
+            logger.info(f"Computing monthly stats from {len(df_output)} processed records")
             
             # Use PROCESSED_AT or DATE column for grouping
             date_column = 'PROCESSED_AT' if 'PROCESSED_AT' in df_output.columns else 'DATE'

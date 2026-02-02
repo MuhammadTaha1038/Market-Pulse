@@ -1,15 +1,17 @@
 # MarketPulse - CLO Colors Data Processing System
 
-**Version:** 1.0  
-**Status:** Ready for Client Demo  
+**Version:** 2.0 - Integration Ready  
+**Status:** Fully Abstracted - Ready for Oracle & S3 Integration  
 **Date:** February 2, 2026
 
 ## 📋 Table of Contents
 - [Overview](#overview)
+- [What's New - Integration Ready](#whats-new---integration-ready)
 - [System Architecture](#system-architecture)
 - [Quick Start](#quick-start)
 - [Features](#features)
 - [API Documentation](#api-documentation)
+- [Integration Configuration](#integration-configuration)
 - [Deployment](#deployment)
 - [Future Integrations](#future-integrations)
 
@@ -27,6 +29,34 @@ MarketPulse is a comprehensive CLO (Collateralized Loan Obligation) color data p
 - **Preset Filters**: Save and apply custom filter combinations
 - **Security Search**: Advanced search and export functionality
 - **Comprehensive Logging**: Track all operations with detailed logs
+- **🆕 Pluggable Data Sources**: Switch between Excel and Oracle with configuration
+- **🆕 Flexible Output Destinations**: Save to local Excel, AWS S3, or both
+
+---
+
+## 🆕 What's New - Integration Ready
+
+The system is now **fully abstracted** for plug-and-play integration:
+
+### ✅ **Oracle Database Integration**
+- Abstracted data source layer
+- Fetches credentials from client API
+- Dynamic column mapping using column_config.json
+- **Configure in 10 minutes** - no code changes needed
+
+### ✅ **AWS S3 Integration**
+- Abstracted output destination layer
+- Multiple file format support (Excel, CSV, Parquet)
+- Save locally AND/OR to S3
+- **Configure in 10 minutes** - no code changes needed
+
+### 🔧 **Configuration-Based Setup**
+- All settings in `.env` file
+- Switch data sources: `DATA_SOURCE=excel` or `DATA_SOURCE=oracle`
+- Switch outputs: `OUTPUT_DESTINATION=local`, `s3`, or `both`
+- Test connections via API: `/api/admin/system-status`
+
+**See:** [INTEGRATION_CONFIGURATION_GUIDE.md](sp-incb-market-pulse-master/documentation/INTEGRATION_CONFIGURATION_GUIDE.md) for complete setup instructions.
 
 ---
 
@@ -46,8 +76,10 @@ MarketPulse is a comprehensive CLO (Collateralized Loan Obligation) color data p
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  Core Services:                                       │   │
 │  │  • RankingEngine - Parent-child hierarchy sorting   │   │
-│  │  • OutputService - Excel file management            │   │
+│  │  • OutputService - Excel/S3 output management       │   │
 │  │  • RulesService - Exclusion logic                   │   │
+│  │  • 🆕 DataSourceFactory - Excel/Oracle input        │   │
+│  │  • 🆕 OutputDestinationFactory - Local/S3 output    │   │
 │  │  • PresetsService - Filter combinations             │   │
 │  │  • CronJobsService - Task scheduling                │   │
 │  │  • CLOMappingService - Column visibility control    │   │
@@ -57,14 +89,25 @@ MarketPulse is a comprehensive CLO (Collateralized Loan Obligation) color data p
          ┌───────────┴──────────────┐
          │                          │
     ┌────┴─────┐            ┌──────┴──────┐
-    │  Excel   │            │    JSON     │
-    │  Files   │            │   Storage   │
+    │  Excel   │            │   Oracle    │
+    │   OR     │            │  Database   │
+    │  Oracle  │            │  (Future)   │
     └──────────┘            └─────────────┘
-   Input/Output              Configuration
+   🆕 Pluggable               Configuration
+    Input Sources            via column_config.json
+         │
+         └─────────┬──────────────┐
+                   │              │
+            ┌──────┴──────┐  ┌────┴────┐
+            │ Local Excel │  │  AWS S3 │
+            │   Output    │  │  Output │
+            └─────────────┘  └─────────┘
+            🆕 Configurable Output Destinations
+
 ```
 
 ### Current Data Flow
-1. **Input**: `Color today.xlsx` (18-column format matching Oracle structure)
+1. **Input**: `Color today.xlsx` OR Oracle Database (configurable)
 2. **Processing**: Backend applies ranking algorithm + rules
 3. **Output**: `Processed_Colors_Output.xlsx` (21 columns with hierarchy info)
 
@@ -310,18 +353,68 @@ Data-main/
 ```bash
 curl http://127.0.0.1:3334/api/health
 # Expected: "healthy"
+
+# Check integration status
+curl http://127.0.0.1:3334/api/admin/system-status
+# Shows data source and output destination configuration
 ```
+
+---
+
+## 🔧 Integration Configuration
+
+The system is ready for Oracle and S3 integration. See complete setup guide:
+**[INTEGRATION_CONFIGURATION_GUIDE.md](sp-incb-market-pulse-master/documentation/INTEGRATION_CONFIGURATION_GUIDE.md)**
+
+### Quick Oracle Setup
+```bash
+# 1. Edit .env file
+DATA_SOURCE=oracle
+ORACLE_CREDENTIALS_API_URL=https://client-api.com/credentials
+ORACLE_HOST=oracle-server.com
+ORACLE_PORT=1521
+ORACLE_SERVICE_NAME=ORCL
+ORACLE_TABLE_NAME=COLOR_DATA
+
+# 2. Install dependency
+pip install oracledb requests
+
+# 3. Restart server and test
+curl http://localhost:3334/api/admin/system-status
+```
+
+### Quick S3 Setup
+```bash
+# 1. Edit .env file
+OUTPUT_DESTINATION=s3
+S3_BUCKET_NAME=market-pulse-processed
+S3_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+
+# 2. Install dependency
+pip install boto3
+
+# 3. Restart server and test
+curl http://localhost:3334/api/admin/system-status
+```
+
+**Configuration time: ~10 minutes each**  
+**No code changes required!**
 
 ---
 
 ## 📞 Support & Contact
 
 **Project**: MarketPulse CLO Colors System  
+**Version**: 2.0 - Integration Ready  
 **Client**: [Client Name]  
 **Developed by**: [Your Team]  
 **Date**: February 2, 2026
 
 ### Key Documentation
+- **Integration Setup**: `documentation/INTEGRATION_CONFIGURATION_GUIDE.md` 🆕
+- **System Abstraction**: `SYSTEM_ABSTRACTION_SUMMARY.md` 🆕
 - Backend API: `documentation/API_DOCUMENTATION.md`
 - Deployment: `documentation/DEPLOYMENT_CHECKLIST.md`
 - Oracle Setup: `documentation/ORACLE_EXTRACTION_INSTRUCTIONS.md`

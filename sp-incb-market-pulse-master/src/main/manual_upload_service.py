@@ -22,6 +22,7 @@ from models.color import ColorRaw, ColorProcessed
 from services.ranking_engine import RankingEngine
 from services.output_service import get_output_service
 from services.column_config_service import get_column_config
+from services.data_source_factory import get_data_source
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 ranking_engine = RankingEngine()
 output_service = get_output_service()
 column_config = get_column_config()
+data_source = get_data_source()  # Get configured data source (Excel or Oracle)
 
 # Upload directories
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "data", "manual_uploads")

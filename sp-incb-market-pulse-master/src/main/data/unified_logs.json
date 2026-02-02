@@ -1,6 +1,27 @@
 {
   "logs": [
     {
+      "log_id": 15,
+      "module": "rules",
+      "action": "create",
+      "description": "Created rule: greater than 100",
+      "performed_by": "admin",
+      "performed_at": "2026-02-02T22:57:19.811353",
+      "entity_id": 5,
+      "entity_name": "greater than 100",
+      "can_revert": true,
+      "revert_data": {
+        "action": "delete",
+        "rule_id": 5
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1,
+        "is_active": true
+      }
+    },
+    {
       "log_id": 14,
       "module": "rules",
       "action": "delete",
@@ -385,5 +406,5 @@
       }
     }
   ],
-  "next_id": 15
+  "next_id": 16
 }
