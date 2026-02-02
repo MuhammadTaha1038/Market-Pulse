@@ -53,6 +53,7 @@ export interface UpdateMappingRequest {
 })
 export class CloMappingService {
   private apiUrl = 'http://127.0.0.1:3334/api/clo-mappings';
+  private adminUrl = 'http://127.0.0.1:3334/api/admin';
 
   constructor(private http: HttpClient) {}
 
@@ -101,5 +102,33 @@ export class CloMappingService {
    */
   getUserColumns(cloId: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/user-columns/${cloId}`);
+  }
+  
+  /**
+   * Execute Oracle query and fetch column metadata
+   */
+  executeOracleQuery(query: string, cloId?: string): Observable<any> {
+    return this.http.post(`${this.adminUrl}/oracle/execute-query`, {
+      query: query,
+      clo_id: cloId
+    });
+  }
+  
+  /**
+   * Save Oracle query for a CLO
+   */
+  saveOracleQuery(query: string, cloId: string, queryName: string = 'base_query'): Observable<any> {
+    return this.http.post(`${this.adminUrl}/oracle/save-query`, {
+      query: query,
+      clo_id: cloId,
+      query_name: queryName
+    });
+  }
+  
+  /**
+   * Get system status (data source type, etc.)
+   */
+  getSystemStatus(): Observable<any> {
+    return this.http.get(`${this.adminUrl}/system-status`);
   }
 }

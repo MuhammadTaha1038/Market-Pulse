@@ -155,37 +155,308 @@ class OracleDataSource(DataSourceInterface):
     
     def _build_query(self, clo_id: Optional[str] = None) -> str:
         """
-        Build SQL query using dynamic column mapping.
+        Build SQL query to fetch CLO color data from Oracle.
+        First checks if CLO has a saved custom query in column_config.json,
+        otherwise uses the default production query.
         
         Args:
-            clo_id: CLO identifier for column mapping
+            clo_id: CLO identifier - if provided, checks for custom query
             
         Returns:
             SQL query string
         """
-        column_mapping = self._get_clo_column_mapping(clo_id)
+        # Check if CLO has a saved custom query in column_config.json
+        if clo_id and self.column_config:
+            clo_config = self.column_config.get(clo_id, {})
+            queries = clo_config.get("queries", {})
+            
+            # Use base_query if available
+            if "base_query" in queries:
+                saved_query = queries["base_query"].get("query", "")
+                if saved_query:
+                    print(f"Using custom query for CLO {clo_id}")
+                    return saved_query
         
-        # Build SELECT clause with aliasing
-        select_clauses = []
-        for standard_name, oracle_name in column_mapping.items():
-            if standard_name == oracle_name:
-                select_clauses.append(oracle_name)
-            else:
-                select_clauses.append(f"{oracle_name} AS {standard_name}")
-        
-        select_clause = ", ".join(select_clauses)
-        
-        # Build WHERE clause
-        where_clause = ""
-        if clo_id:
-            where_clause = f" WHERE CLO_ID = '{clo_id}'"
-        
-        # Build complete query
-        query = f"""
-            SELECT {select_clause}
-            FROM {self.oracle_table}
-            {where_clause}
-            ORDER BY DATE DESC
+        # Default production query for fetching CLO color data
+        query = """
+WITH SEC_MASTER AS (
+    SELECT MASTER.SEC_ID,
+           MASTER.SEC_ID_TYPE,
+           FIELD_NAME,
+           CASE
+               WHEN FIELD_TYPE = 'String' THEN FIELD_STRING_VALUE
+               WHEN FIELD_TYPE = 'Integer' THEN TO_CHAR(FIELD_INTEGER_VALUE)
+           END AS FIELD_VALUE
+    FROM SECURITY_MASTER MASTER
+    LEFT JOIN SEC_INDICATIVE_INFO DEAL
+        ON DEAL.SEC_ID = MASTER.SEC_ID
+        AND DEAL.SEC_ID_TYPE = MASTER.SEC_ID_TYPE
+        AND DEAL.FIELD_NAME IN ('DealType', 'Currency', 'OriginalBestRatingScore', 'MkTicker')
+    WHERE prc_config_sec_type = 'CLO'
+        AND prc_CONFIG_KEY_NAME NOT IN ('All', 'CDO', 'CDO_Flat', 'TruPS', 'CRT')
+        AND sec_status = 'Approved'
+),
+CLO_LIST AS (
+    SELECT DISTINCT LIST.ROOTID,
+           NVL(LIST.CUSIP, INTEX.CUSIP) AS CUSIP,
+           NVL(LIST.ISIN, INTEX.ISIN) AS ISIN,
+           REGEXP_SUBSTR(INFO.BBG, '^([A-Z0-9]+) ([A-Z0-9-]+) ([A-Z0-9-]+)$', 1, 1, 'i', 1) AS SHELF,
+           REGEXP_SUBSTR(INFO.BBG, '^([A-Z0-9]+) ([A-Z0-9-]+) ([A-Z0-9-]+)$', 1, 1, 'i', 2) AS SERIES,
+           REGEXP_SUBSTR(INFO.BBG, '^([A-Z0-9]+) ([A-Z0-9-]+) ([A-Z0-9-]+)$', 1, 1, 'i', 3) AS CLASS
+    FROM (
+        SELECT CONNECT_BY_ROOT ORIGID AS ROOTID,
+               CASE DUPLICATETYPE
+                   WHEN 'CUSIP' THEN DUPLICATEDID
+                   ELSE ''
+               END AS CUSIP,
+               CASE DUPLICATETYPE
+                   WHEN 'ISIN' THEN DUPLICATEDID
+                   ELSE ''
+               END AS ISIN
+        FROM IDENTIFIERMAPPINGS
+        START WITH ORIGID IN (SELECT SEC_ID FROM SEC_MASTER)
+        CONNECT BY NOCYCLE ORIGID = PRIOR DUPLICATEDID
+
+        UNION
+
+        SELECT SEC_ID AS ROOTID,
+               CASE SEC_ID_TYPE
+                   WHEN 'CUSIP' THEN SEC_ID
+                   ELSE ''
+               END AS CUSIP,
+               CASE SEC_ID_TYPE
+                   WHEN 'ISIN' THEN SEC_ID
+                   ELSE ''
+               END AS ISIN
+        FROM SEC_MASTER
+    ) LIST
+    LEFT JOIN INTEXBONDINFO INTEX
+        ON INTEX.CUSIP = LIST.ROOTID
+    LEFT JOIN (
+        SELECT SEC_ID, FIELD_VALUE AS BBG
+        FROM SEC_MASTER
+        WHERE FIELD_NAME = 'MkTicker'
+    ) INFO
+        ON INFO.SEC_ID = LIST.ROOTID
+),
+TAINTED_COLOR AS (
+    SELECT QUOTES.ROWID AS QUOTEID,
+           QUOTES.MESSAGE_ID,
+           QUOTES.CONTRIBUTOR,
+           QUOTES.OWNER,
+           QUOTES.PRICE_BID,
+           QUOTES.PRICE_ASK,
+           QUOTES.SPREAD_BID,
+           QUOTES.SPREAD_ASK,
+           QUOTES.BENCHMARK,
+           QUOTES.WAL,
+           QUOTES.PRICELEVEL,
+           QUOTES.CONFIDENCE,
+           CLO_LIST.ROOTID AS ROOT_CUSIP,
+           QUOTES.CUSIP,
+           QUOTES.ISIN,
+           QUOTES.SHELF,
+           QUOTES.SERIES,
+           QUOTES.CLASS,
+           NVL(QUOTES.BIAS, NVL2(QUOTES.PRICE_BID, 'BID', 'OFFER')) AS BIAS,
+           CASE
+               WHEN QUOTES.CONTRIBUTOR IN ('Aurul') THEN 1
+               ELSE 0
+           END AS TAINTED,
+           QUOTES.TIME,
+           TRUNC(QUOTES.TIME) AS MKT_DATE,
+           NVL(QUOTES.PRICE_BID, QUOTES.PRICE_ASK) AS PRICE
+    FROM SF_QUOTES_ABS QUOTES
+    RIGHT JOIN CLO_LIST
+        ON CLO_LIST.CUSIP = QUOTES.CUSIP
+        OR CLO_LIST.ISIN = QUOTES.ISIN
+        OR (CLO_LIST.SHELF = QUOTES.SHELF
+            AND CLO_LIST.SERIES = QUOTES.SERIES
+            AND CLO_LIST.CLASS = QUOTES.CLASS)
+    WHERE QUOTES.OWNER <> 'DEMO'
+        AND QUOTES.TIME >= TRUNC(SYSDATE) - 1
+        AND (QUOTES.PRICE_BID IS NOT NULL OR QUOTES.PRICE_ASK IS NOT NULL)
+        AND QUOTES.CONTRIBUTOR NOT IN ('noreply@solveadvisors.com', 'State Street ETF Group')
+),
+FILTERED_COLOR AS (
+    SELECT *
+    FROM (
+        SELECT COLOR.*,
+               ROW_NUMBER() OVER (
+                   PARTITION BY
+                       COLOR.ROOT_CUSIP,
+                       COLOR.CUSIP,
+                       COLOR.ISIN,
+                       COLOR.SHELF,
+                       COLOR.SERIES,
+                       COLOR.CLASS,
+                       COLOR.BIAS,
+                       COLOR.PRICE_BID,
+                       COLOR.PRICE_ASK,
+                       COLOR.PRICELEVEL,
+                       COLOR.CONFIDENCE,
+                       COLOR.MKT_DATE
+                   ORDER BY COLOR.TIME ASC
+               ) AS RECENT
+        FROM (
+            SELECT TAINTED_COLOR.QUOTEID,
+                   TAINTED_COLOR.MESSAGE_ID,
+                   TAINTED_COLOR.CONTRIBUTOR,
+                   TAINTED_COLOR.OWNER,
+                   TAINTED_COLOR.PRICE_BID,
+                   TAINTED_COLOR.PRICE_ASK,
+                   TAINTED_COLOR.SPREAD_BID,
+                   TAINTED_COLOR.SPREAD_ASK,
+                   TAINTED_COLOR.BENCHMARK,
+                   TAINTED_COLOR.WAL,
+                   TAINTED_COLOR.PRICELEVEL,
+                   TAINTED_COLOR.CONFIDENCE,
+                   TAINTED_COLOR.ROOT_CUSIP,
+                   TAINTED_COLOR.CUSIP,
+                   TAINTED_COLOR.ISIN,
+                   TAINTED_COLOR.SHELF,
+                   TAINTED_COLOR.SERIES,
+                   TAINTED_COLOR.CLASS,
+                   TAINTED_COLOR.BIAS,
+                   TAINTED_COLOR.TAINTED,
+                   TAINTED_COLOR.TIME,
+                   TAINTED_COLOR.MKT_DATE,
+                   TAINTED_COLOR.PRICE
+            FROM TAINTED_COLOR
+        ) COLOR
+    ) COLOR
+    WHERE COLOR.RECENT = 1
+),
+COLOUR AS (
+    SELECT SYSDATE AS TIME_QUERIED,
+           COLOR.TIME AS TIME_RECEIVED,
+           TO_CHAR(COLOR.MESSAGE_ID) AS MESSAGE,
+           COLOR.ROOT_CUSIP,
+           COLOR.CUSIP AS CUSIP_COLOR,
+           COLOR.ISIN AS ISIN_COLOR,
+           COLOR.SHELF || ' ' || COLOR.SERIES || ' ' || COLOR.CLASS AS TICKER,
+           NVL(RTG.FIELD_VALUE, '100') AS ORIG_BEST_RATING,
+           NVL(CURR.FIELD_VALUE, '') AS CURRENCY,
+           COLOR.PRICE_BID,
+           COLOR.PRICE_ASK,
+           COLOR.SPREAD_BID,
+           COLOR.SPREAD_ASK,
+           COLOR.BENCHMARK,
+           COLOR.WAL,
+           COLOR.PRICELEVEL,
+           DECODE(
+               COLOR.BIAS,
+               'MARKET', 'BID',
+               'BUYER', 'BID',
+               NULL, NVL2(COLOR.PRICE_BID, 'BID', 'OFFER'),
+               COLOR.BIAS
+           ) AS BIAS,
+           COLOR.CONTRIBUTOR,
+           COLOR.OWNER,
+           NVL(COLOR.PRICE_BID, COLOR.PRICE_ASK) AS PRICE,
+           COLOR.CONFIDENCE,
+           COLOR.QUOTEID,
+           NVL(ch.PRICEMID, ch.PRICEBID) AS COV_PRICE
+    FROM FILTERED_COLOR COLOR
+    LEFT JOIN SEC_MASTER RTG
+        ON RTG.SEC_ID = COLOR.ROOT_CUSIP
+        AND RTG.FIELD_NAME = 'OriginalBestRatingScore'
+    LEFT JOIN SEC_MASTER CURR
+        ON CURR.SEC_ID = COLOR.ROOT_CUSIP
+        AND CURR.FIELD_NAME = 'Currency'
+    LEFT JOIN coveragehist ch
+        ON COLOR.ROOT_CUSIP = ch.cusip
+        AND ch.ASOF >= TRUNC(SYSDATE) - 1
+        AND ch.PUBLISHEDBATCH = 'N1600'
+),
+ACCEPTED AS (
+    SELECT COLOUR.ROOT_CUSIP,
+           sm.prc_config_key_name,
+           CASE
+               WHEN COLOUR.PRICE > 105 AND sm.prc_config_key_name IN ('1.0_Mezz', '2.0_Mezz', '2.0_Senior') THEN 1
+               WHEN COLOUR.PRICE < 10 AND sm.prc_config_key_name IN ('1.0_Mezz', '2.0_Mezz', '2.0_Senior') THEN 1
+               ELSE 0
+           END AS REJECTED
+    FROM COLOUR
+    JOIN SECURITY_MASTER sm
+        ON COLOUR.ROOT_CUSIP = sm.SEC_ID
+    WHERE sm.SEC_STATUS = 'Approved'
+        AND sm.PRC_CONFIG_SEC_TYPE = 'CLO'
+)
+SELECT DISTINCT
+    TO_CHAR(col.MESSAGE) AS MESSAGE_ID,
+    col.TICKER,
+    a.prc_config_key_name AS Sector,
+    col.ROOT_CUSIP AS CUSIP,
+    TRUNC(SYSDATE) AS "DATE",
+    NVL(col.PRICE, 0) AS PRICE_LEVEL,
+    NVL(col.PRICE_BID, 0) AS Bid,
+    NVL(col.PRICE_ASK, 0) AS Ask,
+    NVL(col.PRICE, 0) AS Px,
+    col.CONTRIBUTOR AS SOURCE,
+    col.BIAS,
+    DECODE(
+        col.BIAS,
+        'TRADE CONFIRM', 1,
+        'BWIC COVER', 2,
+        'BWIC REO', 3,
+        'MARKET', 3,
+        'BUYER', 3,
+        'BID', 3,
+        'COLOR', 3,
+        'OFFER', 4,
+        'BWIC TALK', 5,
+        'VALUATION', 6,
+        'DNT', 3,
+        'DNT BEST', 3
+    ) AS RANK,
+    col.COV_PRICE,
+    CASE
+        WHEN col.COV_PRICE IS NOT NULL AND col.COV_PRICE <> 0 THEN
+            ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / col.COV_PRICE) * 100), 2)
+        ELSE NULL
+    END AS PERCENT_DIFF,
+    (NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) AS PRICE_DIFF,
+    col.CONFIDENCE,
+    TRUNC(col.TIME_RECEIVED) AS DATE_1,
+    CASE
+        WHEN a.prc_config_key_name IN ('2.0_AAA_Mez', '2.0_AAA_Senior', '2.0_AAA_X_Senior') THEN
+            CASE
+                WHEN ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / col.COV_PRICE) * 100), 2) > 2 THEN 'Significant Difference'
+                ELSE 'Small Difference'
+            END
+        WHEN a.prc_config_key_name IN ('2.0_Mezz', '2.0_Senior', 'A_BSL', 'COMBO', 'Equity_Eur', 'European', 'European_Yield') THEN
+            CASE
+                WHEN ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / col.COV_PRICE) * 100), 2) > 2 THEN 'Significant Difference'
+                ELSE 'Small Difference'
+            END
+        WHEN a.prc_config_key_name IN ('US_Equity_2.0', 'US_MM_Equity_2.0') THEN
+            CASE
+                WHEN ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / col.COV_PRICE) * 100), 2) > 5 THEN 'Significant Difference'
+                ELSE 'Small Difference'
+            END
+        WHEN a.prc_config_key_name = 'US_Re' THEN
+            CASE
+                WHEN ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / col.COV_PRICE) * 100), 2) > 2 THEN 'Significant Difference'
+                ELSE 'Small Difference'
+            END
+        ELSE
+            CASE
+                WHEN ROUND(ABS(((NVL(col.PRICE, 0) - NVL(col.COV_PRICE, 0)) / NULLIF(NVL(col.COV_PRICE, 0), 0)) * 100), 2) > 2 THEN 'Significant Difference'
+                ELSE 'Small Difference'
+            END
+    END AS DIFF_STATUS
+FROM COLOUR col
+JOIN ACCEPTED a
+    ON col.ROOT_CUSIP = a.ROOT_CUSIP
+WHERE a.REJECTED = 0
+    AND col.CURRENCY = 'USD'
+ORDER BY
+    a.prc_config_key_name,
+    col.ROOT_CUSIP,
+    DATE_1 DESC,
+    RANK,
+    NVL(col.PRICE, 0) DESC
         """
         
         return query

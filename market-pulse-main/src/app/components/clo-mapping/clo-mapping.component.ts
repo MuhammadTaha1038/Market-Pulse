@@ -91,6 +91,61 @@ import { CloMappingService, CLOHierarchy, MainCLO, CLOMapping, ColumnDetail } fr
               </div>
             </ng-template>
 
+            <!-- Oracle Query Section -->
+            <div class="oracle-query-section" style="margin-bottom: 2rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <h4 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.1rem;">
+                <i class="pi pi-database" style="margin-right: 0.5rem;"></i>
+                Oracle Query Configuration
+              </h4>
+              <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
+                Configure the SQL query to fetch columns from Oracle database for this CLO
+              </p>
+
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: #475569;">SQL Query</label>
+                <textarea 
+                  [(ngModel)]="oracleQuery"
+                  placeholder="Enter your Oracle SQL query here... (e.g., SELECT * FROM COLOR_DATA WHERE CLO_ID = 'US_CLO')"
+                  rows="6"
+                  style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.9rem;"
+                ></textarea>
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button 
+                  pButton 
+                  label="Run Query & Fetch Columns" 
+                  icon="pi pi-play"
+                  class="p-button-sm"
+                  (click)="executeOracleQuery()"
+                  [disabled]="!oracleQuery || queryExecuting"
+                  [loading]="queryExecuting"
+                ></button>
+                <button 
+                  pButton 
+                  label="Save Query" 
+                  icon="pi pi-save"
+                  class="p-button-sm p-button-success"
+                  (click)="saveOracleQuery()"
+                  [disabled]="!oracleQuery || querySaving"
+                  [loading]="querySaving"
+                ></button>
+                <span *ngIf="queryResult" style="color: #22c55e; font-size: 0.9rem; margin-left: 0.5rem;">
+                  <i class="pi pi-check-circle"></i> {{ queryResult }}
+                </span>
+                <span *ngIf="queryError" style="color: #ef4444; font-size: 0.9rem; margin-left: 0.5rem;">
+                  <i class="pi pi-times-circle"></i> {{ queryError }}
+                </span>
+              </div>
+
+              <div *ngIf="dataSourceType === 'excel'" style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+                <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                  <i class="pi pi-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+                  <strong>Note:</strong> Currently using Excel data source. To test Oracle queries, set <code>DATA_SOURCE=oracle</code> in your .env file and restart the backend.
+                </p>
+              </div>
+            </div>
+
             <div class="column-config">
               <div class="config-actions">
                 <div class="search-box">
@@ -429,6 +484,14 @@ export class CloMappingComponent implements OnInit {
   totalMainCLOs = 0;
   totalSubCLOs = 0;
   
+  // Oracle query properties
+  oracleQuery = '';
+  queryExecuting = false;
+  querySaving = false;
+  queryResult = '';
+  queryError = '';
+  dataSourceType = 'excel'; // Will be fetched from system status
+  
   constructor(
     private cloService: CloMappingService,
     private messageService: MessageService
@@ -436,6 +499,109 @@ export class CloMappingComponent implements OnInit {
 
   ngOnInit() {
     this.loadCLOHierarchy();
+    this.checkDataSource();
+  }
+  
+  checkDataSource() {
+    // Check current data source from system status
+    this.cloService.getSystemStatus().subscribe({
+      next: (status: any) => {
+        this.dataSourceType = status.data_source?.info?.type?.toLowerCase() || 'excel';
+      },
+      error: (err) => console.error('Error checking data source:', err)
+    });
+  }
+  
+  executeOracleQuery() {
+    if (!this.oracleQuery || !this.selectedCLO) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Warning',
+        detail: 'Please enter a SQL query'
+      });
+      return;
+    }
+    
+    this.queryExecuting = true;
+    this.queryResult = '';
+    this.queryError = '';
+    
+    this.cloService.executeOracleQuery(this.oracleQuery, this.selectedCLO.clo_id).subscribe({
+      next: (response: any) => {
+        console.log('✅ Query executed:', response);
+        this.queryExecuting = false;
+        this.queryResult = response.message;
+        
+        // Update columns with fetched data
+        if (response.columns && response.columns.length > 0) {
+          this.allColumns = response.columns;
+          this.filterColumns();
+          
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: `Found ${response.columns.length} columns from Oracle database`
+          });
+        }
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          this.queryResult = '';
+        }, 5000);
+      },
+      error: (error) => {
+        console.error('❌ Query execution failed:', error);
+        this.queryExecuting = false;
+        this.queryError = error.error?.detail || 'Failed to execute query';
+        
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Query Failed',
+          detail: this.queryError
+        });
+        
+        // Clear error message after 10 seconds
+        setTimeout(() => {
+          this.queryError = '';
+        }, 10000);
+      }
+    });
+  }
+  
+  saveOracleQuery() {
+    if (!this.oracleQuery || !this.selectedCLO) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Warning',
+        detail: 'Please enter a SQL query'
+      });
+      return;
+    }
+    
+    this.querySaving = true;
+    
+    this.cloService.saveOracleQuery(this.oracleQuery, this.selectedCLO.clo_id, 'base_query').subscribe({
+      next: (response: any) => {
+        console.log('✅ Query saved:', response);
+        this.querySaving = false;
+        
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Saved',
+          detail: `Oracle query saved for ${this.selectedCLO!.clo_name}`
+        });
+      },
+      error: (error) => {
+        console.error('❌ Failed to save query:', error);
+        this.querySaving = false;
+        
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Failed to save Oracle query'
+        });
+      }
+    });
   }
 
   loadCLOHierarchy() {
