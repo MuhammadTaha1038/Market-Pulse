@@ -73,7 +73,8 @@ class OracleDataSource(DataSourceInterface):
     
     def _fetch_credentials(self) -> Dict[str, str]:
         """
-        Fetch Oracle credentials from client's API.
+        Fetch Oracle credentials from client's API or .env file.
+        Priority: API -> .env fallback
         Implements caching with TTL to avoid frequent API calls.
         
         Returns:
@@ -85,33 +86,49 @@ class OracleDataSource(DataSourceInterface):
             if time_since_cache.total_seconds() < self._credentials_ttl:
                 return self._cached_credentials
         
-        # Fetch from API
-        if not self.credentials_api_url:
-            raise ValueError("ORACLE_CREDENTIALS_API_URL not configured")
+        username = None
+        password = None
         
-        try:
-            response = requests.get(self.credentials_api_url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+        # Try to fetch from API first
+        if self.credentials_api_url:
+            try:
+                response = requests.get(self.credentials_api_url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                # Extract credentials using the keys provided by client
+                username = data.get("eval.jdbc.user")
+                password = data.get("eval.jdbc.password")
+                
+                if username and password:
+                    # Cache credentials
+                    self._cached_credentials = {
+                        "username": username,
+                        "password": password
+                    }
+                    self._credentials_cache_time = datetime.now()
+                    return self._cached_credentials
+                    
+            except requests.RequestException as e:
+                print(f"Warning: Failed to fetch credentials from API: {str(e)}")
+                print("Falling back to .env file credentials...")
+        
+        # Fallback to .env file if API failed or not configured
+        if not username or not password:
+            username = os.getenv("ORACLE_USERNAME")
+            password = os.getenv("ORACLE_PASSWORD")
             
-            # Extract credentials using the keys provided by client
-            username = data.get("eval.jdbc.user")
-            password = data.get("eval.jdbc.password")
-            
-            if not username or not password:
-                raise ValueError("Credentials not found in API response")
-            
-            # Cache credentials
-            self._cached_credentials = {
-                "username": username,
-                "password": password
-            }
-            self._credentials_cache_time = datetime.now()
-            
-            return self._cached_credentials
-            
-        except requests.RequestException as e:
-            raise ConnectionError(f"Failed to fetch credentials from API: {str(e)}")
+            if username and password:
+                # Cache credentials
+                self._cached_credentials = {
+                    "username": username,
+                    "password": password
+                }
+                self._credentials_cache_time = datetime.now()
+                return self._cached_credentials
+        
+        # If we still don't have credentials, raise error
+        raise ValueError("Oracle credentials not available from API or .env file")
     
     def _get_clo_column_mapping(self, clo_id: Optional[str] = None) -> Dict[str, str]:
         """
@@ -527,11 +544,14 @@ ORDER BY
                     "message": "Oracle driver not installed. Install with: pip install oracledb"
                 }
             
-            # Check configuration
-            if not self.credentials_api_url:
+            # Check configuration - need either API URL or .env credentials
+            has_api = bool(self.credentials_api_url)
+            has_env_creds = bool(os.getenv("ORACLE_USERNAME") and os.getenv("ORACLE_PASSWORD"))
+            
+            if not has_api and not has_env_creds:
                 return {
                     "status": "error",
-                    "message": "ORACLE_CREDENTIALS_API_URL not configured"
+                    "message": "Oracle credentials not configured. Set ORACLE_CREDENTIALS_API_URL or ORACLE_USERNAME/ORACLE_PASSWORD in .env"
                 }
             
             if not all([self.oracle_host, self.oracle_port, self.oracle_service]):
@@ -540,7 +560,7 @@ ORDER BY
                     "message": "Oracle connection details incomplete (host/port/service)"
                 }
             
-            # Test credentials API
+            # Test credentials fetch (API or .env)
             credentials = self._fetch_credentials()
             
             # Test database connection
@@ -564,10 +584,11 @@ ORDER BY
             connection.close()
             
             thick_mode_status = "enabled" if _thick_mode_initialized else "disabled (thin mode)"
+            cred_source = "API" if has_api else ".env file"
             
             return {
                 "status": "success",
-                "message": f"Oracle connection successful. Table has {row_count} rows. Thick mode: {thick_mode_status}"
+                "message": f"Oracle connection successful. Table has {row_count} rows. Thick mode: {thick_mode_status}. Credentials: {cred_source}"
             }
             
         except oracledb.Error as e:
