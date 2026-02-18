@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-02-02T23:11:59.277249",
+  "last_updated": "2026-02-08T19:18:07.598523",
   "mappings": [
     {
       "clo_id": "EURO_ABS",
@@ -47,15 +47,16 @@
         "BIAS",
         "RANK",
         "COV_PRICE",
-        "PERCENT_DIFF",
-        "PRICE_DIFF",
         "CONFIDENCE",
         "DATE_1",
         "DIFF_STATUS"
       ],
-      "hidden_columns": [],
-      "updated_by": "system",
-      "updated_at": "2026-02-02T02:25:06.091374"
+      "hidden_columns": [
+        "PERCENT_DIFF",
+        "PRICE_DIFF"
+      ],
+      "updated_by": "admin",
+      "updated_at": "2026-02-08T19:18:07.598501"
     },
     {
       "clo_id": "EURO_ABS_AUTO_LOAN",
