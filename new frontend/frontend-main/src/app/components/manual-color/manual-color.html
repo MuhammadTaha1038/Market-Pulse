@@ -1,0 +1,326 @@
+<div class="px-6 py-1 space-y-4 mt-5 mb-3">
+    <!-- TOAST NOTIFICATIONS -->
+    <p-toast position="top-right"></p-toast>
+
+    <!-- Toolbar + Filter Chips (single section) -->
+    <div class="bg-white rounded-2xl border border-gray-300 p-5 mb-4 mt-2">
+        <!-- Top row: Search + Buttons + Count + Run Automation -->
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Search input with icon -->
+                <div class="relative">
+                    <input
+                        type="text"
+                        pInputText
+                        [(ngModel)]="searchText"
+                        placeholder="Search Message ID"
+                        class="w-64 !rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-800 !border !border-gray-300 hover:!bg-gray-100 placeholder:!text-[14px] placeholder:tracking-normal"
+                    />
+                    <i class="pi pi-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                </div>
+
+                <button pButton label="Add New" icon="pi pi-plus" class="!text-gray-700 !rounded-full !px-5 !py-2.5 !bg-gray-50 !border !border-gray-300 hover:!bg-gray-50 text-sm font-normal" (click)="manualTable?.addNewRow()"></button>
+
+                <button pButton label="Run Rules" icon="pi pi-cog" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="openRunRulesDialog()"></button>
+
+                <button pButton label="Filters" icon="pi pi-filter" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="showFilters()"></button>
+
+                <button pButton label="Import via Excel" icon="pi pi-upload" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="openImportDialog()"></button>
+
+                <button pButton label="Sorting" icon="pi pi-sort-alt" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="showSortingDialog()"></button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- Total Count pill (matches sample) -->
+                <div class="flex items-center gap-3 px-5 py-2.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700 font-medium">
+                    <span>Total Count</span>
+                    <span class="px-3 py-0.5 bg-white rounded-full shadow text-sm font-semibold"> {{ tableData.length }} </span>
+                </div>
+
+                <!-- Run Automation Button -->
+                <div class="relative">
+                    <button pButton label="Run Automation" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" (click)="runAutomation(false)" [disabled]="runningAutomation">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M13.6693 6.68235C10.1587 5.71298 9.42869 4.98218 8.4592 1.4723C8.42841 1.36067 8.32704 1.28369 8.21157 1.28369C8.09609 1.28369 7.99473 1.36068 7.96393 1.4723C6.99457 4.98284 6.26377 5.71286 2.75389 6.68235C2.64226 6.71314 2.56592 6.81451 2.56592 6.92998C2.56592 7.04546 2.6429 7.14682 2.75389 7.17762C6.26442 8.14698 6.99445 8.87778 7.96393 12.3877C7.99473 12.4993 8.09609 12.5763 8.21157 12.5763C8.32704 12.5763 8.42841 12.4993 8.4592 12.3877C9.42857 8.87713 10.1594 8.1471 13.6693 7.17762C13.7809 7.14682 13.8572 7.04546 13.8572 6.92998C13.8572 6.81451 13.7802 6.71314 13.6693 6.68235Z"
+                                fill="white"
+                            />
+                            <path
+                                d="M2.57548 5.45895C2.60628 5.5706 2.70766 5.64758 2.82315 5.64758C2.93864 5.64758 3.04002 5.57059 3.07082 5.45895C3.51997 3.83306 3.83243 3.52054 5.45831 3.07146C5.56995 3.04066 5.6463 2.93928 5.6463 2.82379C5.6463 2.7083 5.56931 2.60692 5.45831 2.57612C3.83242 2.12698 3.5199 1.81515 3.07082 0.188634C3.04002 0.0769893 2.93864 0 2.82315 0C2.70766 0 2.60628 0.0769959 2.57548 0.188634C2.12634 1.81453 1.81387 2.12704 0.187993 2.57612C0.0763487 2.60692 0 2.7083 0 2.82379C0 2.93928 0.0769959 3.04066 0.187993 3.07146C1.81388 3.52061 2.1264 3.83244 2.57548 5.45895Z"
+                                fill="white"
+                            />
+                            <path
+                                d="M5.84354 11.1733C4.47943 10.7966 4.21765 10.5349 3.84107 9.17081C3.81027 9.05917 3.7089 8.98218 3.5934 8.98218C3.47791 8.98218 3.37653 9.05917 3.34574 9.17081C2.96909 10.5349 2.70731 10.7967 1.34327 11.1733C1.23162 11.2041 1.15527 11.3055 1.15527 11.4209C1.15527 11.5364 1.23227 11.6378 1.34327 11.6686C2.70738 12.0453 2.96916 12.307 3.34574 13.6711C3.37653 13.7827 3.47791 13.8597 3.5934 13.8597C3.7089 13.8597 3.81027 13.7827 3.84107 13.6711C4.21772 12.307 4.47949 12.0452 5.84354 11.6686C5.95519 11.6378 6.03154 11.5364 6.03154 11.4209C6.03154 11.3055 5.95454 11.2041 5.84354 11.1733Z"
+                                fill="white"
+                            />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Save to S3 Button -->
+                <button pButton label="Save" icon="pi pi-cloud-upload" class="!bg-green-700 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-green-800" (click)="saveData()" [disabled]="!currentSessionId || tableData.length === 0">
+                </button>
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="my-4 border-t border-gray-200"></div>
+
+        <!-- Bottom row: Filter chips + Undo / Presets -->
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Filter chips (already match sample) -->
+            <ng-container *ngIf="activeFilters.length > 0">
+                <div *ngFor="let filter of activeFilters; let i = index" class="flex items-center gap-3 px-5 py-2.5 rounded-full bg-gray-100 text-gray-900 border border-gray-200">
+                    <i class="pi pi-filter text-gray-700"></i>
+                    <span class="text-sm font-medium whitespace-nowrap">
+                        {{ filter.columnDisplay }} : {{ filter.operatorDisplay }} {{ filter.values }}
+                        <span *ngIf="filter.values2"> - {{ filter.values2 }}</span>
+                    </span>
+                    <button class="text-red-500 hover:text-red-600" aria-label="Remove filter" (click)="removeFilter(i)">
+                        <i class="pi pi-times"></i>
+                    </button>
+                </div>
+
+                <!-- Remove all filters button (now with !important to match sample) -->
+                <button class="flex items-center gap-2 !rounded-full !px-5 !py-2.5 !bg-white !text-gray-700 !border !border-gray-300 hover:!bg-gray-50" (click)="removeAllActiveFilters()">
+                    <i class="pi pi-trash text-sm"></i>
+                    Remove all filters
+                </button>
+            </ng-container>
+
+            <!-- Spacer -->
+            <div class="flex-1"></div>
+
+            <!-- Undo button (styled like sample filter/import) -->
+            <button pButton label="Undo" icon="pi pi-undo" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="undoLastAction()"></button>
+
+            <!-- Presets button with count (styled like sample filter/import) -->
+            <button pButton icon="pi pi-sliders-h" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="showPresetsDialog()">
+                <span class="ml-2">{{ presetCount }} Presets</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- CUSTOM TABLE - EDITABLE -->
+    <app-custom-table
+        #manualTable
+        [columns]="tableColumns"
+        [data]="filteredTableData"
+        [config]="tableConfig"
+        (dataChanged)="onTableDataChanged($event)"
+        (rowsSelected)="onTableRowsSelected($event)"
+        (cellEdited)="onCellEdited($event)"
+        (onExpandButtonClick)="toggleTableExpansion()"
+    >
+    </app-custom-table>
+
+    <!-- ============ IMPROVED FILE IMPORT DIALOG ============ -->
+    <p-dialog header="Manual Color Import" [(visible)]="showImportDialog" [modal]="true" [style]="{'width': '500px'}" [closable]="true" [showHeader]="true" class="import-dialog">
+        <div class="import-dialog-content">
+            <!-- Description -->
+            <p class="text-sm text-gray-600 mb-6 font-medium">Add manual color excel files, you can upload up to 5 excel files</p>
+
+            <!-- Drop Zone -->
+            <div class="drop-zone" *ngIf="!selectedFile || !isUploading">
+                <div class="drop-zone-content">
+                    <!-- Loading spinner -->
+                    <p-progressSpinner *ngIf="isUploading" [style]="{width: '50px', height: '50px'}" strokeWidth="4" class="mb-4"> </p-progressSpinner>
+
+                    <!-- Upload icon (when not loading) -->
+                    <i *ngIf="!isUploading" class="pi pi-cloud-upload text-3xl text-green-500 mb-3"> </i>
+
+                    <!-- Status text -->
+                    <p class="text-sm font-medium text-gray-700 mb-2">{{ isUploading ? 'Uploading...' : 'Drop your file here' }}</p>
+
+                    <!-- Native file input (hidden) -->
+                    <input *ngIf="!isUploading" #fileInputRef type="file" accept=".xlsx,.xls" style="display: none" (change)="onNativeFileSelect($event)" />
+
+                    <!-- Browse button -->
+                    <button *ngIf="!isUploading" pButton label="Browse Files" icon="pi pi-folder-open" class="p-button-outlined p-button-sm browse-btn" (click)="triggerFileInput()"></button>
+                </div>
+            </div>
+
+            <!-- File info (when file is selected) -->
+            <div *ngIf="selectedFile && !isUploading" class="file-info-section">
+                <div class="file-info-box">
+                    <div class="file-info-left">
+                        <i [class]="'pi ' + getFileIcon() + ' text-2xl text-blue-500'"></i>
+                    </div>
+                    <div class="file-info-details">
+                        <p class="file-name">{{ selectedFile.name }}</p>
+                        <p class="file-size">{{ fileSize }}</p>
+                    </div>
+                    <button pButton icon="pi pi-times" class="p-button-text p-button-sm remove-file-btn" (click)="onCancelUpload()" pTooltip="Remove file"></button>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="divider"></div>
+
+            <!-- Info text -->
+            <p class="text-xs text-gray-500 text-center mb-6">Only support .xlsx or .csv extensions</p>
+
+            <!-- Action Buttons -->
+            <div class="dialog-actions">
+                <button pButton label="Cancel" icon="pi pi-times" class="p-button-outlined p-button-sm cancel-btn" (click)="onCancelUpload()" [disabled]="isUploading"></button>
+
+                <button pButton label="Import" icon="pi pi-upload" class="p-button-sm import-btn" (click)="onUpload()" [disabled]="!selectedFile || isUploading"></button>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- ============ RUN RULES DIALOG ============ -->
+    <p-dialog header="Rules" [(visible)]="showRunRulesDialog" [modal]="true" [style]="{'width': '520px'}" [closable]="true" class="run-rules-dialog">
+        <div class="run-rules-content">
+            <!-- Search -->
+            <div class="relative mb-4">
+                <input type="text" pInputText [(ngModel)]="ruleSearchText" placeholder="Search rules..." class="w-full p-inputtext-sm !bg-gray-50 !border !border-gray-200 !pl-10 !rounded-lg" />
+                <i class="pi pi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            </div>
+
+            <!-- Loading -->
+            <div *ngIf="loadingRules" class="flex justify-center py-8">
+                <p-progressSpinner [style]="{width: '40px', height: '40px'}" strokeWidth="4"></p-progressSpinner>
+            </div>
+
+            <!-- Rules Table -->
+            <div *ngIf="!loadingRules" class="rules-list-container max-h-[350px] overflow-y-auto">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-white z-10">
+                        <tr class="border-b border-gray-200">
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500 w-10">
+                                <input type="checkbox" [checked]="allFilteredRulesSelected" (change)="toggleSelectAll()" class="cursor-pointer w-4 h-4 accent-gray-900" />
+                            </th>
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500">Rule Name</th>
+                            <th class="text-center py-2 px-3 text-sm font-medium text-gray-500 w-20">Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let rule of filteredRules" class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors" (click)="toggleRuleSelection(rule.id)">
+                            <td class="py-3 px-3">
+                                <input type="checkbox" [checked]="isRuleSelected(rule.id)" (click)="$event.stopPropagation()" (change)="toggleRuleSelection(rule.id)" class="cursor-pointer w-4 h-4 accent-gray-900" />
+                            </td>
+                            <td class="py-3 px-3 text-sm text-gray-800 font-medium">{{ rule.name }}</td>
+                            <td class="py-3 px-3 text-center">
+                                <span class="inline-block w-2.5 h-2.5 rounded-full" [class.bg-green-500]="rule.is_active" [class.bg-gray-300]="!rule.is_active"> </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Empty state -->
+                <div *ngIf="filteredRules.length === 0" class="text-center py-8 text-gray-500 text-sm">{{ ruleSearchText ? 'No rules matching search' : 'No rules configured. Go to Settings to create rules.' }}</div>
+            </div>
+
+            <!-- Selected count -->
+            <div *ngIf="!loadingRules && availableRules.length > 0" class="mt-3 text-xs text-gray-500">{{ selectedRuleIds.size }} of {{ availableRules.length }} rule(s) selected</div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+                <button pButton label="Cancel" class="p-button-outlined p-button-sm cancel-btn" (click)="cancelRunRules()" [disabled]="runningRules"></button>
+                <button pButton label="Run" icon="pi pi-play" class="p-button-sm !bg-gray-900 !border-gray-900 hover:!bg-black" (click)="runSelectedRules()" [disabled]="runningRules || selectedRuleIds.size === 0"></button>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- ============ SORTING DIALOG ============ -->
+    <p-dialog header="Sorting" [(visible)]="showSortDialog" [modal]="true" [style]="{'width': '480px'}" [closable]="true" class="sorting-dialog">
+        <div class="sorting-content">
+            <!-- Search -->
+            <div class="flex justify-end mb-4">
+                <div class="relative w-10">
+                    <i class="pi pi-search text-gray-400 cursor-pointer text-lg" (click)="sortSearchText = sortSearchText ? '' : ' '"></i>
+                </div>
+            </div>
+
+            <!-- Search input (shown when activated) -->
+            <div *ngIf="sortSearchText !== ''" class="relative mb-4">
+                <input type="text" pInputText [(ngModel)]="sortSearchText" placeholder="Search sorting..." class="w-full p-inputtext-sm !bg-gray-50 !border !border-gray-200 !pl-10 !rounded-lg" />
+                <i class="pi pi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            </div>
+
+            <!-- Sorting Options Table -->
+            <div class="sorting-list-container">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-gray-200">
+                            <th class="text-left py-2.5 px-4 text-sm font-medium text-gray-500">Sorting Name</th>
+                            <th class="text-center py-2.5 px-4 text-sm font-medium text-gray-500 w-24">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let opt of filteredSortOptions" class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors" [class.bg-gray-50]="pendingSortId === opt.id" (click)="pendingSortId = opt.id">
+                            <td class="py-3.5 px-4 text-sm text-gray-800 font-medium">{{ opt.name }}</td>
+                            <td class="py-3.5 px-4 text-center">
+                                <span class="inline-block w-3 h-3 rounded-full" [class.bg-green-500]="pendingSortId === opt.id" [class.bg-gray-200]="pendingSortId !== opt.id"> </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div *ngIf="filteredSortOptions.length === 0" class="text-center py-8 text-gray-500 text-sm">No sorting options matching search</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+                <button pButton label="Cancel" class="p-button-outlined p-button-sm cancel-btn" (click)="cancelSort()"></button>
+                <button pButton label="Run" class="p-button-sm !bg-gray-900 !border-gray-900 hover:!bg-black !text-white !rounded-lg !px-6" (click)="runSort()"></button>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- Filter Dialog Component -->
+    <app-filter-dialog [(visible)]="showFilterDialog" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
+
+    <!-- ================= EXPANDED TABLE VIEW ================= -->
+    <div *ngIf="isTableExpanded" class="fixed inset-0 bg-white z-40 flex flex-col" [ngStyle]="{'padding-top': '64px', 'padding-left': '0px'}">
+        <!-- MINIMIZE BUTTON AT TOP-RIGHT -->
+        <div class="absolute top-6 right-6 z-50">
+            <button
+                pButton
+                icon="pi pi-compress"
+                class="minimize-table-btn !bg-gray-900 !text-white hover:!bg-black !border !border-gray-900 !w-10 !h-10 !p-0 !rounded-lg"
+                (click)="toggleTableExpansion()"
+                pTooltip="Minimize table"
+                tooltipPosition="left"
+            ></button>
+        </div>
+
+        <!-- SEARCH / FILTERS BAR IN EXPANDED VIEW (at top) -->
+        <div class="bg-white border-b border-gray-200 p-5">
+            <div class="max-w-[1800px] mx-auto">
+                <!-- Top Controls -->
+                <div class="flex flex-col sm:flex-row flex-wrap items-center gap-4">
+                    <!-- Search -->
+                    <div class="relative w-full sm:w-64">
+                        <input pInputText type="text" placeholder="Search Message ID" class="w-full !rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" />
+                        <i class="pi pi-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                    </div>
+
+                    <!-- Spacer -->
+                    <div class="flex-1"></div>
+
+                    <!-- Total Count -->
+                    <div class="flex items-center gap-3 px-5 py-2.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700 font-medium">
+                        <span>Total Count</span>
+                        <span class="px-3 py-0.5 bg-white rounded-full shadow text-sm font-semibold"> {{ tableData.length }} </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE IN EXPANDED MODE -->
+        <div class="flex-1 overflow-auto px-6 py-4">
+            <app-custom-table
+                [columns]="tableColumns"
+                [data]="tableData"
+                [config]="tableConfig"
+                [isExpanded]="true"
+                (dataChanged)="onTableDataChanged($event)"
+                (rowsSelected)="onTableRowsSelected($event)"
+                (onExpandButtonClick)="toggleTableExpansion()"
+            >
+            </app-custom-table>
+        </div>
+    </div>
+</div>

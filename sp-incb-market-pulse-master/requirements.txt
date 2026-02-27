@@ -1,10 +1,4 @@
-boto3~=1.16.28
-click==7.1.2
-itsdangerous==1.1.0
-Jinja2==2.11.2
-MarkupSafe==1.1.1
-Werkzeug==1.0.1
-serverless-wsgi==1.7.6
+# Core server
 uvicorn~=0.29.0
 fastapi~=0.110.2
 starlette~=0.37.2
@@ -12,14 +6,20 @@ mangum
 httpx
 python-multipart>=0.0.6  # For file upload support
 
-# Oracle Database connectivity (install when Oracle integration is configured)
-# Uncomment when setting DATA_SOURCE=oracle in .env
-# oracledb>=2.0.0
+# Legacy serverless utils (kept for Lambda compatibility)
+click==7.1.2
+itsdangerous==1.1.0
+Jinja2==2.11.2
+MarkupSafe==1.1.1
+Werkzeug==1.0.1
+serverless-wsgi==1.7.6
 
-# AWS S3 (install when S3 integration is configured)
-# Uncomment when setting OUTPUT_DESTINATION=s3 or OUTPUT_DESTINATION=both in .env
-# boto3>=1.26.0
-# botocore>=1.29.0
+# Oracle Database connectivity (required when DATA_SOURCE=oracle)
+oracledb>=2.0.0
+
+# AWS S3 (required when OUTPUT_DESTINATION=s3 or both)
+boto3>=1.26.0
+botocore>=1.29.0
 
 # Data processing and utilities
 pandas>=2.0.0

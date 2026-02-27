@@ -1,0 +1,434 @@
+<style>
+    .main-title {
+        font-family: 'Degular Display', sans-serif;
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+    }
+
+    .secondary-title {
+        font-family: 'Degular Display', sans-serif;
+        font-size: 20px;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+    }
+
+    .action-buttons-panel button {
+        font-family: 'Degular Display', sans-serif;
+        font-size: 18px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+    }
+
+    .search-message-input::placeholder {
+        font-family: 'Degular Display', sans-serif;
+        letter-spacing: 0 !important;
+    }
+</style>
+<p-toast position="top-right"></p-toast>
+<div class="min-h-screen">
+    <!-- MAIN WRAPPER -->
+    <div class="max-w-[1800px] ml-0 mr-auto p-4 pt-8 space-y-4">
+        <div>
+            <!-- ================= TOP GRID ================= -->
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
+                <!-- ================= AVAILABLE COLORS ================= -->
+
+                <div class="xl:col-span-6">
+                    <p-card class="!shadow-sm !border-gray-200 !rounded-[20px] w-full h-full">
+                        <!-- HEADER -->
+                        <div class="flex items-center justify-between px-5 pt-0.25 pb-0.25">
+                            <h2 class="font-medium text-gray-900 secondary-title">Available Colors</h2>
+                            <button class="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+                                title="Help" (click)="goToHelpPage()">
+                                <i class="pi pi-question-circle"></i>
+                            </button>
+                        </div>
+
+                        <div class="border-t border-gray-200 -mx-5"></div>
+
+                        <!-- CONTENT -->
+                        <div class="px-5 pt-4 pb-5 h-[240px] overflow-hidden">
+                            <!-- Scroll must stay INSIDE this card -->
+                            <div class="relative h-full w-full overflow-x-auto">
+                                <stacked-chart></stacked-chart>
+                            </div>
+                        </div>
+                    </p-card>
+                </div>
+                <div class="xl:col-span-4">
+                    <p-card class="!shadow-sm !border-gray-200 !rounded-[20px] w-full h-full">
+                        <!-- HEADER -->
+                        <div class="flex items-center justify-between px-5 pt-0.25 pb-0.25">
+                            <h2 class="font-medium text-gray-900 secondary-title">Bid / Ask Spreads</h2>
+                        </div>
+
+                        <div class="border-t border-gray-200 -mx-5"></div>
+
+                        <!-- CONTENT (CENTERED) -->
+                        <div class="flex items-center justify-center text-center h-[260px] secondary-title">
+                            <span class="text-black font-semibold text-4xl"> Coming Soon </span>
+                        </div>
+                    </p-card>
+                </div>
+
+                <!-- ================= RIGHT PANEL ================= -->
+                <div class="xl:col-span-2">
+                    <div class="rounded-[22px] h-full flex flex-col gap-2">
+                        <!-- Top dark grouped actions -->
+                        <div class="bg-white rounded-[20px] flex flex-col gap-2">
+                            <div class="bg-[#1c233a] rounded-[20px] overflow-hidden">
+                                <button pButton label="Refresh Colors Now" (click)="refreshColors()" class="w-full !bg-transparent hover:!bg-white/5 !text-white !rounded-none !py-3.5 !text-sm font-semibold"></button>
+
+                                <div class="h-px bg-white/10"></div>
+
+                                <button pButton label="Override & Run" (click)="overrideAndRun()" class="w-full !bg-transparent hover:!bg-white/5 !text-white !rounded-none !py-3.5 !text-sm font-semibold"></button>
+                            </div>
+                            <div class="text-center bt-0 mb-1 text-sm text-gray-500">
+                                Next Run in
+                                <span class="font-mono font-bold text-gray-900"> {{ nextRunTimer }} </span>
+                            </div>
+                        </div>
+
+                        <!-- Bottom actions card -->
+                        <div class="flex-1 flex flex-col">
+                            <div class="bg-white rounded-[18px] overflow-hidden shadow-sm flex-1 flex flex-col">
+                                <button
+                                    pButton
+                                    icon="pi pi-upload"
+                                    label="Import Sample"
+                                    (click)="importSample()"
+                                    class="w-full flex-1 !bg-white !text-gray-700 hover:!bg-gray-50 !rounded-none !border-b !border-gray-100 justify-start font-bold"
+                                ></button>
+
+                                <button
+                                    pButton
+                                    icon="pi pi-sliders-h"
+                                    label="Rules & Presets"
+                                    (click)="rulesAndPresets()"
+                                    class="w-full flex-1 !bg-white !text-gray-700 hover:!bg-gray-50 !rounded-none !border-b !border-gray-100 justify-start font-bold"
+                                ></button>
+
+                                <button
+                                    pButton
+                                    icon="pi pi-history"
+                                    label="Restore last run"
+                                    (click)="restoreLastRun()"
+                                    class="w-full flex-1 !bg-white !text-gray-700 hover:!bg-gray-50 !rounded-none !border-b !border-gray-100 justify-start font-bold"
+                                ></button>
+
+                                <button
+                                    pButton
+                                    icon="pi pi-clock"
+                                    label="Cron Jobs & Time"
+                                    (click)="cronJobsAndTime()"
+                                    class="w-full flex-1 !bg-white !text-gray-700 hover:!bg-gray-50 !rounded-none !border-b !border-gray-100 justify-start font-bold"
+                                ></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= SEARCH / FILTERS BAR ================= -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+            <!-- Top Controls -->
+            <div class="flex flex-col sm:flex-row flex-wrap items-center gap-4">
+                <!-- Search -->
+                <div class="relative w-full sm:w-64">
+                    <input
+                        pInputText
+                        type="text"
+                        placeholder="Search Message ID"
+                        [(ngModel)]="searchQuery"
+                        class="search-message-input w-full !rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-800 !border !border-gray-300 hover:!bg-gray-100 placeholder:!text-[14px] placeholder:tracking-normal"
+                    />
+                    <i class="pi pi-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                </div>
+
+                <!-- Add New Button -->
+                <button pButton icon="pi pi-plus" label="Add New" (click)="mainTable.addNewRow()" class="!text-gray-700 !rounded-full !px-5 !py-2.5 !bg-gray-50 !border !border-gray-300 hover:!bg-gray-50 text-sm font-normal"></button>
+
+                <!-- Filters & Import -->
+                <div class="flex flex-wrap gap-3">
+                    <button pButton icon="pi pi-filter" label="Filters" (click)="showFilterDialog()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                    <button pButton icon="pi pi-download" label="Import ID via Excel" (click)="importViaExcel()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                    @if (hasImportResults) {
+                        <button pButton icon="pi pi-file-excel" label="Download Results" (click)="downloadImportResults()" class="!rounded-full !px-5 !py-2.5 !bg-green-50 !text-green-700 !border !border-green-300 hover:!bg-green-100" pTooltip="Download import search results as Excel"></button>
+                        <button pButton icon="pi pi-times" label="Clear Import" (click)="clearImportResults()" class="!rounded-full !px-5 !py-2.5 !bg-orange-50 !text-orange-700 !border !border-orange-300 hover:!bg-orange-100" pTooltip="Clear import results and reload all data"></button>
+                    }
+                </div>
+
+                <!-- Spacer -->
+                <div class="flex-1"></div>
+
+                <!-- Export & Count -->
+                <div class="flex items-center gap-3 flex-wrap">
+                    <!-- Export -->
+                    <button pButton icon="pi pi-download" [label]="getExportButtonLabel()" (click)="exportAll()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                    <!-- Total Count -->
+                    <div class="flex items-center gap-3 px-5 py-2.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700 font-medium">
+                        <span>Total Count</span>
+                        <span class="px-3 py-0.5 bg-white rounded-full shadow text-sm font-semibold"> {{ tableData.length }} </span>
+                    </div>
+                </div>
+            </div>
+            <hr />
+            <!-- Active Filters -->
+            <div class="flex flex-wrap items-center gap-3 mt-[-5px] mb-[-5px]">
+                <!-- Dynamic Filter Chips -->
+                <div *ngFor="let filter of activeFilters; let i = index" class="flex items-center gap-3 px-5 py-2.5 rounded-full bg-gray-100 text-gray-900 border border-gray-200">
+                    <i class="pi pi-filter text-gray-700"></i>
+                    <span class="text-sm font-medium whitespace-nowrap">
+                        {{ filter.columnDisplay }} : {{ filter.operatorDisplay }} {{ filter.values }}
+                        <span *ngIf="filter.values2"> - {{ filter.values2 }}</span>
+                    </span>
+                    <button class="text-red-500 hover:text-red-600" aria-label="Remove filter" (click)="removeFilter(i)">
+                        <i class="pi pi-times"></i>
+                    </button>
+                </div>
+
+                <button *ngIf="activeFilters.length > 0" class="flex items-center gap-2 !rounded-full !px-5 !py-2.5 !bg-white !text-gray-700 !border !border-gray-300 hover:!bg-gray-50" (click)="removeAllFilters()">
+                    <i class="pi pi-trash text-sm"></i>
+                    Remove all filters
+                </button>
+
+                <div class="flex-1"></div>
+
+                <!-- Fetch / Search -->
+                <button pButton [label]="searchQuery.trim() ? 'Search' : 'Fetch Data'" [icon]="isSearching ? 'pi pi-spin pi-spinner' : (searchQuery.trim() ? 'pi pi-search' : 'pi pi-refresh')" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" [pTooltip]="searchQuery.trim() ? 'Search processed output for this Message ID or CUSIP' : 'Reload all data'"></button>
+            </div>
+        </div>
+
+        <!-- ================= TABULATOR TABLE ================= -->
+        <div class="relative font-poppins">
+            <app-custom-table
+                #mainTable
+                [columns]="tableColumns"
+                [data]="filteredTableData"
+                [config]="tableConfig"
+                [showExpandButton]="true"
+                primaryField="messageId"
+                (dataChanged)="onTableDataChanged($event)"
+                (rowsSelected)="onTableRowsSelected($event)"
+                (primaryFieldLookup)="onMessageIdLookup($event)"
+                (onExpandButtonClick)="toggleTableExpansion()"
+            >
+            </app-custom-table>
+        </div>
+    </div>
+
+    <!-- ================= EXPANDED TABLE VIEW ================= -->
+    <div *ngIf="isTableExpanded" class="fixed top-0 right-0 bottom-0 bg-white flex flex-col" [ngStyle]="{'padding-top': '64px', 'left': '4.5rem', 'z-index': '998'}">
+        <!-- MINIMIZE BUTTON AT TOP-RIGHT -->
+        <div class="absolute top-6 right-6 z-50">
+            <button
+                pButton
+                icon="pi pi-compress"
+                class="minimize-table-btn !bg-gray-900 !text-white hover:!bg-black !border !border-gray-900 !w-10 !h-10 !p-0 !rounded-lg"
+                (click)="toggleTableExpansion()"
+                pTooltip="Minimize table"
+                tooltipPosition="left"
+            ></button>
+        </div>
+
+        <!-- SEARCH / FILTERS BAR IN EXPANDED VIEW (at top) -->
+        <div class="bg-white border-b border-gray-200 p-5">
+            <div class="max-w-[1800px] mx-auto">
+                <!-- Top Controls -->
+                <div class="flex flex-col sm:flex-row flex-wrap items-center gap-4">
+                    <!-- Search -->
+                    <div class="relative w-full sm:w-64">
+                        <input pInputText type="text" placeholder="Search Message ID or CUSIP" [(ngModel)]="searchQuery" class="w-full !rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" />
+                        <i class="pi pi-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                    </div>
+
+                    <!-- Add New Button -->
+                    <button pButton icon="pi pi-plus" label="Add New" (click)="expandedTable.addNewRow()" class="!bg-white !text-gray-700 !rounded-full !px-5 !py-2.5 !border !border-gray-300 hover:!bg-gray-50 text-sm font-medium"></button>
+
+                    <!-- Filters & Import -->
+                    <div class="flex flex-wrap gap-3">
+                        <button pButton icon="pi pi-filter" label="Filters" (click)="showFilterDialog()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                        <button pButton icon="pi pi-download" label="Import ID via Excel" (click)="importViaExcel()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                        @if (hasImportResults) {
+                            <button pButton icon="pi pi-file-excel" label="Download Results" (click)="downloadImportResults()" class="!rounded-full !px-5 !py-2.5 !bg-green-50 !text-green-700 !border !border-green-300 hover:!bg-green-100" pTooltip="Download import search results as Excel"></button>
+                            <button pButton icon="pi pi-times" label="Clear Import" (click)="clearImportResults()" class="!rounded-full !px-5 !py-2.5 !bg-orange-50 !text-orange-700 !border !border-orange-300 hover:!bg-orange-100" pTooltip="Clear import results and reload all data"></button>
+                        }
+                    </div>
+
+                    <!-- Spacer -->
+                    <div class="flex-1"></div>
+
+                    <!-- Export / Count / Run Automation -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <!-- Export - Dynamic label -->
+                        <button pButton icon="pi pi-download" [label]="getExportButtonLabel()" (click)="exportAll()" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100"></button>
+
+                        <!-- Total Count -->
+                        <div class="flex items-center gap-3 px-5 py-2.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700 font-medium">
+                            <span>Total Count</span>
+                            <span class="px-3 py-0.5 bg-white rounded-full shadow text-sm font-semibold"> {{ tableData.length }} </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Filters -->
+                <div class="flex flex-wrap items-center gap-3 mt-5">
+                    <!-- Dynamic Filter Chips -->
+                    <div *ngFor="let filter of activeFilters; let i = index" class="flex items-center gap-3 px-5 py-2.5 rounded-full bg-gray-100 text-gray-900 border border-gray-200">
+                        <i class="pi pi-filter text-gray-700"></i>
+                        <span class="text-sm font-medium whitespace-nowrap">
+                            {{ filter.columnDisplay }} : {{ filter.operatorDisplay }} {{ filter.values }}
+                            <span *ngIf="filter.values2"> - {{ filter.values2 }}</span>
+                        </span>
+                        <button class="text-red-500 hover:text-red-600" aria-label="Remove filter" (click)="removeFilter(i)">
+                            <i class="pi pi-times"></i>
+                        </button>
+                    </div>
+
+                    <button *ngIf="activeFilters.length > 0" class="flex items-center gap-2 !rounded-full !px-5 !py-2.5 !bg-white !text-gray-700 !border !border-gray-300 hover:!bg-gray-50" (click)="removeAllFilters()">
+                        <i class="pi pi-trash text-sm"></i>
+                        Remove all filters
+                    </button>
+
+                    <div class="flex-1"></div>
+
+                    <!-- Fetch / Search -->
+                    <button pButton [label]="searchQuery.trim() ? 'Search' : 'Fetch Data'" [icon]="isSearching ? 'pi pi-spin pi-spinner' : (searchQuery.trim() ? 'pi pi-search' : 'pi pi-refresh')" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" [pTooltip]="searchQuery.trim() ? 'Search processed output for this Message ID or CUSIP' : 'Reload all data'"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE IN EXPANDED MODE -->
+        <div class="flex-1 overflow-auto px-6 py-4">
+            <app-custom-table
+                #expandedTable
+                [columns]="tableColumns"
+                [data]="filteredTableData"
+                [config]="tableConfig"
+                [isExpanded]="true"
+                [showExpandButton]="true"
+                primaryField="messageId"
+                (dataChanged)="onTableDataChanged($event)"
+                (rowsSelected)="onTableRowsSelected($event)"
+                (primaryFieldLookup)="onMessageIdLookup($event)"
+                (onExpandButtonClick)="toggleTableExpansion()"
+            >
+            </app-custom-table>
+        </div>
+    </div>
+
+    <!-- ================= IMPORT IDS DIALOG ================= -->
+    <p-dialog header="Import IDs for Security Search" [(visible)]="showImportDialog" [modal]="true" [style]="{'width': '500px'}" [closable]="true" [showHeader]="true">
+        <div class="p-4">
+            <p class="text-sm text-gray-600 mb-6 font-medium">Upload an Excel file containing <strong>Message IDs</strong> and/or <strong>CUSIPs</strong>. The system will search the processed output and return a downloadable Excel with all matching rows.</p>
+            <p class="text-xs text-blue-600 mb-4 font-medium bg-blue-50 rounded-lg px-3 py-2">Required columns: <code>Message ID</code> and/or <code>CUSIP</code></p>
+
+            <!-- Drop Zone -->
+            <div *ngIf="!selectedFile || isUploading" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50">
+                <p-progressSpinner *ngIf="isUploading" [style]="{width: '50px', height: '50px'}" strokeWidth="4" class="mb-4"> </p-progressSpinner>
+
+                <i *ngIf="!isUploading" class="pi pi-cloud-upload text-3xl text-green-500 mb-3 block"></i>
+
+                <p class="text-sm font-medium text-gray-700 mb-2">{{ isUploading ? 'Uploading...' : 'Drop your file here' }}</p>
+
+                <input *ngIf="!isUploading" #fileInputRef type="file" accept=".xlsx,.xls" style="display: none" (change)="onNativeFileSelect($event)" />
+
+                <button *ngIf="!isUploading" pButton label="Browse Files" icon="pi pi-folder-open" class="p-button-outlined p-button-sm" (click)="triggerFileInput()"></button>
+            </div>
+
+            <!-- File info -->
+            <div *ngIf="selectedFile && !isUploading" class="mt-4 p-4 bg-gray-50 rounded-xl flex items-center gap-4">
+                <i [class]="'pi ' + getFileIcon() + ' text-2xl text-blue-500'"></i>
+                <div class="flex-1">
+                    <p class="font-medium text-sm">{{ selectedFile.name }}</p>
+                    <p class="text-xs text-gray-500">{{ fileSize }}</p>
+                </div>
+                <button pButton icon="pi pi-times" class="p-button-text p-button-sm" (click)="onCancelImport()" pTooltip="Remove file"></button>
+            </div>
+
+            <div class="my-4 border-t border-gray-200"></div>
+
+            <p class="text-xs text-gray-500 text-center mb-6">Only .xlsx or .xls file extensions are supported</p>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3">
+                <button pButton label="Cancel" icon="pi pi-times" class="p-button-outlined p-button-sm" (click)="onCancelImport()" [disabled]="isUploading"></button>
+
+                <button pButton [label]="isUploading ? 'Searching...' : 'Preview in Table'" [icon]="isUploading ? 'pi pi-spin pi-spinner' : 'pi pi-table'" class="p-button-sm" (click)="onUploadImport()" [disabled]="!selectedFile || isUploading" pTooltip="Search and show results in the main table for preview"></button>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- ================= RUN RULES DIALOG ================= -->
+    <p-dialog header="Rules" [(visible)]="showRunRulesDialog" [modal]="true" [style]="{'width': '520px'}" [closable]="true" class="run-rules-dialog">
+        <div class="run-rules-content">
+            <!-- Preset Loader -->
+            <div class="mb-4">
+                <label class="text-xs font-medium text-gray-500 mb-1 block">Load Preset</label>
+                <select [(ngModel)]="selectedPresetId" (ngModelChange)="$event && applyPreset($event)" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    <option [ngValue]="null">-- Select a preset --</option>
+                    <option *ngFor="let preset of availablePresets" [ngValue]="preset.id">{{ preset.name }} ({{ preset.conditions.length }} filters)</option>
+                </select>
+            </div>
+
+            <!-- Search -->
+            <div class="relative mb-4">
+                <input type="text" pInputText [(ngModel)]="ruleSearchText" placeholder="Search rules..." class="w-full p-inputtext-sm !bg-gray-50 !border !border-gray-200 !pl-10 !rounded-lg" />
+                <i class="pi pi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            </div>
+
+            <!-- Loading -->
+            <div *ngIf="loadingRules" class="flex justify-center py-8">
+                <p-progressSpinner [style]="{width: '40px', height: '40px'}" strokeWidth="4"></p-progressSpinner>
+            </div>
+
+            <!-- Rules Table -->
+            <div *ngIf="!loadingRules" class="rules-list-container" style="max-height: 350px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px">
+                <table class="w-full" style="border-collapse: collapse">
+                    <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10">
+                        <tr style="border-bottom: 1px solid #e5e7eb">
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500" style="width: 40px">
+                                <input type="checkbox" [checked]="allFilteredRulesSelected" (change)="toggleSelectAll()" class="cursor-pointer" style="width: 16px; height: 16px; accent-color: #111827" />
+                            </th>
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500">Rule Name</th>
+                            <th class="text-center py-2 px-3 text-sm font-medium text-gray-500" style="width: 80px">Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let rule of filteredRules" class="hover:bg-gray-50 cursor-pointer" style="border-bottom: 1px solid #f3f4f6; transition: background-color 0.15s" (click)="toggleRuleSelection(rule.id)">
+                            <td class="py-3 px-3">
+                                <input type="checkbox" [checked]="isRuleSelected(rule.id)" (click)="$event.stopPropagation()" (change)="toggleRuleSelection(rule.id)" class="cursor-pointer" style="width: 16px; height: 16px; accent-color: #111827" />
+                            </td>
+                            <td class="py-3 px-3 text-sm text-gray-800 font-medium">{{ rule.name }}</td>
+                            <td class="py-3 px-3 text-center">
+                                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%" [style.background-color]="rule.is_active ? '#22c55e' : '#d1d5db'"> </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Empty state -->
+                <div *ngIf="filteredRules.length === 0" class="text-center py-8 text-gray-500 text-sm">{{ ruleSearchText ? 'No rules matching search' : 'No rules configured. Go to Settings to create rules.' }}</div>
+            </div>
+
+            <!-- Selected count -->
+            <div *ngIf="!loadingRules && availableRules.length > 0" class="mt-3 text-xs text-gray-500">{{ selectedRuleIds.size }} of {{ availableRules.length }} rule(s) selected</div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 mt-4 pt-4" style="border-top: 1px solid #e5e7eb">
+                <button pButton label="Cancel" class="p-button-outlined p-button-sm" (click)="cancelRunRules()" [disabled]="runningRules"></button>
+                <button pButton label="Run" icon="pi pi-play" class="p-button-sm !bg-gray-900 !border-gray-900 hover:!bg-black" (click)="runSelectedRules()" [disabled]="runningRules || selectedRuleIds.size === 0"></button>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- ================= FILTER MODAL ================= -->
+    <app-filter-dialog [(visible)]="filterVisible" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
+</div>

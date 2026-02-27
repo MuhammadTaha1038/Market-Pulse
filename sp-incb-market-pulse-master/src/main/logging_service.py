@@ -81,10 +81,36 @@ def load_unified_logs() -> Dict:
 
 
 def save_unified_logs(logs_data: Dict):
-    """Save unified logs"""
+    """Save unified logs locally and sync to S3 if configured"""
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(UNIFIED_LOGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(logs_data, f, indent=2)
+    # Sync to S3 when configured
+    _s3_sync_log(logs_data)
+
+
+def _s3_sync_log(logs_data: Dict):
+    """Upload unified logs JSON to S3 if S3 is configured."""
+    try:
+        output_dest = os.getenv("OUTPUT_DESTINATION", "local").lower()
+        if output_dest not in ("s3", "both"):
+            return
+        bucket = os.getenv("S3_BUCKET_NAME", "")
+        if not bucket:
+            return
+        import boto3
+        access_key = os.getenv("AWS_ACCESS_KEY_ID", "")
+        secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        region = os.getenv("S3_REGION", "us-east-1")
+        if access_key and secret_key:
+            s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name=region)
+        else:
+            s3 = boto3.client("s3", region_name=region)
+        body = json.dumps(logs_data, indent=2, default=str).encode("utf-8")
+        s3.put_object(Bucket=bucket, Key="logs/unified_logs.json", Body=body, ContentType="application/json")
+        logger.debug(f"Synced unified_logs.json to s3://{bucket}/logs/unified_logs.json")
+    except Exception as e:
+        logger.warning(f"S3 log sync failed (non-critical): {e}")
 
 
 def add_log(

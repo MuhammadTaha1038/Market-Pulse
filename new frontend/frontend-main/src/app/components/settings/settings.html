@@ -1,0 +1,990 @@
+<div class="!p-0 !m-0 overflow-x-hidden">
+    <!-- TOAST NOTIFICATIONS -->
+    <p-toast position="top-right"></p-toast>
+
+    <!-- HEADER -->
+    <div class="bg-white p-6 border-b border-gray-200 fixed top-16 right-0 z-50 transition-all duration-300" [style.left]="headerLeft">
+        <div class="flex items-center justify-between mb-0">
+            <div>
+                <h1 class="text-2xl font-bold text-black">Settings</h1>
+                <p class="text-black m-0">Manage your asset class rules and preferences</p>
+            </div>
+            <div class="flex items-center">
+                <div class="h-6 w-px bg-gray-400 mr-3"></div>
+                <span class="text-2xl font-bold text-gray-600"> {{ selectedAsset.name }} </span>
+            </div>
+        </div>
+        <hr class="my-4 border-gray-300 -mx-6 w-[calc(100%+3rem)]" />
+        <div class="flex flex-wrap gap-2">
+            <span (click)="scrollToSection('rules-section')" class="bg-gray-100 rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Rules</span>
+            <span (click)="scrollToSection('preset-section')" class="bg-gray-100 rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Preset</span>
+            <span (click)="scrollToSection('cron-jobs-section')" class="bg-gray-100 rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Cron Jobs</span>
+            <span (click)="scrollToSection('restore-email-section')" class="bg-gray-100 rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Restore & Email</span>
+            <span (click)="scrollToSection('sorting-section')" class="bg-gray-100 rounded-full px-4 py-2 border border-gray-200 inline-block whitespace-nowrap cursor-pointer hover:bg-gray-50">Sorting</span>
+        </div>
+    </div>
+
+    <!-- ─── RULES + MANUAL COLORS ─── -->
+    <div id="rules-section" class="flex flex-col ml-3 mt-60 rounded-3xl lg:flex-row ">
+        <!-- Left panel – 7 cols -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-7/12 w-full min-w-0 lg:rounded-r-none lg:border-r-0">
+            <div class="flex justify-between items-start">
+                <h2 class="text-lg font-semibold text-gray-900">Rules</h2>
+                <button class="text-gray-400 hover:text-gray-600 cursor-pointer" title="Help" (click)="goToHelpPage()">
+                    <i class="pi pi-question-circle"></i>
+                </button>
+            </div>
+            <p class="text-lg text-gray-600 mb-4">Add filters to exclude data from the auto cleaning process</p>
+
+            <!-- Loading indicator -->
+            <div *ngIf="loadingRules" class="text-center py-4">
+                <i class="pi pi-spinner pi-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading rules...</p>
+            </div>
+
+            <!-- Rules Table (dynamic from backend) -->
+            <div class="overflow-x-auto" *ngIf="!loadingRules">
+                <table class="w-full min-w-[600px]">
+                    <thead class="border-b border-t border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Rule Name</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Active</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngIf="rules.length === 0">
+                            <td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">No rules found. Create one below.</td>
+                        </tr>
+                        <tr *ngFor="let rule of rules" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ rule.name }}</td>
+                            <td class="px-4 py-3">
+                                <button
+                                    (click)="toggleRuleActive(rule)"
+                                    class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                                    [ngClass]="rule.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                                    {{ rule.is_active ? 'Yes' : 'No' }}
+                                </button>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex gap-2">
+                                    <button (click)="editRule(rule)" class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit rule">
+                                        <i class="pi pi-pencil"></i>
+                                    </button>
+                                    <button (click)="deleteRule(rule)" class="text-gray-600 hover:text-red-600 transition-colors" title="Delete rule">
+                                        <i class="pi pi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Rule Creation Form -->
+            <div class="mt-6 bg-gray-50 rounded-lg p-6">
+                <div class="flex items-center gap-2 mb-4" *ngIf="editingRuleId !== null">
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Editing Rule #{{ editingRuleId }}</span>
+                    <button (click)="resetRuleForm()" class="text-xs text-gray-500 hover:text-gray-700">Cancel Edit</button>
+                </div>
+
+                <input type="text" [(ngModel)]="newRuleName" placeholder="Rule Name" class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                <!-- Headers Row -->
+                <div class="flex items-center gap-4 mb-0 px-4">
+                    <div class="w-16"></div>
+                    <div class="w-10"></div>
+                    <span class="text-sm font-medium text-gray-700 w-40">Column</span>
+                    <span class="text-sm font-medium text-gray-700 w-36">Operator</span>
+                    <span class="text-sm font-medium text-gray-700 flex-1">Values</span>
+                    <div class="w-10"></div>
+                </div>
+
+                <!-- Main Conditions -->
+                <div *ngFor="let condition of ruleConditions; let i = index">
+                    <div *ngIf="!condition.isSubgroup" class="flex items-center gap-3 mb-1.5 px-4 py-2">
+                        <!-- WHERE/AND/OR -->
+                        <div class="w-16">
+                            <span *ngIf="i === 0" class="text-sm font-medium text-gray-700">Where</span>
+                            <select *ngIf="i > 0" [(ngModel)]="condition.type"
+                                class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded-lg bg-white">
+                                <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Six Dot Icon -->
+                        <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+                            <div class="grid grid-cols-2 gap-[3px]">
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                            </div>
+                        </div>
+
+                        <!-- Column Dropdown -->
+                        <div class="w-40">
+                            <select [(ngModel)]="condition.column"
+                                class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                <option value="">Select Column</option>
+                                <option *ngFor="let col of columnOptions" [value]="col.value">{{ col.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Operator Dropdown -->
+                        <div class="w-36">
+                            <select [(ngModel)]="condition.operator"
+                                class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                <option value="">Select Operator</option>
+                                <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Values Input -->
+                        <div class="flex-1 flex gap-2">
+                            <input type="text" [(ngModel)]="condition.value"
+                                [placeholder]="isBetweenOperator(condition.operator) ? 'Min value' : 'Enter value'"
+                                class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input *ngIf="isBetweenOperator(condition.operator)" type="text" [(ngModel)]="condition.value2"
+                                placeholder="Max value"
+                                class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+
+                        <!-- Delete Button -->
+                        <div class="flex-shrink-0">
+                            <button *ngIf="i > 0" (click)="removeCondition(i)"
+                                class="text-gray-400 hover:text-red-500 transition-colors" title="Remove condition">
+                                <i class="pi pi-trash"></i>
+                            </button>
+                            <div *ngIf="i === 0" class="w-4"></div>
+                        </div>
+                    </div>
+
+                    <!-- Subgroup -->
+                    <div *ngIf="condition.isSubgroup" class="mb-1.5 pl-8">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-sm font-medium text-gray-600">Group</span>
+                            <button (click)="removeCondition(i)"
+                                class="text-gray-400 hover:text-red-500 transition-colors" title="Remove subgroup">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+
+                        <div *ngFor="let subCondition of condition.conditions; let j = index"
+                            class="flex items-center gap-3 mb-1.5 px-4 py-2 bg-white rounded-lg">
+                            <!-- WHERE/AND/OR -->
+                            <div class="w-16">
+                                <span *ngIf="j === 0" class="text-sm text-gray-600">Where</span>
+                                <select *ngIf="j > 0" [(ngModel)]="subCondition.type"
+                                    class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded-lg bg-white">
+                                    <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Six Dot Icon -->
+                            <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+                                <div class="grid grid-cols-2 gap-[3px]">
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                </div>
+                            </div>
+
+                            <!-- Column -->
+                            <div class="w-40">
+                                <select [(ngModel)]="subCondition.column"
+                                    class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                    <option value="">Select Column</option>
+                                    <option *ngFor="let col of columnOptions" [value]="col.value">{{ col.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Operator -->
+                            <div class="w-36">
+                                <select [(ngModel)]="subCondition.operator"
+                                    class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                    <option value="">Select Operator</option>
+                                    <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Values -->
+                            <div class="flex-1 flex gap-2">
+                                <input type="text" [(ngModel)]="subCondition.value"
+                                    [placeholder]="isBetweenOperator(subCondition.operator) ? 'Min value' : 'Enter value'"
+                                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                <input *ngIf="isBetweenOperator(subCondition.operator)" type="text" [(ngModel)]="subCondition.value2"
+                                    placeholder="Max value"
+                                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            </div>
+
+                            <!-- Delete -->
+                            <div class="flex-shrink-0">
+                                <button (click)="removeSubgroupCondition(condition, j)"
+                                    class="text-gray-400 hover:text-red-500 transition-colors" title="Remove condition">
+                                    <i class="pi pi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Subgroup footer buttons -->
+                        <div class="flex items-center gap-4 px-4 mt-3 mb-4">
+                            <button (click)="addSubgroupCondition(condition)"
+                                class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                                <i class="pi pi-plus-circle"></i>
+                                Add Condition
+                            </button>
+                            <button (click)="addSubgroup()"
+                                class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                                <i class="pi pi-plus-circle"></i>
+                                Add Subgroup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="my-6 border-t border-gray-200"></div>
+
+                <!-- Footer Actions -->
+                <div class="flex items-center gap-4 flex-wrap">
+                    <button (click)="addCondition()" class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-plus-circle"></i>
+                        Add Condition
+                    </button>
+                    <button (click)="addSubgroup()" class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-plus-circle"></i>
+                        Add Group
+                    </button>
+
+                    <div class="flex-1"></div>
+
+                    <button (click)="removeAllExclusions()" class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-trash"></i>
+                        Remove all exclusions
+                    </button>
+                    <button
+                        (click)="saveRule()"
+                        [disabled]="savingRule"
+                        class="px-6 py-2.5 bg-[#2C3E50] text-white rounded-full text-sm hover:bg-[#243746] flex items-center gap-2 transition-colors border border-[#2C3E50]"
+                        [class.opacity-50]="savingRule">
+                        <i [class]="savingRule ? 'pi pi-spinner pi-spin' : 'pi pi-save'"></i>
+                        {{ editingRuleId !== null ? 'Update Rule' : 'Save Exclusions' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Divider column -->
+        <div class="hidden lg:flex lg:w-px bg-gray-200 self-stretch"></div>
+
+        <!-- Right panel – 5 cols (Manual Colors) -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-5/12 w-full min-w-0 lg:rounded-l-none lg:border-l-0">
+            <h2 class="text-lg font-semibold text-gray-900 mb-2">Manual Colors</h2>
+            <p class="text-sm text-gray-600 mb-4">The colors will be processed in the next automation cycle</p>
+
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer" (click)="fileInput.click()">
+                <input #fileInput type="file" accept=".xlsx,.xls" hidden (change)="onFileSelected($event)" />
+                <div class="flex flex-col items-center pointer-events-none">
+                    <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
+                    <p class="text-sm font-medium text-gray-700 mb-1">Import Colors</p>
+                    <p class="text-sm text-gray-500 leading-relaxed max-w-md">
+                        Manual colors bulk upload via excel,
+                        <a href="assets/sample-files/color-import-sample.xlsx" download class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700 pointer-events-auto" (click)="$event.stopPropagation()"> Click here </a>
+                        to download sample file
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                <button class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors" title="Remove manual file">
+                    <i class="pi pi-trash"></i>
+                    Remove manual file
+                </button>
+                <button class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-900 flex items-center gap-2 transition-colors" title="Save colors">
+                    <i class="pi pi-save"></i>
+                    Save Colors
+                </button>
+            </div>
+
+            <!-- Logs (from backend) -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                    <h3 class="text-base font-semibold text-gray-900">Logs</h3>
+                    <p class="text-xs text-gray-500">Undo up to your last 4 changes</p>
+                </div>
+                <div class="relative pl-4">
+                    <div class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+                    <div class="space-y-2">
+                        <div *ngIf="rulesLogs.length === 0" class="p-3 text-sm text-gray-400">No recent changes</div>
+                        <div *ngFor="let log of rulesLogs" class="flex justify-between items-center p-3 rounded-lg transition-colors cursor-pointer hover:bg-gray-50">
+                            <div>
+                                <p class="text-sm text-gray-900">{{ log.description }}</p>
+                                <p class="text-xs text-gray-500">{{ formatDate(log.performed_at) }}</p>
+                            </div>
+                            <button
+                                *ngIf="log.can_revert && !log.reverted_at"
+                                (click)="revertLog(log)"
+                                class="text-sm rounded-2xl p-2 !bg-gray-200 text-black hover:text-cyan-500 flex items-center gap-1 transition-colors"
+                                title="Revert this change">
+                                <i class="pi pi-undo text-xs"></i>
+                                Revert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── CRON JOBS + CRON SCHEDULE ─── -->
+    <div id="cron-jobs-section" class="flex flex-col lg:flex-row ml-3 mt-4">
+        <!-- Left panel – 7 cols -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-7/12 w-full min-w-0 lg:rounded-r-none lg:border-r-0">
+            <div class="flex justify-between items-start mb-1">
+                <h2 class="text-lg font-semibold text-gray-900">Cron Jobs</h2>
+                <button class="text-gray-400 hover:text-gray-600 cursor-pointer" title="Help" (click)="goToHelpPage()">
+                    <i class="pi pi-question-circle"></i>
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 mb-3">Add timely batch for automated color processing</p>
+            <hr class="border-t border-gray-200 -mx-6 mb-4" />
+
+            <!-- Job Creation Form -->
+            <div class="rounded-lg mb-4">
+                <div class="grid grid-cols-12 gap-3 items-end mb-4">
+                    <!-- Job Name -->
+                    <div class="col-span-12 md:col-span-3">
+                        <label class="text-xs text-gray-600 mb-1 block">Job name</label>
+                        <input type="text" [(ngModel)]="newJobName" placeholder="US CLO N1000 Batch" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <!-- Time (GMT) -->
+                    <div class="col-span-6 md:col-span-2">
+                        <label class="text-xs text-gray-600 mb-1 block">Time (GMT)</label>
+                        <input type="time" [(ngModel)]="newJobTime" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <!-- Frequency (Day-of-week buttons) -->
+                    <div class="col-span-12 md:col-span-4">
+                        <label class="text-xs text-gray-600 mb-1 block">Frequency</label>
+                        <div class="flex gap-1">
+                            <button
+                                *ngFor="let label of dayLabels; let i = index"
+                                (click)="toggleDay(i)"
+                                class="w-8 h-8 rounded-md text-xs font-semibold flex items-center justify-center transition-all cursor-pointer border"
+                                [ngClass]="newJobDays[i] ? 'bg-gray-700 text-white border-gray-700' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'">
+                                {{ label }}
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Repeat -->
+                    <div class="col-span-6 md:col-span-1">
+                        <label class="text-xs text-gray-600 mb-1 block">Repeat</label>
+                        <div class="relative">
+                            <select [(ngModel)]="newJobRepeat" class="w-full px-2 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                                <option [ngValue]="true">Yes</option>
+                                <option [ngValue]="false">No</option>
+                            </select>
+                            <i class="pi pi-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <!-- Add Button -->
+                    <div class="col-span-12 md:col-span-2 flex items-end">
+                        <button
+                            (click)="addJob()"
+                            [disabled]="!newJobName || savingJob"
+                            [class.opacity-50]="!newJobName || savingJob"
+                            [class.cursor-not-allowed]="!newJobName"
+                            class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-50 flex items-center gap-1.5 transition-all whitespace-nowrap"
+                            title="Add new job">
+                            <i [class]="savingJob ? 'pi pi-spinner pi-spin text-base' : 'pi pi-plus-circle text-base'"></i>
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-t border-gray-200 mb-4" />
+
+            <!-- Loading indicator -->
+            <div *ngIf="loadingCronJobs" class="text-center py-4">
+                <i class="pi pi-spinner pi-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading jobs...</p>
+            </div>
+
+            <!-- Jobs Table (dynamic from backend) -->
+            <div class="overflow-x-auto" *ngIf="!loadingCronJobs">
+                <table class="w-full min-w-[700px]">
+                    <thead class="border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600">Job Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600">Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600">Frequency</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600">Repeat</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngIf="cronJobs.length === 0">
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">No cron jobs found. Create one above.</td>
+                        </tr>
+                        <tr *ngFor="let job of cronJobs" class="border-b border-gray-100 hover:bg-gray-50 transition-colors" [class.bg-blue-50]="$any(job).isEditing">
+                            <!-- Job Name -->
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <span *ngIf="!$any(job).isEditing">{{ job.name }}</span>
+                                <input *ngIf="$any(job).isEditing" [(ngModel)]="job.name" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                            </td>
+                            <!-- Time (parsed from cron) -->
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <span *ngIf="!$any(job).isEditing">{{ parseJobTime(job) }}</span>
+                                <input *ngIf="$any(job).isEditing" type="time" [(ngModel)]="editJobTime" class="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </td>
+                            <!-- Frequency (day boxes with status colors / toggleable when editing) -->
+                            <td class="px-4 py-3">
+                                <!-- Read-only mode: status-colored day circles -->
+                                <div *ngIf="!$any(job).isEditing" class="flex gap-1.5">
+                                    <span
+                                        *ngFor="let active of parseJobDays(job); let i = index"
+                                        class="w-8 h-8 rounded-md text-xs font-bold flex items-center justify-center cursor-help"
+                                        [ngClass]="active ? getStatusColor(getJobDayStatus(job, i)) + ' text-white' : 'bg-gray-100 text-gray-400'"
+                                        [pTooltip]="active ? (dayLabels[i] + ': ' + getJobDayStatus(job, i)) : (dayLabels[i] + ': not scheduled')"
+                                        tooltipPosition="top">
+                                        {{ dayLabels[i] }}
+                                    </span>
+                                </div>
+                                <!-- Edit mode: toggleable day buttons -->
+                                <div *ngIf="$any(job).isEditing" class="flex gap-1">
+                                    <button
+                                        *ngFor="let label of dayLabels; let i = index"
+                                        (click)="toggleEditDay(i)"
+                                        class="w-8 h-8 rounded-md text-xs font-semibold flex items-center justify-center transition-all cursor-pointer border"
+                                        [ngClass]="editJobDays[i] ? 'bg-gray-700 text-white border-gray-700' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'">
+                                        {{ label }}
+                                    </button>
+                                </div>
+                            </td>
+                            <!-- Repeat (dropdown style) -->
+                            <td class="px-4 py-3 text-sm">
+                                <div *ngIf="!$any(job).isEditing" class="relative inline-block">
+                                    <select
+                                        [ngModel]="job.is_active"
+                                        (ngModelChange)="job.is_active = $event; saveJob(job)"
+                                        class="pl-2 pr-6 py-1 bg-white border border-gray-300 rounded text-sm appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        <option [ngValue]="true">Yes</option>
+                                        <option [ngValue]="false">No</option>
+                                    </select>
+                                    <i class="pi pi-chevron-down absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                </div>
+                                <div *ngIf="$any(job).isEditing" class="relative inline-block">
+                                    <select
+                                        [(ngModel)]="editJobRepeat"
+                                        class="pl-2 pr-6 py-1 bg-white border border-gray-300 rounded text-sm appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        <option [ngValue]="true">Yes</option>
+                                        <option [ngValue]="false">No</option>
+                                    </select>
+                                    <i class="pi pi-chevron-down absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                </div>
+                            </td>
+                            <!-- Actions (pencil + trash) -->
+                            <td class="px-4 py-3">
+                                <div class="flex gap-4">
+                                    <button *ngIf="!$any(job).isEditing" (click)="editJob(job)" class="text-gray-500 hover:text-gray-800 transition-colors" title="Edit job">
+                                        <i class="pi pi-pencil text-base"></i>
+                                    </button>
+                                    <button *ngIf="$any(job).isEditing" (click)="saveJob(job)" class="text-green-600 hover:text-green-700 transition-colors" title="Save changes">
+                                        <i class="pi pi-check text-base"></i>
+                                    </button>
+                                    <button *ngIf="$any(job).isEditing" (click)="cancelEdit(job)" class="text-gray-600 hover:text-red-600 transition-colors" title="Cancel editing">
+                                        <i class="pi pi-times text-base"></i>
+                                    </button>
+                                    <button (click)="deleteJob(job)" class="text-gray-500 hover:text-red-600 transition-colors" title="Delete job">
+                                        <i class="pi pi-trash text-base"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Divider column -->
+        <div class="hidden lg:flex lg:w-px bg-gray-200 self-stretch"></div>
+
+        <!-- Right panel – 5 cols (Cron Schedule + Calendar) -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-5/12 w-full min-w-0 lg:rounded-l-none lg:border-l-0">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1 gap-2">
+                <h2 class="text-lg font-semibold text-gray-900">Cron Schedule</h2>
+                <div class="flex flex-wrap gap-2 text-xs border-gray-50 rounded-2xl bg-gray-50 px-3 py-1">
+                    <span class="flex items-center gap-1 cursor-help" title="Successful executions"> <span class="w-2 h-2 bg-green-500 rounded-full"></span> Success </span>
+                    <span class="flex items-center gap-1 cursor-help" title="Failed executions"> <span class="w-2 h-2 bg-red-500 rounded-full"></span> Error </span>
+                    <span class="flex items-center gap-1 cursor-help" title="Manual overrides"> <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Overridden </span>
+                    <span class="flex items-center gap-1 cursor-help" title="Skipped executions"> <span class="w-2 h-2 bg-gray-200 rounded-full"></span> Skipped </span>
+                    <span class="flex items-center gap-1 cursor-help" title="Upcoming executions"> <span class="w-2 h-2 bg-amber-400 rounded-full"></span> Upcoming </span>
+                </div>
+            </div>
+            <p class="text-sm text-gray-600 mb-3">View automation schedule and status</p>
+            <hr class="border-t border-gray-200 -mx-6 mb-4" />
+
+            <!-- Calendar Header -->
+            <div class="mb-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+                    <h3 class="text-lg font-semibold text-gray-900">{{ currentMonth }}</h3>
+                    <!-- View tabs -->
+                    <!-- <div class="flex bg-gray-100 rounded-lg p-0.5">
+                        <button
+                            *ngFor="let view of ['month', 'week', 'day', 'list']"
+                            (click)="calendarView = $any(view)"
+                            class="px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize"
+                            [ngClass]="calendarView === view ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                            {{ view }}
+                        </button>
+                    </div> -->
+                </div>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="grid grid-cols-7 bg-gray-50">
+                    <div *ngFor="let day of weekDays" class="text-center text-xs font-medium text-gray-600 py-2 border-r border-gray-200 last:border-r-0">{{ day }}</div>
+                </div>
+                <div class="grid grid-cols-7">
+                    <div
+                        *ngFor="let date of calendarDates"
+                        (click)="selectDate(date)"
+                        [class.bg-gray-50]="!date.isCurrentMonth"
+                        [class.bg-blue-50]="date.isSelected"
+                        [class.cursor-pointer]="date.isCurrentMonth"
+                        [class.cursor-not-allowed]="!date.isCurrentMonth"
+                        [class.hover:bg-gray-100]="date.isCurrentMonth && !date.isSelected"
+                        class="min-h-20 sm:min-h-24 border-b border-r border-gray-200 last:border-r-0 p-1 sm:p-2 transition-colors flex flex-col justify-between">
+                        <div class="text-sm font-medium text-gray-900" [class.text-gray-400]="!date.isCurrentMonth">{{ date.day }}</div>
+                        <div class="flex flex-col gap-0.5 mt-auto">
+                            <div *ngFor="let event of date.events" [class]="getEventColor(event.type) + ' text-xs text-white px-1 sm:px-2 py-0.5 rounded cursor-help truncate'" [title]="event.type + ' - ' + event.label">{{ event.label }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs (from backend) -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                    <h3 class="text-base font-semibold text-gray-900">Logs</h3>
+                    <p class="text-xs text-gray-500">Undo up to your last 4 changes</p>
+                </div>
+                <div class="relative pl-4">
+                    <div class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+                    <div class="space-y-2">
+                        <div *ngIf="cronLogs.length === 0" class="p-3 text-sm text-gray-400">No recent changes</div>
+                        <div *ngFor="let log of cronLogs" class="flex justify-between items-center p-3 rounded-lg transition-colors cursor-pointer hover:bg-gray-50">
+                            <div>
+                                <p class="text-sm text-gray-900">{{ log.description }}</p>
+                                <p class="text-xs text-gray-500">{{ formatDate(log.performed_at) }}</p>
+                            </div>
+                            <button
+                                *ngIf="log.can_revert && !log.reverted_at"
+                                (click)="revertLog(log)"
+                                class="text-sm rounded-2xl p-2 !bg-gray-200 text-black hover:text-cyan-500 flex items-center gap-1 transition-colors"
+                                title="Revert this change">
+                                <i class="pi pi-undo text-xs"></i>
+                                Revert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── RESTORE & EMAIL + LOGS ─── -->
+    <div id="restore-email-section" class="flex flex-col lg:flex-row ml-3 mt-4">
+        <!-- Left panel – 7 cols -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-7/12 w-full min-w-0 lg:rounded-r-none lg:border-r-0">
+            <div class="flex justify-between items-start mb-2">
+                <h2 class="text-lg font-semibold text-gray-900">Restore & Email</h2>
+                <button class="text-gray-400 hover:text-gray-600 cursor-pointer" title="Help" (click)="goToHelpPage()">
+                    <i class="pi pi-question-circle"></i>
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Allows manual email sending and data restoration</p>
+
+            <!-- Loading indicator -->
+            <div *ngIf="loadingRestoreData" class="text-center py-4">
+                <i class="pi pi-spinner pi-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading data...</p>
+            </div>
+
+            <div class="overflow-x-auto" *ngIf="!loadingRestoreData">
+                <table class="w-full min-w-[800px]">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Details</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time (GMT)</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Process</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngIf="restoreData.length === 0">
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">No automation runs found</td>
+                        </tr>
+                        <tr *ngFor="let item of restoreData" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ item.details }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ item.date }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ item.time }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <i [class]="item.process === 'Automated' ? 'pi pi-star' : 'pi pi-sliders-v'"></i>
+                                {{ item.process }}
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex gap-2">
+                                    <button (click)="sendEmail(item)" class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors" title="Send Email">
+                                        <i class="pi pi-envelope"></i>
+                                        Send Email
+                                    </button>
+                                    <button (click)="removeData(item)" class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors" title="Remove Data">
+                                        <i class="pi pi-trash"></i>
+                                        Remove Data
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Divider column -->
+        <div class="hidden lg:flex lg:w-px bg-gray-200 self-stretch"></div>
+
+        <!-- Right panel – 5 cols: Logs -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-5/12 w-full min-w-0 lg:rounded-l-none lg:border-l-0">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                <h2 class="text-lg font-semibold text-gray-900">Logs</h2>
+                <p class="text-xs text-gray-500">Restore-option usage log</p>
+            </div>
+            <div class="relative pl-4">
+                <div class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+                <div class="space-y-2">
+                    <div *ngIf="restoreLogs.length === 0" class="p-3 text-sm text-gray-400">No recent changes</div>
+                    <div *ngFor="let log of restoreLogs" class="flex justify-between items-center p-3 rounded-lg transition-colors hover:bg-gray-50">
+                        <div>
+                            <p class="text-sm text-gray-900">{{ log.description }}</p>
+                            <p class="text-xs text-gray-500">{{ formatDate(log.performed_at) }}</p>
+                        </div>
+                        <button
+                            *ngIf="log.can_revert && !log.reverted_at"
+                            (click)="revertLog(log)"
+                            class="text-sm rounded-2xl p-2 !bg-gray-200 text-black hover:text-cyan-500 flex items-center gap-1 transition-colors"
+                            title="Revert this change">
+                            <i class="pi pi-undo text-xs"></i>
+                            Revert
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── PRESETS + LOGS ─── -->
+    <div id="preset-section" class="flex flex-col lg:flex-row ml-3 mt-4">
+        <!-- Left panel – 7 cols -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-7/12 w-full min-w-0 lg:rounded-r-none lg:border-r-0">
+            <div class="flex justify-between items-start mb-2">
+                <h2 class="text-lg font-semibold text-gray-900">Presets</h2>
+                <div class="flex items-center gap-2 text-xs text-gray-500 border-1 border-gray-400 rounded-2xl px-2 py-1 cursor-pointer hover:text-gray-700 transition-colors" title="Help" (click)="goToHelpPage()">
+                    <i class="pi pi-question-circle"></i>
+                    <span>Data once deleted cannot be restored</span>
+                </div>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Allows user to easily add set of filters in a single click</p>
+
+            <!-- Loading indicator -->
+            <div *ngIf="loadingPresets" class="text-center py-4">
+                <i class="pi pi-spinner pi-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading presets...</p>
+            </div>
+
+            <!-- Presets Table (dynamic from backend) -->
+            <div class="overflow-x-auto mb-6" *ngIf="!loadingPresets">
+                <table class="w-full min-w-[600px]">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Preset Name</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Description</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngIf="presets.length === 0">
+                            <td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">No presets found. Create one below.</td>
+                        </tr>
+                        <tr *ngFor="let preset of presets" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ preset.name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ preset.description || '-' }}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex gap-2 justify-end">
+                                    <button (click)="editPreset(preset)" class="text-gray-600 hover:text-gray-900 transition-colors" title="Edit preset">
+                                        <i class="pi pi-pencil"></i>
+                                    </button>
+                                    <button (click)="deletePresetItem(preset)" class="text-gray-600 hover:text-red-600 transition-colors" title="Delete preset">
+                                        <i class="pi pi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Preset Creation Form -->
+            <div class="bg-gray-50 rounded-lg p-6">
+                <div class="flex items-center gap-2 mb-4" *ngIf="editingPresetId !== null">
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Editing Preset #{{ editingPresetId }}</span>
+                    <button (click)="resetPresetForm()" class="text-xs text-gray-500 hover:text-gray-700">Cancel Edit</button>
+                </div>
+
+                <input type="text" [(ngModel)]="newPresetName" placeholder="Preset Name" class="w-full px-4 py-2 border border-gray-300 rounded-md mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="text" [(ngModel)]="newPresetDescription" placeholder="Description (optional)" class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                <!-- Headers Row -->
+                <div class="flex items-center gap-4 mb-0 px-4">
+                    <div class="w-16"></div>
+                    <div class="w-10"></div>
+                    <span class="text-sm font-medium text-gray-700 w-40">Column</span>
+                    <span class="text-sm font-medium text-gray-700 w-36">Operator</span>
+                    <span class="text-sm font-medium text-gray-700 flex-1">Values</span>
+                    <div class="w-10"></div>
+                </div>
+
+                <!-- Main Conditions -->
+                <div *ngFor="let condition of presetConditions; let i = index">
+                    <div *ngIf="!condition.isSubgroup" class="flex items-center gap-3 mb-1.5 px-4 py-2">
+                        <!-- WHERE/AND/OR -->
+                        <div class="w-16">
+                            <span *ngIf="i === 0" class="text-sm font-medium text-gray-700">Where</span>
+                            <select *ngIf="i > 0" [(ngModel)]="condition.type"
+                                class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded-lg bg-white">
+                                <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Six Dot Icon -->
+                        <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+                            <div class="grid grid-cols-2 gap-[3px]">
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                            </div>
+                        </div>
+
+                        <!-- Column Dropdown -->
+                        <div class="w-40">
+                            <select [(ngModel)]="condition.column"
+                                class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                <option value="">Select Column</option>
+                                <option *ngFor="let col of columnOptions" [value]="col.value">{{ col.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Operator Dropdown -->
+                        <div class="w-36">
+                            <select [(ngModel)]="condition.operator"
+                                class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                <option value="">Select Operator</option>
+                                <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Values Input -->
+                        <div class="flex-1 flex gap-2">
+                            <input type="text" [(ngModel)]="condition.value"
+                                [placeholder]="isBetweenOperator(condition.operator) ? 'Min value' : 'Enter value'"
+                                class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input *ngIf="isBetweenOperator(condition.operator)" type="text" [(ngModel)]="condition.value2"
+                                placeholder="Max value"
+                                class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+
+                        <!-- Delete Button -->
+                        <div class="flex-shrink-0">
+                            <button *ngIf="i > 0" (click)="removePresetCondition(i)"
+                                class="text-gray-400 hover:text-red-500 transition-colors" title="Remove condition">
+                                <i class="pi pi-trash"></i>
+                            </button>
+                            <span *ngIf="i === 0" class="w-4 inline-block"></span>
+                        </div>
+                    </div>
+
+                    <!-- Subgroup -->
+                    <div *ngIf="condition.isSubgroup" class="mb-1.5 pl-8">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-sm font-medium text-gray-600">Group</span>
+                            <button (click)="removePresetCondition(i)"
+                                class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Remove subgroup">
+                                <i class="pi pi-times text-xs"></i>
+                            </button>
+                        </div>
+
+                        <div *ngFor="let subCondition of condition.conditions; let j = index"
+                            class="flex items-center gap-3 mb-1.5 px-4 py-2 bg-white rounded-lg">
+                            <!-- WHERE/AND/OR -->
+                            <div class="w-16">
+                                <span *ngIf="j === 0" class="text-sm text-gray-600">Where</span>
+                                <select *ngIf="j > 0" [(ngModel)]="subCondition.type"
+                                    class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded-lg bg-white">
+                                    <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Six Dot Icon -->
+                            <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+                                <div class="grid grid-cols-2 gap-[3px]">
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                    <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+                                </div>
+                            </div>
+
+                            <!-- Column -->
+                            <div class="w-40">
+                                <select [(ngModel)]="subCondition.column"
+                                    class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                    <option value="">Select Column</option>
+                                    <option *ngFor="let col of columnOptions" [value]="col.value">{{ col.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Operator -->
+                            <div class="w-36">
+                                <select [(ngModel)]="subCondition.operator"
+                                    class="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm">
+                                    <option value="">Select Operator</option>
+                                    <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+                                </select>
+                            </div>
+
+                            <!-- Values -->
+                            <div class="flex-1 flex gap-2">
+                                <input type="text" [(ngModel)]="subCondition.value"
+                                    [placeholder]="isBetweenOperator(subCondition.operator) ? 'Min value' : 'Enter value'"
+                                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                <input *ngIf="isBetweenOperator(subCondition.operator)" type="text" [(ngModel)]="subCondition.value2"
+                                    placeholder="Max value"
+                                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            </div>
+
+                            <!-- Delete -->
+                            <div class="flex-shrink-0">
+                                <button (click)="removeSubgroupCondition(condition, j)"
+                                    class="text-gray-400 hover:text-red-500 transition-colors">
+                                    <i class="pi pi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Add Condition in Subgroup -->
+                        <div class="flex items-center gap-4 px-4 mt-3 mb-4">
+                            <button (click)="addSubgroupCondition(condition)"
+                                class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                                <i class="pi pi-plus-circle"></i>
+                                Add Condition
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="my-4 border-t border-gray-200"></div>
+
+                <!-- Footer Actions -->
+                <div class="flex items-center gap-4 flex-wrap">
+                    <button (click)="addPresetCondition()"
+                        class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-plus-circle"></i>
+                        Add Condition
+                    </button>
+                    <button (click)="addPresetSubgroup()"
+                        class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-plus-circle"></i>
+                        Add Group
+                    </button>
+
+                    <div class="flex-1"></div>
+
+                    <button (click)="clearPreset()"
+                        class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors">
+                        <i class="pi pi-trash"></i>
+                        Remove all
+                    </button>
+                    <button
+                        (click)="savePreset()"
+                        [disabled]="!newPresetName || savingPreset"
+                        [class.opacity-50]="!newPresetName || savingPreset"
+                        [class.cursor-not-allowed]="!newPresetName"
+                        class="!bg-[#2C3E50] hover:!bg-[#243746] !text-white !rounded-full !border !border-[#2C3E50] !px-6 !py-2.5 text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i [class]="savingPreset ? 'pi pi-spinner pi-spin' : 'pi pi-save'"></i>
+                        {{ editingPresetId !== null ? 'Update Preset' : 'Save Preset' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Divider column -->
+        <div class="hidden lg:flex lg:w-px bg-gray-200 self-stretch"></div>
+
+        <!-- Right panel – 5 cols: Preset Logs -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 lg:w-5/12 w-full min-w-0 lg:rounded-l-none lg:border-l-0">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                <h2 class="text-lg font-semibold text-gray-900">Logs</h2>
+                <p class="text-xs text-gray-500">Preset saved and deleted logs</p>
+            </div>
+            <div class="relative pl-4">
+                <div class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+                <div class="space-y-2">
+                    <div *ngIf="presetLogs.length === 0" class="p-3 text-sm text-gray-400">No recent changes</div>
+                    <div *ngFor="let log of presetLogs" class="flex justify-between items-center p-3 rounded-lg transition-colors hover:bg-gray-50">
+                        <div>
+                            <p class="text-sm text-gray-900">{{ log.description }}</p>
+                            <p class="text-xs text-gray-500">{{ formatDate(log.performed_at) }}</p>
+                        </div>
+                        <button
+                            *ngIf="log.can_revert && !log.reverted_at"
+                            (click)="revertLog(log)"
+                            class="text-sm rounded-2xl p-2 !bg-gray-200 text-black hover:text-cyan-500 flex items-center gap-1 transition-colors"
+                            title="Revert this change">
+                            <i class="pi pi-undo text-xs"></i>
+                            Revert
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── SORTING ─── -->
+    <div id="sorting-section" class="flex flex-col lg:flex-row ml-3 mt-4">
+        <div class="bg-white p-6 rounded-lg border border-gray-200 w-full">
+            <div class="flex justify-between items-start mb-2">
+                <h2 class="text-lg font-semibold text-gray-900">Sorting</h2>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Configure the default sorting order for your data columns</p>
+
+            <div class="text-center py-8 text-gray-400">
+                <i class="pi pi-sort-alt text-4xl mb-3"></i>
+                <p class="text-sm">Sorting configuration coming soon</p>
+            </div>
+        </div>
+    </div>
+</div>

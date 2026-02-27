@@ -378,6 +378,122 @@ async def save_oracle_query(request: SaveQueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/oracle/saved-query/{clo_id}")
+async def get_saved_query(clo_id: str):
+    """
+    Get the saved Oracle query for a specific CLO.
+    Returns the query string and metadata from column_config.json.
+    """
+    try:
+        import json
+        import os
+        
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+        config_path = os.path.join(project_root, "column_config.json")
+        
+        if not os.path.exists(config_path):
+            return {"success": True, "clo_id": clo_id, "query": None, "message": "No configuration file found"}
+        
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        clo_config = config.get(clo_id, {})
+        
+        # Check queries.base_query.query (new format)
+        queries = clo_config.get("queries", {})
+        if "base_query" in queries:
+            query_data = queries["base_query"]
+            return {
+                "success": True,
+                "clo_id": clo_id,
+                "query": query_data.get("query", ""),
+                "query_name": "base_query",
+                "updated_at": query_data.get("updated_at"),
+                "message": "Saved query found"
+            }
+        
+        # Fallback: check oracle_query at root (legacy format)
+        oracle_query = clo_config.get("oracle_query", "")
+        if oracle_query:
+            return {
+                "success": True,
+                "clo_id": clo_id,
+                "query": oracle_query,
+                "query_name": clo_config.get("query_name", "base_query"),
+                "updated_at": clo_config.get("query_updated_at"),
+                "message": "Saved query found (legacy format)"
+            }
+        
+        return {"success": True, "clo_id": clo_id, "query": None, "message": "No saved query for this CLO"}
+        
+    except Exception as e:
+        logger.error(f"Error getting saved query for {clo_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/oracle/test-credentials-api")
+async def test_credentials_api():
+    """
+    Test the Oracle credentials API connectivity.
+    Verifies that ORACLE_CREDENTIALS_API_URL is set and reachable.
+    Returns whether credentials can be fetched from the client's API.
+    """
+    try:
+        import os
+        import requests
+        
+        api_url = os.getenv("ORACLE_CREDENTIALS_API_URL", "")
+        
+        if not api_url:
+            return {
+                "success": False,
+                "message": "ORACLE_CREDENTIALS_API_URL not configured in .env",
+                "credentials_source": "none"
+            }
+        
+        try:
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            has_user = bool(data.get("eval.jdbc.user"))
+            has_password = bool(data.get("eval.jdbc.password"))
+            
+            if has_user and has_password:
+                return {
+                    "success": True,
+                    "message": "Credentials API reachable. Username and password retrieved successfully.",
+                    "credentials_source": "api",
+                    "api_url": api_url[:50] + "..." if len(api_url) > 50 else api_url,
+                    "username_found": True,
+                    "password_found": True
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"API reachable but credentials incomplete. User found: {has_user}, Password found: {has_password}",
+                    "credentials_source": "api",
+                    "username_found": has_user,
+                    "password_found": has_password
+                }
+                
+        except requests.RequestException as e:
+            # Check if .env fallback is available
+            env_user = os.getenv("ORACLE_USERNAME")
+            env_pass = os.getenv("ORACLE_PASSWORD")
+            
+            return {
+                "success": bool(env_user and env_pass),
+                "message": f"Credentials API failed: {str(e)}. {'Fallback .env credentials available.' if env_user and env_pass else 'No fallback credentials available.'}",
+                "credentials_source": "env_fallback" if env_user and env_pass else "none",
+                "api_error": str(e)
+            }
+    
+    except Exception as e:
+        logger.error(f"Error testing credentials API: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/oracle/enable")
 async def enable_oracle(config: OracleConfigUpdate):
     """

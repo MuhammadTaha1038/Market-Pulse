@@ -1,0 +1,77 @@
+<div class="min-h-screen flex items-center justify-center bg-cover bg-center relative"
+     style="background-image: url('assets/brands/Light.png')">
+
+  <!-- Logo in top left corner -->
+  <div class="absolute top-6 left-6">
+    <img
+      src="assets/logo/logo.png"
+      alt="Market Pulse Logo"
+      class="h-10 w-auto md:h-12"
+    >
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="w-full max-w-md bg-white rounded-xl shadow-lg mx-4 p-8 text-center">
+    <i class="pi pi-spinner pi-spin text-3xl text-gray-400 mb-3"></i>
+    <p class="text-gray-500 text-sm">Loading asset classes...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="!loading && error" class="w-full max-w-md bg-white rounded-xl shadow-lg mx-4 p-8 text-center">
+    <i class="pi pi-exclamation-triangle text-3xl text-red-400 mb-3"></i>
+    <p class="text-red-600 text-sm mb-4">{{ error }}</p>
+    <button pButton type="button" (click)="loadHierarchy()" label="Retry" class="p-button-sm"></button>
+  </div>
+
+  <!-- Sub-Asset Selection -->
+  <div *ngIf="!loading && !error && assignedMainType" class="w-full max-w-md bg-white rounded-xl shadow-lg mx-4">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-800">{{ assignedMainType.display_name }}</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Select a sub-asset class</p>
+      </div>
+    </div>
+
+    <div class="p-6">
+      <p class="text-gray-600 mb-4 leading-relaxed text-sm">
+        You can change the sub-asset class afterwards from the top bar.
+      </p>
+
+      <!-- Sub-asset radio list (scrollable) -->
+      <div class="space-y-2 mb-6 max-h-80 overflow-y-auto pr-1">
+        <div
+          *ngFor="let sub of assignedMainType.sub_clos"
+          class="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+          <p-radioButton
+            name="subAssetType"
+            [value]="sub.id"
+            [(ngModel)]="selectedSubAssetId"
+            [inputId]="sub.id">
+          </p-radioButton>
+          <label [for]="sub.id" class="ml-3 text-gray-700 font-medium cursor-pointer flex-1">
+            {{ sub.display_name || sub.name }}
+          </label>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex space-x-3 pt-4 border-t border-gray-200">
+        <button
+          pButton
+          type="button"
+          (click)="onCancel()"
+          class="flex-1 p-button-outlined p-button-secondary"
+          label="Cancel">
+        </button>
+        <button
+          pButton
+          type="button"
+          (click)="onOkay()"
+          [disabled]="!selectedSubAssetId"
+          class="flex-1"
+          label="Okay">
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

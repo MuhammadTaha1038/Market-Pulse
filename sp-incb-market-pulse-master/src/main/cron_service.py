@@ -33,8 +33,14 @@ from manual_upload_service import get_buffered_files, process_buffered_file
 
 logger = logging.getLogger(__name__)
 
-# Get timezone (adjust this to your timezone)
-TIMEZONE = pytz.timezone('Asia/Karachi')  # Change to your timezone
+# Timezone is configurable via CRON_TIMEZONE in .env (default: UTC)
+# Examples: 'UTC', 'America/New_York', 'Asia/Karachi', 'Europe/London'
+_tz_name = os.getenv("CRON_TIMEZONE", "UTC")
+try:
+    TIMEZONE = pytz.timezone(_tz_name)
+except Exception:
+    logger.warning(f"Invalid CRON_TIMEZONE '{_tz_name}', falling back to UTC")
+    TIMEZONE = pytz.utc
 
 # Global scheduler instance with timezone
 scheduler = BackgroundScheduler(timezone=TIMEZONE)

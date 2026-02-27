@@ -1,0 +1,132 @@
+<div class="min-h-screen p-8 pt-12 space-y-8">
+    <!-- Hidden file input for import -->
+    <input #fileInput type="file" accept=".xlsx,.xls" style="display: none" (change)="onFileSelected($event)" />
+
+    <!-- card Section -->
+    <div class="flex justify-center gap-6">
+        <!-- First Flex Box -->
+        <div class="w-[700px] flex flex-col">
+            <!-- Image section -->
+            <div class="h-[400px] rounded-t-xl flex flex-col" style="background-image: url('./assets/images/color.png'); background-size: cover; background-position: center; background-repeat: no-repeat">
+                <!-- Top Content -->
+                <div class="p-3 flex-1">
+                    <div class="space-y-1">
+                        <span class="block font-extrabold !text-white text-xl">Automated</span>
+                        <span class="block font-medium !text-white text-xl mb-4">Cleaning Process</span>
+                    </div>
+
+                    <!-- Buttons - First row -->
+                    <div class="flex gap-2 mb-2">
+                        <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                            <span>⌘K</span>
+                            <span>Command</span>
+                        </button>
+
+                        <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                            <span>🤖</span>
+                            <span>Workflow Automation</span>
+                        </button>
+                    </div>
+
+                    <!-- Second row -->
+                    <div class="flex gap-2">
+                        <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                            <span>☾</span>
+                            <span>Dark and Light</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section - 3 divided parts (below image) -->
+            <div class="grid grid-cols-3 border border-gray-200 rounded-b-xl bg-white h-20">
+                <!-- Preset Settings -->
+                <div class="flex items-center justify-center p-4 border-r border-gray-300 gap-2 cursor-pointer hover:bg-gray-50 transition-colors" (click)="goToRulesPage()">
+                    <img src="./assets/icon/control.png" alt="Rules" class="w-5 h-5" />
+                    <span class="text-gray-800 font-medium">Rules</span>
+                </div>
+
+                <!-- Next Run -->
+                <div class="flex flex-col items-center justify-center p-3 border-r border-gray-300">
+                    <span class="text-gray-600 text-sm flex items-center gap-1"> Next Run in : </span>
+                    <span class="text-gray-800 font-bold text-lg">{{ nextRunTimer }}</span>
+                </div>
+
+                <!-- Run Automation -->
+                <div class="flex items-center justify-center p-3 cursor-pointer hover:bg-gray-50 transition-colors" (click)="runAutomation()">
+                    <button class="px-4 py-2 rounded-lg font-semibold flex items-center gap-2">
+                        <img src="./assets/icon/settings.png" alt="Play" class="w-4 h-4" />
+                        Run Automation
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Second Flex Box -->
+        <div class="h-[470px] w-[700px] rounded-xl flex flex-col border border-gray-300" style="background-image: url('./assets/images/color.png'); background-size: cover; background-position: center; background-repeat: no-repeat">
+            <!-- Top Content -->
+            <div class="p-3 flex-1">
+                <div class="space-y-1">
+                    <span class="block font-extrabold !text-white text-xl">Manual </span>
+                    <span class="block font-medium !text-white text-xl mb-4">Cleaning Process</span>
+                </div>
+
+                <!-- Buttons - First row -->
+                <div class="flex gap-2 mb-2">
+                    <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                        <span>⌘K</span>
+                        <span>Command</span>
+                    </button>
+
+                    <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                        <span>🤖</span>
+                        <span>Workflow Automation</span>
+                    </button>
+                </div>
+
+                <!-- Second row -->
+                <div class="flex gap-2">
+                    <button class="bg-white border border-white text-gray-800 px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                        <span>☾</span>
+                        <span>Dark and Light</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bottom Section -->
+            <div class="border-b rounded-b-xl border-gray-300 bg-white h-20 flex justify-center items-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors" (click)="runManual()">
+                <img src="./assets/icon/right-arrow.png" alt="Paint Brush" class="w-5 h-5" />
+                <span class="text-gray-800 font-semibold">Run Manual Color</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Colors Section -->
+    <section class="rounded-2xl px-6 py-6">
+        <!-- DASHED IMPORT AREA (FULLY CLICKABLE) -->
+        <div class="relative flex flex-col items-center justify-center rounded-xl dashed-border-wide bg-gray-50/60 min-h-[140px] px-6 py-8 gap-3 text-center cursor-pointer hover:bg-gray-100 transition" (click)="fileInput.click()">
+            <!-- QUESTION MARK -->
+            <button type="button" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600" pTooltip="Import color help" (click)="goToHelpPage()">
+                <i class="pi pi-question-circle"></i>
+            </button>
+
+            <!-- TITLE -->
+            <div class="flex items-center gap-2 text-gray-700">
+                <i class="pi pi-download text-lg mt-2"></i>
+                <h3 class="text-base font-semibold">Import Colors</h3>
+            </div>
+
+            <!-- DESCRIPTION -->
+            <p class="text-sm text-gray-500 leading-relaxed max-w-md">
+                Manual colors bulk upload via excel,
+                <a href="assets/sample-files/color-import-sample.xlsx" download class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700" (click)="$event.stopPropagation()"> Click here </a>
+                to download sample file
+            </p>
+        </div>
+
+        <!-- IMPORT BUTTON (BELOW, RIGHT ALIGNED) -->
+        <div class="flex justify-end">
+            <button type="button" class="inline-flex items-center rounded-b-xl bg-gray-900 text-white text-sm font-medium px-8 py-3 hover:bg-gray-800" (click)="fileInput.click()">Import</button>
+        </div>
+    </section>
+</div>

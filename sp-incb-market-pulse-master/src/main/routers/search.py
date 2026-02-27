@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Generic Search API - Column-config driven dynamic search
-Searches ANY field defined in column_config.json
-Future-proof for S3 migration and column name changes
 """
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 import logging
+import io
+import pandas as pd
 from services.output_service import get_output_service
 from services.column_config_service import get_column_config
 
@@ -323,3 +324,334 @@ async def simple_search(
         limit=limit
     )
     return await generic_search(search_request)
+
+
+# ===========================================================
+# SECURITY SEARCH - Search processed output by ID / CUSIP
+# ===========================================================
+
+class SecuritySearchRequest(BaseModel):
+    """Request for security search by identifier"""
+    query: str
+    search_type: str = "any"   # "message_id", "cusip", or "any"
+    limit: int = 500
+
+
+class SecuritySearchResponse(BaseModel):
+    """Security search response"""
+    total_count: int
+    results: List[Dict[str, Any]]
+    search_query: str
+    search_type: str
+
+
+@router.post("/security", response_model=SecuritySearchResponse)
+async def security_search(request: SecuritySearchRequest):
+    """
+    **Security Search**
+
+    Search the processed output (local Excel or S3) by Message ID or CUSIP.
+    Fetches full rows for matching records.
+
+    - `search_type` = "message_id" → exact match on MESSAGE_ID
+    - `search_type` = "cusip"      → case-insensitive match on CUSIP
+    - `search_type` = "any"        → tries both MESSAGE_ID and CUSIP
+    """
+    try:
+        query = request.query.strip()
+        if not query:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        logger.info(f"Security search: query='{query}', type={request.search_type}")
+
+        # Read ALL processed records
+        all_records = output_service.read_processed_colors(limit=None)
+
+        if not all_records:
+            return SecuritySearchResponse(
+                total_count=0,
+                results=[],
+                search_query=query,
+                search_type=request.search_type
+            )
+
+        df = pd.DataFrame(all_records)
+        matched = pd.DataFrame()
+
+        search_by = request.search_type.lower()
+
+        if search_by in ("message_id", "any"):
+            if "MESSAGE_ID" in df.columns:
+                try:
+                    mid = int(query)
+                    rows = df[df["MESSAGE_ID"] == mid]
+                    matched = pd.concat([matched, rows])
+                except ValueError:
+                    # query is not numeric – only try as CUSIP
+                    pass
+
+        if search_by in ("cusip", "any"):
+            if "CUSIP" in df.columns:
+                rows = df[df["CUSIP"].astype(str).str.upper() == query.upper()]
+                matched = pd.concat([matched, rows])
+
+        # Also check for partial message_id string match when search_type=any
+        if search_by == "any" and "MESSAGE_ID" in df.columns:
+            rows = df[df["MESSAGE_ID"].astype(str).str.contains(query, na=False, case=False)]
+            matched = pd.concat([matched, rows])
+
+        matched = matched.drop_duplicates()
+
+        if request.limit:
+            matched = matched.head(request.limit)
+
+        results = matched.where(pd.notnull(matched), None).to_dict("records")
+        logger.info(f"Security search returned {len(results)} records for query='{query}'")
+
+        return SecuritySearchResponse(
+            total_count=len(results),
+            results=results,
+            search_query=query,
+            search_type=request.search_type
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Security search error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------
+# IDENTIFIER AUTO-DETECTION HELPERS
+# ---------------------------------------------------------------
+
+# Maps normalized uploaded-file column names → processed-output column to match against
+_IDENTIFIER_MAP: dict = {
+    # Message ID variants
+    "MESSAGE_ID": "MESSAGE_ID",
+    "MESSAGEID": "MESSAGE_ID",
+    "MSG_ID": "MESSAGE_ID",
+    "MSGID": "MESSAGE_ID",
+    "MESSAGE_ID_": "MESSAGE_ID",
+    "BOND_ID": "MESSAGE_ID",
+    "SECURITY_ID": "MESSAGE_ID",
+    # CUSIP
+    "CUSIP": "CUSIP",
+    # ISIN
+    "ISIN": "ISIN",
+    # Ticker
+    "TICKER": "TICKER",
+    "SYMBOL": "TICKER",
+    "TICK": "TICKER",
+}
+
+
+def _detect_identifier_columns(ids_df: pd.DataFrame) -> dict:
+    """
+    Auto-detect identifier columns from an uploaded DataFrame.
+    Returns dict: {output_column -> set_of_values} for each detected identifier.
+    """
+    ids_df.columns = [str(c).strip().upper().replace(" ", "_") for c in ids_df.columns]
+    detected: dict[str, set] = {}
+
+    for col in ids_df.columns:
+        output_col = _IDENTIFIER_MAP.get(col)
+        if not output_col:
+            # fuzzy: if any known keyword is a substring of the column name, map it
+            if any(k in col for k in ("MESSAGE", "MSG", "BOND", "SECURITY_ID")):
+                output_col = "MESSAGE_ID"
+            elif "CUSIP" in col:
+                output_col = "CUSIP"
+            elif "ISIN" in col:
+                output_col = "ISIN"
+            elif "TICKER" in col or "SYMBOL" in col:
+                output_col = "TICKER"
+
+        if output_col:
+            values = {str(v).strip() for v in ids_df[col].dropna().unique() if str(v).strip()}
+            if values:
+                if output_col not in detected:
+                    detected[output_col] = set()
+                detected[output_col].update(values)
+
+    return detected
+
+
+async def _run_ids_search(contents_io: io.BytesIO):
+    """Read IDs from Excel BytesIO, search processed output. Returns (matched_df, detected_col_names)."""
+    ids_df = pd.read_excel(contents_io)
+    detected = _detect_identifier_columns(ids_df)
+
+    detected_col_names = list(detected.keys())
+    if not detected:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No identifier columns detected in the uploaded file. "
+                "Expected columns like: MESSAGE_ID, CUSIP, ISIN, TICKER, etc."
+            )
+        )
+
+    all_records = output_service.read_processed_colors(limit=None)
+    if not all_records:
+        raise HTTPException(status_code=404, detail="No processed data available to search")
+
+    df = pd.DataFrame(all_records)
+    matched = pd.DataFrame()
+
+    for output_col, values in detected.items():
+        if output_col not in df.columns:
+            continue
+        if output_col == "CUSIP" or output_col == "ISIN" or output_col == "TICKER":
+            # Case-insensitive string match
+            upper_vals = {v.upper() for v in values}
+            rows = df[df[output_col].astype(str).str.upper().isin(upper_vals)]
+        else:
+            # Try numeric first (MESSAGE_ID), fall back to string
+            try:
+                numeric_vals = {int(v) for v in values if v.isdigit() or (v.replace(".", "", 1).isdigit())}
+                str_vals = values
+                rows = df[
+                    df[output_col].isin(numeric_vals) |
+                    df[output_col].astype(str).isin(str_vals)
+                ]
+            except Exception:
+                rows = df[df[output_col].astype(str).isin(values)]
+        matched = pd.concat([matched, rows])
+
+    matched = matched.drop_duplicates()
+    return matched, detected_col_names
+
+
+async def _run_ids_search_with_summary(contents_io: io.BytesIO):
+    """Same as _run_ids_search but also returns a search summary dict."""
+    ids_df = pd.read_excel(contents_io)
+    detected = _detect_identifier_columns(ids_df)
+
+    detected_col_names = list(detected.keys())
+    if not detected:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No identifier columns detected in the uploaded file. "
+                "Expected columns like: MESSAGE_ID, CUSIP, ISIN, TICKER, etc."
+            )
+        )
+
+    all_records = output_service.read_processed_colors(limit=None)
+    if not all_records:
+        raise HTTPException(status_code=404, detail="No processed data available to search")
+
+    df = pd.DataFrame(all_records)
+    matched = pd.DataFrame()
+    summary = {}
+
+    for output_col, values in detected.items():
+        if output_col not in df.columns:
+            summary[output_col] = {"searched": len(values), "found": 0, "note": "column not in output"}
+            continue
+        if output_col in ("CUSIP", "ISIN", "TICKER"):
+            upper_vals = {v.upper() for v in values}
+            rows = df[df[output_col].astype(str).str.upper().isin(upper_vals)]
+        else:
+            try:
+                numeric_vals = {int(v) for v in values if str(v).strip().isdigit()}
+                str_vals = values
+                rows = df[
+                    df[output_col].isin(numeric_vals) |
+                    df[output_col].astype(str).isin(str_vals)
+                ]
+            except Exception:
+                rows = df[df[output_col].astype(str).isin(values)]
+        summary[output_col] = {"searched": len(values), "found": len(rows)}
+        matched = pd.concat([matched, rows])
+
+    matched = matched.drop_duplicates()
+    return matched, detected_col_names, summary
+
+
+@router.post("/import-ids")
+async def search_by_imported_ids(file: UploadFile = File(...)):
+    """
+    **Import IDs → Search → Download Excel**
+
+    Upload an Excel file containing Message IDs and/or CUSIPs.
+    The system will:
+    1. Auto-detect identifier columns from the uploaded file
+    2. Search the processed output (S3 or local) for matching rows
+    3. Return a downloadable Excel file with the full matching records
+
+    Identifier columns are auto-detected — column names are matched case-insensitively
+    against MESSAGE_ID, CUSIP, ISIN, TICKER and similar known identifiers.
+    """
+    try:
+        if not file.filename.lower().endswith((".xlsx", ".xls")):
+            raise HTTPException(status_code=400, detail="Only .xlsx and .xls files are supported")
+
+        contents = await file.read()
+        matched, detected_cols = await _run_ids_search(io.BytesIO(contents))
+
+        if matched.empty:
+            raise HTTPException(
+                status_code=404,
+                detail="No matching records found for the provided identifiers"
+            )
+
+        output_buffer = io.BytesIO()
+        with pd.ExcelWriter(output_buffer, engine="openpyxl") as writer:
+            matched.to_excel(writer, index=False, sheet_name="Search Results")
+        output_buffer.seek(0)
+
+        filename = f"security_search_results_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return StreamingResponse(
+            output_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Import-IDs search error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import-ids/preview")
+async def preview_imported_ids(file: UploadFile = File(...)):
+    """
+    **Import IDs → Preview in Table**
+
+    Upload an Excel file containing identifier columns (Message ID, CUSIP, ISIN, Ticker, etc.).
+    The system auto-detects identifier columns, searches processed output, and returns JSON rows
+    for table preview. Use /import-ids to download the full matched result as Excel.
+
+    Returns:
+    - detected_columns: list of identifier column names found in uploaded file
+    - total_matches: number of rows matched
+    - results: matched rows (up to 1000)
+    - search_summary: what was searched
+    """
+    try:
+        if not file.filename.lower().endswith((".xlsx", ".xls")):
+            raise HTTPException(status_code=400, detail="Only .xlsx and .xls files are supported")
+
+        contents = await file.read()
+        matched, detected_cols, summary = await _run_ids_search_with_summary(io.BytesIO(contents))
+
+        total = len(matched)
+        results = matched.head(1000).where(pd.notnull(matched.head(1000)), None).to_dict("records")
+
+        logger.info(f"Import-IDs preview: {total} matches, detected: {detected_cols}")
+        return {
+            "detected_columns": detected_cols,
+            "total_matches": total,
+            "results": results,
+            "search_summary": summary
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Import-IDs preview error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

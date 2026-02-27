@@ -1,0 +1,205 @@
+<div class="custom-table-wrapper">
+    <!-- Toast for messages -->
+    <p-toast position="top-right"></p-toast>
+
+    <!-- Table Container -->
+    <div class="table-container">
+        <table class="custom-table">
+            <!-- Header -->
+            <thead>
+                <tr>
+                    <!-- Select All Column -->
+                    <th *ngIf="config.showSelectButton" class="select-column">
+                        <button class="select-btn" [class.selected]="isAllSelected()" [class.indeterminate]="isSomeSelected()" (click)="$event.stopPropagation(); toggleSelectAll()" pTooltip="Select all">
+                            <i class="pi pi-check" *ngIf="isAllSelected()"></i>
+                            <i class="pi pi-minus" *ngIf="isSomeSelected()"></i>
+                        </button>
+                    </th>
+
+                    <!-- Row Number Column -->
+                    <th *ngIf="config.showRowNumbers" class="row-number-column">
+                        <div class="header-content">#</div>
+                    </th>
+
+                    <!-- Data Columns -->
+                    <th *ngFor="let column of columns" [style.width]="column.width">
+                        <div class="header-content">
+                            <span>{{ column.header }}</span>
+                            <div class="sort-arrows">
+                                <!-- Up Arrow (Ascending) -->
+                                <button class="sort-arrow up-arrow" [class.active]="sortField === column.field && sortOrder === 'asc'" (click)="sortBy(column.field, 'asc')" pTooltip="Sort ascending" tooltipPosition="top">
+                                    <svg width="20" height="16" viewBox="0 0 5 4" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M2.11309 3.12516L0.101078 0.710746C-0.134123 0.428504 0.0665776 -4.52455e-07 0.433974 -4.36396e-07L4.00027 -2.80508e-07C4.36767 -2.64449e-07 4.56837 0.428505 4.33317 0.710746L2.32115 3.12516C2.26701 3.19013 2.16723 3.19013 2.11309 3.12516Z" fill="#696969"/>
+                                    </svg>
+                                </button>
+                                <!-- Down Arrow (Descending) -->
+                                <button class="sort-arrow down-arrow" [class.active]="sortField === column.field && sortOrder === 'desc'" (click)="sortBy(column.field, 'desc')" pTooltip="Sort descending" tooltipPosition="top">
+                                    <svg width="20" height="16" viewBox="0 0 5 4" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M2.11309 3.12516L0.101078 0.710746C-0.134123 0.428504 0.0665776 -4.52455e-07 0.433974 -4.36396e-07L4.00027 -2.80508e-07C4.36767 -2.64449e-07 4.56837 0.428505 4.33317 0.710746L2.32115 3.12516C2.26701 3.19013 2.16723 3.19013 2.11309 3.12516Z" fill="#696969"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </th>
+
+                    <!-- Expand / Actions Column Header -->
+                    <th class="expand-header-th">
+                        <button *ngIf="showExpandButton" class="header-expand-btn" (click)="onExpandButtonClick.emit()" [pTooltip]="isExpanded ? 'Minimize table' : 'Expand table'" tooltipPosition="left">
+                            <i
+                                ><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="18" height="14" rx="1.5" transform="matrix(-1 0 0 1 21 5)" stroke="#333333" stroke-linecap="round" />
+                                    <path
+                                        d="M18 8V7.5H18.5V8H18ZM14.3536 12.3536C14.1583 12.5488 13.8417 12.5488 13.6464 12.3536C13.4512 12.1583 13.4512 11.8417 13.6464 11.6464L14 12L14.3536 12.3536ZM18 12H17.5V8H18H18.5V12H18ZM18 8V8.5H14V8V7.5H18V8ZM18 8L18.3536 8.35355L14.3536 12.3536L14 12L13.6464 11.6464L17.6464 7.64645L18 8Z"
+                                        fill="#333333"
+                                    />
+                                    <path
+                                        d="M6 16V16.5H5.5V16H6ZM9.64645 11.6464C9.84171 11.4512 10.1583 11.4512 10.3536 11.6464C10.5488 11.8417 10.5488 12.1583 10.3536 12.3536L10 12L9.64645 11.6464ZM6 12H6.5V16H6H5.5V12H6ZM6 16V15.5H10V16V16.5H6V16ZM6 16L5.64645 15.6464L9.64645 11.6464L10 12L10.3536 12.3536L6.35355 16.3536L6 16Z"
+                                        fill="#333333"
+                                    />
+                                </svg>
+                            </i>
+                        </button>
+                    </th>
+                </tr>
+            </thead>
+
+            <!-- Body -->
+            <tbody>
+                <!-- Empty State -->
+                <tr *ngIf="displayData.length === 0 && !config.editable" class="empty-row">
+                    <td [attr.colspan]="columns.length + (config.showSelectButton ? 1 : 0) + (config.showRowNumbers ? 1 : 0) + 1">
+                        <div class="empty-state">
+                            <i class="pi pi-inbox"></i>
+                            <p>No data available</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Data Rows -->
+                <tr *ngFor="let row of displayData; trackBy: trackByRowId" [class.selected-row]="isRowSelected(row)" [class.parent-row]="isParentRow(row)" [class.child-row]="isChildRow(row)" (mousedown)="$event.preventDefault()">
+                    <!-- Select Button -->
+                    <td *ngIf="config.showSelectButton" class="select-column" [class.child-select-cell]="isChildRow(row)">
+                        <button class="select-btn" [class.selected]="isRowSelected(row)" (mousedown)="$event.stopPropagation(); $event.preventDefault()" (click)="$event.stopPropagation(); toggleRowSelection(row)">
+                            <i class="pi pi-check" *ngIf="isRowSelected(row)"></i>
+                        </button>
+                    </td>
+
+                    <!-- Row Number Cell -->
+                    <td *ngIf="config.showRowNumbers" class="row-number-column" (mousedown)="$event.stopPropagation(); $event.preventDefault()">
+                        <div class="row-number">{{ getDisplayRowNumber(row) }}</div>
+                    </td>
+
+                    <!-- Data Cells -->
+                    <td
+                        *ngFor="let column of columns"
+                        [class.editable-cell]="canEditCell(column)"
+                        [class.primary-field-cell]="!config.editable && column.field === primaryField"
+                        [class.child-data-cell]="isChildRow(row)"
+                        (mousedown)="$event.stopPropagation(); $event.preventDefault()"
+                        (click)="$event.stopPropagation(); canEditCell(column) && startEdit(row, column.field)"
+                    >
+                        <!-- Normal Display -->
+                        <div *ngIf="!isEditing(row, column.field)" class="cell-content">
+                            <span>{{ row[column.field] }}</span>
+                            <i *ngIf="!config.editable && column.field === primaryField" class="pi pi-pencil primary-field-icon"></i>
+                        </div>
+
+                        <!-- Edit Mode -->
+                        <input
+                            #cellInput
+                            *ngIf="isEditing(row, column.field)"
+                            type="text"
+                            class="cell-input"
+                            [(ngModel)]="tempEditValue"
+                            (blur)="saveEdit(row, column.field)"
+                            (keydown)="onKeyDown($event, row, column.field)"
+                            (click)="$event.stopPropagation()"
+                            (mousedown)="$event.stopPropagation()"
+                            [placeholder]="!config.editable && column.field === primaryField ? 'Enter Message ID...' : ''"
+                        />
+                    </td>
+
+                    <!-- Expand / Chevron Column -->
+                    <td class="expand-column">
+                        <!-- Parent row with children: show chevron -->
+                        <button
+                            *ngIf="isParentRow(row) && hasChildren(row)"
+                            class="row-expand-btn"
+                            (mousedown)="$event.stopPropagation(); $event.preventDefault()"
+                            (click)="$event.stopPropagation(); toggleRowExpand(row)"
+                            [pTooltip]="isRowExpanded(row) ? 'Collapse' : 'Expand'"
+                            tooltipPosition="left"
+                        >
+                            <i class="pi" [ngClass]="isRowExpanded(row) ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Placeholder rows for empty editable table -->
+                <ng-container *ngIf="config.editable && displayData.length === 0">
+                    <tr *ngFor="let _ of [].constructor(10); let i = index" class="placeholder-row">
+                        <td *ngIf="config.showSelectButton" class="select-column">
+                            <div class="empty-cell"></div>
+                        </td>
+                        <td *ngIf="config.showRowNumbers" class="row-number-column">
+                            <div class="empty-cell"></div>
+                        </td>
+                        <td *ngFor="let column of columns">
+                            <div class="empty-cell"></div>
+                        </td>
+                        <td class="expand-column">
+                            <div class="empty-cell"></div>
+                        </td>
+                    </tr>
+                </ng-container>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Floating Action Dialog (Editable mode only) -->
+    <div *ngIf="config.editable" class="floating-actions-dialog">
+        <div class="floating-actions-content">
+            <span class="selection-count" *ngIf="selectedRows.length > 0">{{ selectedRows.length }} Selected</span>
+
+            <div class="action-buttons">
+                <!-- Save Button -->
+                <button class="action-btn save-btn" (click)="saveSelectedRows()" pTooltip="Save Selected" tooltipPosition="top">
+                    <svg width="27" height="27" viewBox="0 0 27 27" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 23.625V21.375C18 19.2537 18 18.193 17.341 17.534C16.682 16.875 15.6213 16.875 13.5 16.875H12.375C10.2537 16.875 9.19302 16.875 8.53401 17.534C7.875 18.193 7.875 19.2537 7.875 21.375V23.625" stroke="#2ECC71" stroke-width="1.125"/>
+                        <path d="M7.875 9H13.5" stroke="#2ECC71" stroke-width="1.125" stroke-linecap="round"/>
+                        <path d="M3.375 10.125C3.375 6.94302 3.375 5.35203 4.36351 4.36351C5.35203 3.375 6.94302 3.375 10.125 3.375H18.193C18.6529 3.375 18.8828 3.375 19.0895 3.46064C19.2963 3.54627 19.4589 3.70885 19.784 4.03401L22.966 7.21599C23.2911 7.54115 23.4537 7.70373 23.5394 7.91047C23.625 8.11721 23.625 8.34714 23.625 8.80698V16.875C23.625 20.057 23.625 21.648 22.6365 22.6365C21.648 23.625 20.057 23.625 16.875 23.625H10.125C6.94302 23.625 5.35203 23.625 4.36351 22.6365C3.375 21.648 3.375 20.057 3.375 16.875V10.125Z" stroke="#2ECC71" stroke-width="1.125"/>
+                    </svg>
+                </button>
+
+                <!-- Swap Button -->
+                <button class="action-btn swap-btn" (click)="swapParentChild()" pTooltip="Swap Parent with Child" tooltipPosition="top">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 7H4.77985C6.93172 7 8.00766 7 8.87921 7.45631C9.25172 7.65134 9.59114 7.90388 9.88499 8.20464C10.5725 8.90832 10.8817 9.93888 11.5 12C12.1183 14.0611 12.4275 15.0917 13.115 15.7954C13.4089 16.0961 13.7483 16.3487 14.1208 16.5437C14.9923 17 16.0683 17 18.2202 17H21M21 17L18 14M21 17L18 20" stroke="#333333"/>
+                        <path d="M9.95898 15.333C10.0593 15.5847 10.1714 15.8352 10.2979 16.083C10.279 16.1032 10.2616 16.1247 10.2422 16.1445C9.91171 16.4828 9.53024 16.767 9.11133 16.9863C8.59522 17.2565 8.03592 17.3812 7.35352 17.4414C6.6797 17.5008 5.84721 17.5 4.78027 17.5H3V16.5H4.78027C5.86466 16.5 6.64583 16.4999 7.26562 16.4453C7.87705 16.3914 8.29202 16.2867 8.64746 16.1006C8.97325 15.93 9.27033 15.7093 9.52734 15.4463C9.64402 15.3269 9.74821 15.1923 9.84863 15.0361C9.88609 15.1375 9.92081 15.2373 9.95898 15.333ZM21.707 7L18.3535 10.3535L17.6465 9.64648L19.793 7.5H18.2197C17.1353 7.5 16.3542 7.50005 15.7344 7.55469C15.123 7.6086 14.708 7.71332 14.3525 7.89941C14.0268 8.07001 13.7297 8.29069 13.4727 8.55371C13.356 8.67307 13.2508 8.80686 13.1504 8.96289C13.1131 8.86196 13.079 8.76236 13.041 8.66699C12.9405 8.41489 12.8279 8.16423 12.7012 7.91602C12.72 7.89583 12.7385 7.87528 12.7578 7.85547C13.0883 7.51725 13.4698 7.23304 13.8887 7.01367C14.4048 6.74346 14.9641 6.61876 15.6465 6.55859C16.3203 6.49919 17.1528 6.5 18.2197 6.5H19.793L17.6465 4.35352L18.3535 3.64648L21.707 7Z" fill="#333333"/>
+                    </svg>
+                </button>
+
+                <!-- Assign as Parent Button -->
+                <button class="action-btn parent-btn" (click)="assignAsParent()" pTooltip="Assign as Parent" tooltipPosition="top">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 8H12" stroke="#333333" stroke-linecap="round"/>
+                        <path d="M5 12H12" stroke="#333333" stroke-linecap="round"/>
+                        <path d="M5 16H12" stroke="#333333" stroke-linecap="round"/>
+                        <path d="M19 20L22 17M19 20L16 17M19 20L19 4M19 4L16 7M19 4L22 7" stroke="#333333"/>
+                    </svg>
+                </button>
+
+                <!-- Delete Button -->
+                <button class="action-btn delete-btn" (click)="deleteSelectedRows()" pTooltip="Delete Selected" tooltipPosition="top">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9.5 14.5L9.5 11.5" stroke="#E74C3C" stroke-linecap="round"/>
+                        <path d="M14.5 14.5L14.5 11.5" stroke="#E74C3C" stroke-linecap="round"/>
+                        <path d="M3 6.5H21C19.5955 6.5 18.8933 6.5 18.3889 6.83706C18.1705 6.98298 17.983 7.17048 17.8371 7.38886C17.5 7.89331 17.5 8.59554 17.5 10V15.5C17.5 17.3856 17.5 18.3284 16.9142 18.9142C16.3284 19.5 15.3856 19.5 13.5 19.5H10.5C8.61438 19.5 7.67157 19.5 7.08579 18.9142C6.5 18.3284 6.5 17.3856 6.5 15.5V10C6.5 8.59554 6.5 7.89331 6.16294 7.38886C6.01702 7.17048 5.82952 6.98298 5.61114 6.83706C5.10669 6.5 4.40446 6.5 3 6.5Z" stroke="#E74C3C" stroke-linecap="round"/>
+                        <path d="M9.5 3.50024C9.5 3.50024 10 2.5 12 2.5C14 2.5 14.5 3.5 14.5 3.5" stroke="#E74C3C" stroke-linecap="round"/>
+                    </svg>
+                    <span>Delete</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

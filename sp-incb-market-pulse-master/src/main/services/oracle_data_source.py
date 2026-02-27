@@ -40,7 +40,6 @@ class OracleDataSource(DataSourceInterface):
         self.oracle_host = os.getenv("ORACLE_HOST", "")
         self.oracle_port = int(os.getenv("ORACLE_PORT", "1521"))
         self.oracle_service = os.getenv("ORACLE_SERVICE_NAME", "")
-        self.oracle_table = os.getenv("ORACLE_TABLE_NAME", "COLOR_DATA")
         
         # Cache credentials with TTL
         self._cached_credentials = None
@@ -185,14 +184,20 @@ class OracleDataSource(DataSourceInterface):
         # Check if CLO has a saved custom query in column_config.json
         if clo_id and self.column_config:
             clo_config = self.column_config.get(clo_id, {})
-            queries = clo_config.get("queries", {})
             
-            # Use base_query if available
+            # Check queries.base_query.query structure first (new format)
+            queries = clo_config.get("queries", {})
             if "base_query" in queries:
                 saved_query = queries["base_query"].get("query", "")
                 if saved_query:
-                    print(f"Using custom query for CLO {clo_id}")
+                    print(f"Using custom query for CLO {clo_id} (queries.base_query)")
                     return saved_query
+            
+            # Fallback: check oracle_query at root level (legacy format)
+            oracle_query = clo_config.get("oracle_query", "")
+            if oracle_query:
+                print(f"Using custom query for CLO {clo_id} (oracle_query)")
+                return oracle_query
         
         # Default production query for fetching CLO color data
         query = """
@@ -483,13 +488,13 @@ ORDER BY
         Fetch data from Oracle database using dynamic column mapping.
         
         Args:
-        self._check_driver_available()
-        
             clo_id: Optional CLO identifier to filter data and determine column mapping
             
         Returns:
             DataFrame with standardized column names
         """
+        self._check_driver_available()
+        
         if not all([self.oracle_host, self.oracle_port, self.oracle_service]):
             raise ValueError("Oracle connection details not configured")
         
@@ -576,10 +581,10 @@ ORDER BY
                 dsn=dsn
             )
             
-            # Test query
+            # Test query — simple dual query, no table name needed
             cursor = connection.cursor()
-            cursor.execute(f"SELECT COUNT(*) FROM {self.oracle_table}")
-            row_count = cursor.fetchone()[0]
+            cursor.execute("SELECT 1 FROM DUAL")
+            result = cursor.fetchone()
             cursor.close()
             connection.close()
             
@@ -588,7 +593,7 @@ ORDER BY
             
             return {
                 "status": "success",
-                "message": f"Oracle connection successful. Table has {row_count} rows. Thick mode: {thick_mode_status}. Credentials: {cred_source}"
+                "message": f"Oracle connection successful. Thick mode: {thick_mode_status}. Credentials: {cred_source}"
             }
             
         except oracledb.Error as e:
@@ -626,7 +631,7 @@ ORDER BY
             "host": self.oracle_host,
             "port": str(self.oracle_port),
             "service": self.oracle_service,
-            "table": self.oracle_table,
             "credentials_api_configured": str(bool(self.credentials_api_url)),
+            "credentials_source": "API" if self.credentials_api_url else ".env",
             "thick_mode": thick_mode_status
         }

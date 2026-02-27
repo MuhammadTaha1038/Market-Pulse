@@ -1,0 +1,754 @@
+/* ================================
+   TABLE WRAPPER
+   ================================ */
+
+.custom-table-wrapper {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+/* ================================
+   TOOLBAR
+   ================================ */
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.selection-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #1e40af;
+}
+
+.selection-badge i {
+  color: #3b82f6;
+}
+
+.clear-btn {
+  color: #3b82f6 !important;
+  padding: 0 !important;
+  min-width: 24px !important;
+  height: 24px !important;
+}
+
+.export-btn,
+.add-row-btn {
+  border-radius: 20px !important;
+  padding: 8px 16px !important;
+  background: #f3f4f6 !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  font-size: 14px !important;
+}
+
+.export-btn:hover,
+.add-row-btn:hover {
+  background: #e5e7eb !important;
+}
+
+/* ================================
+   TABLE CONTAINER
+   ================================ */
+
+.table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 900px;
+  height: 600px;
+  -webkit-overflow-scrolling: touch;
+  padding: 0;
+}
+
+/* Custom table inside manual color page: remove max-height so all rows show, and
+   ensure horizontal scroll is visible with a scrollbar track */
+:host-context(app-manual-color) .table-container {
+  max-height: none;
+}
+
+.custom-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  margin: 0;
+  margin-bottom: 0%;
+  padding: 0;
+}
+
+/* ================================
+   HEADER
+   ================================ */
+
+.custom-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+.custom-table th {
+  background: #ffffff;
+  border-bottom: 1px solid #d1d5db;
+  border-right: 1px solid #e5e7eb;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.custom-table th:last-child {
+  border-right: none;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.sort-arrows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: -1px;
+  flex-shrink: 0;
+  margin-left: auto;
+  line-height: 1;
+}
+
+.sort-arrow {
+  background: none;
+  border: none;
+  padding: 1px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.4;
+  flex-shrink: 0;
+  margin: 0;
+  line-height: 1;
+}
+
+.sort-arrow:hover {
+  opacity: 0.6;
+}
+
+.sort-arrow.active {
+  opacity: 1;
+}
+
+.sort-arrow svg {
+  width: 9px;
+  height: 8px;
+  display: block;
+  transition: fill 0.2s ease;
+  margin: 0;
+}
+
+/* Up arrow (rotated 180 degrees) */
+.up-arrow svg {
+  transform: rotate(180deg);
+}
+
+/* Down arrow - shift right by 1px */
+.down-arrow {
+  margin-left: 2px;
+}
+
+/* Highlight active arrow in black */
+.sort-arrow.active svg path {
+  fill: #000000 !important;
+}
+
+.select-column {
+  width: 60px !important;
+  text-align: center !important;
+  position: sticky;
+  left: 0;
+  z-index: 11;
+  background: #ffffff;
+}
+
+/* Row Number Column */
+.row-number-column {
+  width: 60px !important;
+  text-align: center !important;
+  position: sticky;
+  left: 60px;
+  z-index: 11;
+  background: #ffffff;
+}
+
+.row-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Row number sticky background per row type */
+.custom-table td.row-number-column {
+  position: sticky;
+  left: 60px;
+  z-index: 5;
+  background: #ffffff;
+}
+
+.custom-table tr.parent-row td.row-number-column {
+  background: #ffffff;
+}
+
+.custom-table tr.child-row td.row-number-column {
+  background: #f3f4f6;
+}
+
+.custom-table tr.selected-row td.row-number-column {
+  background: #eff6ff;
+}
+
+/* Expand button in header */
+.expand-header-th {
+  width: 48px !important;
+  padding: 8px !important;
+  text-align: center !important;
+  border-bottom: 1px solid #d1d5db;
+  border-right: none;
+  background: #ffffff;
+}
+
+.header-expand-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-size: 0;
+}
+
+.header-expand-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.header-expand-btn:active {
+  background: #d1d5db;
+}
+
+.header-expand-btn i {
+  font-size: 14px;
+}
+
+/* ================================
+   SELECT BUTTON (header & rows)
+   ================================ */
+
+.select-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.select-btn:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.select-btn.selected {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #ffffff;
+}
+
+.select-btn.indeterminate {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.select-btn i {
+  font-size: 12px;
+}
+
+/* ================================
+   ROWS & CELLS
+   ================================ */
+
+.custom-table tbody tr {
+  background: #ffffff;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.2s ease;
+}
+
+.custom-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.custom-table tbody tr.selected-row {
+  background: #eff6ff !important;
+}
+
+/* Parent row styling */
+.custom-table tbody tr.parent-row {
+  background: #ffffff;
+  font-weight: 500;
+}
+
+.custom-table tbody tr.parent-row:hover {
+  background: #f9fafb;
+}
+
+.custom-table tbody tr.parent-row.selected-row {
+  background: #eff6ff !important;
+}
+
+/* Child row styling - slightly darker background */
+.custom-table tbody tr.child-row {
+  background: #f3f4f6;
+  font-weight: 400;
+}
+
+.custom-table tbody tr.child-row:hover {
+  background: #e5e7eb;
+}
+
+.custom-table tbody tr.child-row.selected-row {
+  background: #dbeafe !important;
+}
+
+/* Child row left indent on first data cell */
+.child-data-cell:first-of-type {
+  padding-left: 28px !important;
+}
+
+/* Child row select cell */
+.child-select-cell {
+  background: #f3f4f6 !important;
+}
+
+/* Data cells */
+.custom-table td {
+  padding: 10px 12px;
+  border-right: 1px solid #f3f4f6;
+  font-size: 13px;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.custom-table td:last-child {
+  border-right: none;
+}
+
+/* Sticky select column in body */
+.custom-table td.select-column {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #ffffff;
+}
+
+.custom-table tr.parent-row td.select-column {
+  background: #ffffff;
+}
+
+.custom-table tr.child-row td.select-column {
+  background: #f3f4f6;
+}
+
+.custom-table tr.selected-row td.select-column {
+  background: #eff6ff;
+}
+
+/* Expand column in body */
+.expand-column {
+  width: 48px !important;
+  text-align: center !important;
+  padding: 8px !important;
+}
+
+.custom-table td.expand-column {
+  background: #ffffff;
+}
+
+.custom-table tr.child-row td.expand-column {
+  background: #f3f4f6;
+}
+
+.custom-table tr.parent-row td.expand-column {
+  background: #ffffff;
+}
+
+.custom-table tr.selected-row td.expand-column {
+  background: #eff6ff;
+}
+
+/* ================================
+   ROW EXPAND / CHEVRON BUTTON
+   ================================ */
+
+.row-expand-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-size: 0;
+}
+
+.row-expand-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.row-expand-btn:active {
+  background: #d1d5db;
+}
+
+.row-expand-btn i {
+  font-size: 14px;
+}
+
+/* ================================
+   EDITABLE CELLS
+   ================================ */
+
+.editable-cell {
+  cursor: pointer;
+  position: relative;
+}
+
+.editable-cell:hover {
+  background: #f9fafb;
+}
+
+.custom-table tr.parent-row .editable-cell:hover {
+  background: #f9fafb;
+}
+
+.custom-table tr.child-row .editable-cell:hover {
+  background: #e5e7eb;
+}
+
+.cell-content {
+  min-height: 20px;
+  width: 100%;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ================================
+   PRIMARY FIELD (lookup cell in read-only mode)
+   ================================ */
+
+.primary-field-cell {
+  cursor: pointer;
+  position: relative;
+}
+
+.primary-field-cell:hover {
+  background: #f0f7ff;
+}
+
+.primary-field-cell:hover .cell-content {
+  color: #2563eb;
+}
+
+.primary-field-icon {
+  font-size: 10px;
+  color: #93bbfd;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.primary-field-cell:hover .primary-field-icon {
+  opacity: 1;
+}
+
+.cell-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 2px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  background: #ffffff;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cell-input:focus {
+  border-color: #2563eb;
+}
+
+/* ================================
+   EMPTY STATES
+   ================================ */
+
+.empty-row td {
+  padding: 60px 20px;
+  text-align: center;
+  border-bottom: none;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #9ca3af;
+}
+
+.empty-state i {
+  font-size: 48px;
+  color: #d1d5db;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.empty-cell {
+  min-height: 20px;
+  background: transparent;
+}
+
+.placeholder-row {
+  background: #fafafa;
+  cursor: pointer;
+}
+
+.placeholder-row:hover {
+  background: #f3f4f6;
+}
+
+/* ================================
+   FLOATING ACTION DIALOG
+   ================================ */
+
+.floating-actions-dialog {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.floating-actions-content {
+  background: rgb(247, 246, 246);
+  border-radius: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.selection-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  padding-right: 16px;
+  border-right: none;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.action-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+  transition: all 0.2s ease !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.action-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.save-btn {
+  color: #2ECC71 !important;
+}
+
+.save-btn:hover {
+  background: #f0fdf4 !important;
+  border-color: #2ECC71 !important;
+}
+
+.swap-btn {
+  color: #333333 !important;
+}
+
+.swap-btn:hover {
+  background: #f3f4f6 !important;
+  border-color: #333333 !important;
+}
+
+.parent-btn {
+  color: #333333 !important;
+}
+
+.parent-btn:hover {
+  background: #f3f4f6 !important;
+  border-color: #333333 !important;
+}
+
+.delete-btn {
+  color: #E74C3C !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  width: auto !important;
+  min-width: 80px !important;
+  border-radius: 20px !important;
+  padding: 8px 12px !important;
+  height: 40px !important;
+}
+
+.delete-btn svg {
+  flex-shrink: 0;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.delete-btn span {
+  font-size: 12px;
+  font-weight: 500;
+  color: #E74C3C;
+  white-space: nowrap;
+}
+
+.delete-btn:hover {
+  background: #fee2e2 !important;
+  border-color: #E74C3C !important;
+}
+
+/* ================================
+   RESPONSIVE
+   ================================ */
+
+@media (max-width: 768px) {
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    justify-content: center;
+  }
+
+  .floating-actions-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .selection-count {
+    padding-right: 0;
+    padding-bottom: 12px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .action-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}

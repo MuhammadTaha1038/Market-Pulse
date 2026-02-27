@@ -1,0 +1,41 @@
+/* Custom styles to match the Figma design exactly */
+
+/* Radio button styling */
+.p-radiobutton .p-radiobutton-box {
+  border: 2px solid #d1d5db;
+  background: #ffffff;
+  width: 20px;
+  height: 20px;
+}
+
+.p-radiobutton .p-radiobutton-box.p-highlight {
+  border-color: #3b82f6;
+  background: #3b82f6;
+}
+
+.p-radiobutton .p-radiobutton-box .p-radiobutton-icon {
+  width: 12px;
+  height: 12px;
+  background-color: #ffffff;
+}
+
+/* Button styling */
+.p-button {
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+}
+
+.p-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Hover effects */
+.p-radiobutton .p-radiobutton-box:not(.p-disabled):not(.p-highlight):hover {
+  border-color: #9ca3af;
+}
+
+/* Option container hover */
+.hover\:bg-gray-50:hover {
+  background-color: #f9fafb;
+}

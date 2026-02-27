@@ -42,10 +42,17 @@ app = FastAPI(
 
 PREFIX = os.environ.get('BASE_PATH', "")
 
-# CORS configuration for Angular frontend
+# CORS configuration — restrict in production via ALLOWED_ORIGINS in .env
+# Example: ALLOWED_ORIGINS=https://app.yourcompany.com,https://admin.yourcompany.com
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if _raw_origins.strip() == "*":
+    _allowed_origins = ["*"]
+else:
+    _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,0 +1,109 @@
+/* You can add global styles to this file, and also import other style files */
+@use './tailwind.css';
+@use './layout/layout.scss';
+@use 'primeicons/primeicons.css';
+@use './demo/demo.scss';
+
+/* DegularDisplay Font Family - All Weights */
+@font-face {
+    font-family: 'Degular Display';
+    src:
+        local('Degular Display Light'),
+        local('DegularDisplay-Light'),
+        url('./fonts/degular-display/fonnts.com-DegularDisplayDemo-Light.otf') format('opentype');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Degular Display';
+    src:
+        local('Degular Display'),
+        local('DegularDisplay-Regular'),
+        url('./fonts/degular-display/fonnts.com-DegularDisplayDemo-Regular.otf') format('opentype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Degular Display';
+    src:
+        local('Degular Display Medium'),
+        local('DegularDisplay-Medium'),
+        url('./fonts/degular-display/fonnts.com-DegularDisplayDemo-Medium.otf') format('opentype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Degular Display';
+    src:
+        local('Degular Display Semibold'),
+        local('DegularDisplay-Semibold'),
+        url('./fonts/degular-display/fonnts.com-DegularDisplayDemo-Semibold.otf') format('opentype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Degular Display';
+    src:
+        local('Degular Display Bold'),
+        local('DegularDisplay-Bold'),
+        url('./fonts/degular-display/fonnts.com-DegularDisplayDemo-Bold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Global Font Application */
+* {
+    font-family: 'Degular Display', sans-serif;
+}
+
+html,
+body {
+    font-family: 'Degular Display', sans-serif;
+}
+:root {
+    --bg-page: #f9fafb;
+    --bg-card: #ffffff;
+    --text-primary: #111827;
+    --border-color: #e5e7eb;
+    --input-bg: #ffffff;
+    --link-muted: #4b5563; /* gray-600 */
+    --placeholder-color: #9ca3af; /* gray-400 (light mode) */
+}
+
+html.dark {
+    --bg-page: #0f172a;
+    --bg-card: #1f2937;
+    --text-primary: #f9fafb;
+    --border-color: #374151;
+    --input-bg: #020617;
+    --link-muted: #ffffff; /* white in dark mode */
+    --placeholder-color: #6b7280; /* gray-500 (dark mode) */
+}
+
+input::placeholder {
+    color: var(--placeholder-color);
+    font-weight: 400;
+}
+
+.filter-dialog .p-dialog-content {
+    padding: 0;
+}
+
+.filter-dialog .p-dialog-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.p-autocomplete,
+.p-inputtext {
+    border-radius: 12px !important;
+}

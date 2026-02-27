@@ -1,0 +1,36 @@
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl p-12 max-w-2xl w-full text-center">
+        <div class="text-8xl mb-6">{{ selectedEmoji }}</div>
+        
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">Help & Documentation</h1>
+        
+        <p class="text-xl text-gray-600 mb-8 font-semibold">{{ selectedQuote }}</p>
+        
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 mb-8 border-2 border-blue-200">
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                This is a temporary help page. Detailed documentation, tutorials, and guidance for this feature will be available here soon.
+            </p>
+            <p class="text-sm text-gray-500">
+                In the meantime, please refer to the main application documentation or contact support for assistance.
+            </p>
+        </div>
+
+        <div class="space-y-3">
+            <button pButton
+                label="Go Back Home"
+                icon="pi pi-arrow-left"
+                (click)="goBack()"
+                class="w-full !bg-gray-900 !text-white hover:!bg-black !rounded-full !py-3 text-lg font-semibold">
+            </button>
+            
+            <button pButton
+                label="Refresh Tips"
+                icon="pi pi-refresh"
+                (click)="selectRandomQuote(); selectRandomEmoji()"
+                class="w-full !bg-blue-500 !text-white hover:!bg-blue-600 !rounded-full !py-3 text-lg font-semibold">
+            </button>
+        </div>
+
+        <p class="text-xs text-gray-400 mt-8">More content coming soon...</p>
+    </div>
+</div>

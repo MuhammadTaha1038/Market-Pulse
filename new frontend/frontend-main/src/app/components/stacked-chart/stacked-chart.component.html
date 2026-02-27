@@ -1,0 +1,26 @@
+<!-- Loading State -->
+    <div *ngIf="isLoading" class="h-[300px] flex items-center justify-center">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p class="text-gray-600 text-sm">Loading chart data...</p>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="!isLoading && hasError" class="h-[300px] flex flex-col items-center justify-center text-center">
+        <i class="pi pi-exclamation-triangle text-3xl text-yellow-500 mb-3"></i>
+        <p class="text-gray-700 font-medium mb-1">Could not load chart data</p>
+        <p class="text-gray-500 text-sm mb-4">Showing mock data instead</p>
+        <button 
+            pButton 
+            label="Retry" 
+            icon="pi pi-refresh" 
+            class="p-button-sm !rounded-full !px-4 !py-2 !bg-gray-100 !text-gray-700 hover:!bg-gray-200"
+            (click)="refreshChart()"
+        ></button>
+    </div>
+
+    <!-- Chart Display -->
+    <div *ngIf="!isLoading && !hasError" class="chart-container overflow-x-auto overflow-y-hidden">
+        <div echarts [options]="options" [style.width.px]="chartWidth" [style.height.px]="300"></div>
+    </div>

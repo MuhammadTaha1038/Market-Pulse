@@ -1,0 +1,60 @@
+/* Filter Dialog Styles */
+
+:host ::ng-deep .filter-dialog .p-dialog {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+:host ::ng-deep .filter-dialog .p-dialog-header {
+  padding: 20px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .filter-dialog .p-dialog-content {
+  padding: 0;
+}
+
+/* Select Dropdown Styling */
+select {
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  color: #374151;
+  background-color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+select:hover {
+  border-color: #9ca3af;
+}
+
+select:focus {
+  outline: none;
+  border-color: #2C3E50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+/* Input Styling */
+:host ::ng-deep input.p-inputtext {
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+:host ::ng-deep input.p-inputtext:focus {
+  border-color: #2C3E50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+/* Button Styling */
+:host ::ng-deep .p-button-text {
+  border: none;
+  background: transparent;
+}
+
+:host ::ng-deep .p-button-text:hover {
+  background: rgba(0, 0, 0, 0.05);
+}

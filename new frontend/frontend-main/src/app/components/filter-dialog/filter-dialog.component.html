@@ -1,0 +1,246 @@
+<p-dialog
+  header="Filter"
+  [(visible)]="visible"
+  (visibleChange)="visibleChange.emit($event)"
+  [modal]="true"
+  [draggable]="false"
+  [style]="{ width: '900px' }"
+  class="filter-dialog">
+
+  <!-- Main Container -->
+  <div class="bg-white rounded-[20px] overflow-hidden px-8 py-6">
+
+    <!-- Headers Row -->
+    <div class="flex items-center gap-4 mb-0 px-4">
+      <div class="w-20"></div>
+      <div class="w-10"></div>
+      <span class="text-sm font-medium text-gray-700 w-48">Column</span>
+      <span class="text-sm font-medium text-gray-700 w-40">Operator</span>
+      <span class="text-sm font-medium text-gray-700 flex-1">Values</span>
+      <div class="w-10"></div>
+    </div>
+
+    <!-- Main Conditions -->
+    <div *ngFor="let condition of filterConditions; let i = index"
+         class="flex items-center gap-4 mb-3 px-4 py-3">
+
+      <!-- WHERE/AND Dropdown -->
+      <div class="w-20">
+        <span *ngIf="i === 0" class="text-sm font-medium text-gray-700">Where</span>
+        <select
+          *ngIf="i > 0"
+          [(ngModel)]="condition.logicalOperator"
+          class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded bg-white">
+          <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+        </select>
+      </div>
+
+      <!-- Six Dot Icon Handle -->
+      <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+        <div class="grid grid-cols-2 gap-[3px]">
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+        </div>
+      </div>
+
+      <!-- Column Dropdown -->
+      <div class="w-48">
+        <select
+          [(ngModel)]="condition.columnDisplay"
+          class="w-full px-2 py-1.5 border border-gray-300 rounded bg-white">
+          <option value="">Select Column</option>
+          <option *ngFor="let col of columnOptions" [value]="col">{{ col }}</option>
+        </select>
+      </div>
+
+      <!-- Operator Dropdown -->
+      <div class="w-40">
+        <select
+          [(ngModel)]="condition.operator"
+          class="w-full px-2 py-1.5 border border-gray-300 rounded bg-white">
+          <option value="">Select Operator</option>
+          <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+        </select>
+      </div>
+
+      <!-- Values Input -->
+      <div class="flex-1 flex gap-2">
+        <input
+          pInputText
+          [(ngModel)]="condition.values"
+          [placeholder]="isBetweenOperator(condition.operator) ? 'Min value' : 'Enter value'"
+          class="w-full" />
+        <input
+          *ngIf="isBetweenOperator(condition.operator)"
+          pInputText
+          [(ngModel)]="condition.values2"
+          placeholder="Max value"
+          class="w-full" />
+      </div>
+
+      <!-- Delete Button -->
+      <div class="flex-shrink-0">
+        <button
+          pButton
+          icon="pi pi-trash"
+          class="p-button-text text-gray-400 hover:text-red-500"
+          (click)="removeCondition(i)">
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Subgroups -->
+    <div *ngFor="let subgroup of filterSubgroups" class="mb-6 pl-8">
+
+      <!-- Subgroup Header -->
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-sm font-medium text-gray-600">Group</span>
+        <button
+          pButton
+          icon="pi pi-times"
+          class="p-button-text p-button-sm text-gray-400 hover:text-red-500"
+          (click)="removeSubgroup(subgroup.id)">
+        </button>
+      </div>
+
+      <!-- Subgroup Conditions -->
+      <div *ngFor="let condition of subgroup.conditions; let j = index"
+           class="flex items-center gap-4 mb-3 px-4 py-3 bg-gray-50 rounded-lg">
+
+        <!-- WHERE/Logical Operator -->
+        <div class="w-20">
+          <span *ngIf="j === 0" class="text-sm text-gray-600">Where</span>
+          <select
+            *ngIf="j > 0"
+            [(ngModel)]="condition.logicalOperator"
+            class="w-full text-sm px-2 py-1.5 border border-gray-300 rounded bg-white">
+            <option *ngFor="let op of logicalOperators" [value]="op.value">{{ op.label }}</option>
+          </select>
+        </div>
+
+        <!-- Six Dot Icon -->
+        <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-[#2C3E50] flex-shrink-0">
+          <div class="grid grid-cols-2 gap-[3px]">
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+            <span class="w-[4px] h-[4px] bg-white rounded-full"></span>
+          </div>
+        </div>
+
+        <!-- Column -->
+        <div class="w-48">
+          <select
+            [(ngModel)]="condition.columnDisplay"
+            class="w-full px-2 py-1.5 border border-gray-300 rounded bg-white">
+            <option value="">Select Column</option>
+            <option *ngFor="let col of columnOptions" [value]="col">{{ col }}</option>
+          </select>
+        </div>
+
+        <!-- Operator -->
+        <div class="w-40">
+          <select
+            [(ngModel)]="condition.operator"
+            class="w-full px-2 py-1.5 border border-gray-300 rounded bg-white">
+            <option value="">Select Operator</option>
+            <option *ngFor="let op of operatorOptions" [value]="op.value">{{ op.label }}</option>
+          </select>
+        </div>
+
+        <!-- Values -->
+        <div class="flex-1 flex gap-2">
+          <input
+            pInputText
+            [(ngModel)]="condition.values"
+            [placeholder]="isBetweenOperator(condition.operator) ? 'Min value' : 'Enter value'"
+            class="w-full" />
+          <input
+            *ngIf="isBetweenOperator(condition.operator)"
+            pInputText
+            [(ngModel)]="condition.values2"
+            placeholder="Max value"
+            class="w-full" />
+        </div>
+
+        <!-- Delete -->
+        <div class="flex-shrink-0">
+          <button
+            pButton
+            icon="pi pi-trash"
+            class="p-button-text text-gray-400 hover:text-red-500"
+            (click)="removeSubgroupCondition(subgroup.id, j)">
+          </button>
+        </div>
+      </div>
+
+      <!-- Add Condition / Add Subgroup Buttons -->
+      <div class="flex items-center gap-4 px-4 mt-3 mb-4">
+        <button
+          pButton
+          icon="pi pi-plus-circle"
+          label="Add Condition"
+          class="p-button-text text-gray-600 text-xs"
+          (click)="addSubgroupCondition(subgroup.id)">
+        </button>
+        <button
+          pButton
+          icon="pi pi-plus-circle"
+          label="Add Subgroup"
+          class="p-button-text text-gray-600 text-xs"
+          (click)="addSubgroup()">
+        </button>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="my-6 border-t border-gray-200"></div>
+
+    <!-- Footer Actions -->
+    <div class="flex items-center gap-4 flex-wrap">
+      <!-- Add Condition -->
+      <button
+        pButton
+        icon="pi pi-plus-circle"
+        label="Add Condition"
+        class="p-button-text text-gray-600"
+        (click)="addCondition()">
+      </button>
+
+      <!-- Add Group -->
+      <button
+        pButton
+        icon="pi pi-plus-circle"
+        label="Add Group"
+        class="p-button-text text-gray-600"
+        (click)="addSubgroup()">
+      </button>
+
+      <div class="flex-1"></div>
+
+      <!-- Remove All -->
+      <button
+        pButton
+        icon="pi pi-trash"
+        label="Remove all filters"
+        class="p-button-text !text-red-500 font-light"
+        (click)="removeAllFilters()">
+      </button>
+
+      <!-- Apply -->
+      <button
+        pButton
+        icon="pi pi-save"
+        label="Apply Filters"
+        class="!bg-[#2C3E50] hover:!bg-[#243746] !text-white !rounded-full !border !border-[#2C3E50] !px-6 !py-2.5 text-sm font-medium"
+        (click)="applyFilters()">
+      </button>
+    </div>
+  </div>
+</p-dialog>

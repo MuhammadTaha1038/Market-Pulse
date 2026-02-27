@@ -209,14 +209,40 @@ class ColumnConfigService:
         return default_config
     
     def _save_config(self, config: dict):
-        """Save configuration to JSON file"""
+        """Save configuration to JSON file and sync to S3 if configured"""
         try:
             with open(self.config_file_path, 'w') as f:
                 json.dump(config, f, indent=2)
             logger.info(f"Saved column config to {self.config_file_path}")
+            self._s3_sync_config(config)
         except Exception as e:
             logger.error(f"Error saving config: {e}")
             raise
+
+    def _s3_sync_config(self, config: dict):
+        """Upload column_config.json to S3 if S3 is configured."""
+        import os
+        output_dest = os.getenv("OUTPUT_DESTINATION", "local").lower()
+        if output_dest not in ("s3", "both"):
+            return
+        bucket = os.getenv("S3_BUCKET_NAME", "")
+        if not bucket:
+            return
+        try:
+            import boto3
+            import json as _json
+            access_key = os.getenv("AWS_ACCESS_KEY_ID", "")
+            secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+            region = os.getenv("S3_REGION", "us-east-1")
+            if access_key and secret_key:
+                s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name=region)
+            else:
+                s3 = boto3.client("s3", region_name=region)
+            body = _json.dumps(config, indent=2).encode("utf-8")
+            s3.put_object(Bucket=bucket, Key="config/column_config.json", Body=body, ContentType="application/json")
+            logger.info(f"Synced column_config.json to s3://{bucket}/config/column_config.json")
+        except Exception as e:
+            logger.warning(f"S3 column config sync failed (non-critical): {e}")
     
     def get_all_columns(self) -> List[Dict]:
         """Get all configured columns"""

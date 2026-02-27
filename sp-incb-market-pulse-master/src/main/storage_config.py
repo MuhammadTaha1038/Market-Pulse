@@ -1,60 +1,47 @@
 """
-Storage configuration - SINGLE POINT to switch between JSON/S3/Oracle
-When credentials are ready, just change this file
+Storage configuration - SINGLE POINT to switch between JSON/S3
+When S3 credentials are configured and OUTPUT_DESTINATION=s3 (or both),
+ALL structured data (rules, presets, cron config, email config, logs, etc.)
+is stored in AWS S3. Otherwise uses local JSON files.
 """
 
 import os
 from json_storage import JSONStorage
-# from s3_storage import S3Storage  # Uncomment when S3 credentials ready
-# from oracle_storage import OracleStorage  # Uncomment when Oracle credentials ready
 
 
 def get_storage():
     """
-    Get storage implementation based on environment variable
-    
-    Environment Variables:
-    - STORAGE_TYPE: 'json' (default), 's3', or 'oracle'
-    
-    For S3:
-    - AWS_ACCESS_KEY_ID
-    - AWS_SECRET_ACCESS_KEY
-    - AWS_REGION
-    - S3_BUCKET_NAME
-    
-    For Oracle:
-    - ORACLE_CONFIG_HOST
-    - ORACLE_CONFIG_PORT
-    - ORACLE_CONFIG_SERVICE
-    - ORACLE_CONFIG_USER
-    - ORACLE_CONFIG_PASSWORD
-    
+    Get storage implementation based on configuration.
+
+    Trigger: OUTPUT_DESTINATION = 's3' or 'both' in .env
+    When triggered, ALL JSON data (rules, presets, cron jobs, email config,
+    session data, logs) is stored in S3 instead of local files.
+
+    Required env vars when S3 is active:
+      - S3_BUCKET_NAME      (required)
+      - AWS_ACCESS_KEY_ID   (required unless using IAM role)
+      - AWS_SECRET_ACCESS_KEY (required unless using IAM role)
+      - S3_REGION           (default: us-east-1)
+
     Returns:
-        StorageInterface implementation
+        StorageInterface implementation (JSONStorage or S3Storage)
     """
-    storage_type = os.getenv('STORAGE_TYPE', 'json').lower()
-    
-    print(f"🔧 Storage Type: {storage_type}")
-    
-    if storage_type == 's3':
-        # Will implement when S3 credentials available
-        # return S3Storage()
-        raise NotImplementedError(
-            "S3 storage not configured yet. "
-            "Set S3 credentials in .env and uncomment S3Storage import."
-        )
-    
-    elif storage_type == 'oracle':
-        # Will implement when Oracle credentials available
-        # return OracleStorage()
-        raise NotImplementedError(
-            "Oracle storage not configured yet. "
-            "Set Oracle credentials in .env and uncomment OracleStorage import."
-        )
-    
-    else:
-        # Default: JSON storage (works now without any credentials)
-        return JSONStorage()
+    output_dest = os.getenv("OUTPUT_DESTINATION", "local").lower()
+    use_s3 = output_dest in ("s3", "both")
+
+    if use_s3 and os.getenv("S3_BUCKET_NAME", ""):
+        try:
+            from s3_storage import S3Storage
+            storage_instance = S3Storage(prefix="storage")
+            print(f"☁️  Storage Type: s3 (bucket: {os.getenv('S3_BUCKET_NAME')})")
+            return storage_instance
+        except Exception as e:
+            print(f"⚠️  S3 storage failed to initialize ({e}), falling back to JSON")
+
+    # Default: local JSON storage
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    print(f"🔧 Storage Type: json")
+    return JSONStorage(data_dir=data_dir)
 
 
 # Global storage instance - used by all services

@@ -1,0 +1,147 @@
+/* Custom styles for the filter dialog @Home.css*/
+:host ::ng-deep .filter-dialog .p-dialog-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .filter-dialog .p-dialog-content {
+    padding: 1.5rem;
+}
+
+/* Minimize button styling in expanded view */
+.minimize-table-btn {
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #111827 !important;
+    border: 1px solid #111827 !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.minimize-table-btn:hover {
+    background-color: #000000 !important;
+    border-color: #000000 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.minimize-table-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.minimize-table-btn .pi {
+    font-size: 14px;
+}
+
+/* Expanded view overlay */
+.fixed.inset-0 {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Smooth transitions for grid columns */
+.grid > div {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sidebar animation */
+.xl\:col-span-3 {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* AutoComplete styles */
+:host ::ng-deep .filter-dialog .p-autocomplete {
+    width: 100%;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete .p-autocomplete-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.875rem;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-items {
+    padding: 0.25rem 0;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-item {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+:host ::ng-deep .filter-dialog .p-autocomplete-item:hover {
+    background-color: #f3f4f6;
+}
+
+.stacked-chart-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* Run Rules Dialog */
+:host ::ng-deep .run-rules-dialog .p-dialog {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-header {
+    padding: 16px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-content {
+    padding: 20px 24px;
+    background: #ffffff;
+}
+
+/* Hide main content when table is expanded */
+.fixed.inset-0 {
+    z-index: 40;
+}
+
+/* Ensure table scrolls properly in expanded mode */
+.fixed.inset-0 .flex-1.overflow-auto {
+    max-height: calc(100vh - 240px);
+}

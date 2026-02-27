@@ -27,6 +27,30 @@ logger = logging.getLogger(__name__)
 BACKUP_DIR = os.path.join(os.path.dirname(__file__), "data", "backups")
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+
+def _sync_backup_to_s3(local_path: str, backup_filename: str):
+    """Upload a physical backup Excel file to S3 under backups/ prefix (if S3 is configured)."""
+    output_dest = os.getenv("OUTPUT_DESTINATION", "local").lower()
+    if output_dest not in ("s3", "both"):
+        return
+    bucket = os.getenv("S3_BUCKET_NAME", "")
+    if not bucket:
+        return
+    try:
+        import boto3
+        access_key = os.getenv("AWS_ACCESS_KEY_ID", "")
+        secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        region = os.getenv("S3_REGION", "us-east-1")
+        if access_key and secret_key:
+            s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name=region)
+        else:
+            s3 = boto3.client("s3", region_name=region)
+        s3_key = f"backups/{backup_filename}"
+        s3.upload_file(local_path, bucket, s3_key)
+        logger.info(f"☁️  Backup synced to s3://{bucket}/{s3_key}")
+    except Exception as e:
+        logger.warning(f"S3 backup sync failed (non-critical): {e}")
+
 # Output file path (the file we're backing up)
 OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "Color processed.xlsx")
 
@@ -168,6 +192,9 @@ def create_backup(
         # Copy file
         shutil.copy2(OUTPUT_FILE, backup_path)
         logger.info(f"📁 Backup saved: {backup_filename}")
+        
+        # Sync backup file to S3 if configured
+        _sync_backup_to_s3(backup_path, backup_filename)
         
         # Create backup entry
         backup_entry = {

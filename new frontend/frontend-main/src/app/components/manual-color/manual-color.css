@@ -1,0 +1,410 @@
+/* Minimize button styling in expanded view */
+.minimize-table-btn {
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    background: #111827 !important;
+    border: 1px solid #111827 !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.minimize-table-btn:hover {
+    background-color: #000000 !important;
+    border-color: #000000 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.minimize-table-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.minimize-table-btn .pi {
+    font-size: 14px;
+}
+
+/* Expanded view overlay */
+.fixed.inset-0 {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Hide main content when table is expanded */
+.fixed.inset-0 {
+    z-index: 40;
+}
+
+/* Ensure table scrolls properly in expanded mode */
+.fixed.inset-0 .flex-1.overflow-auto {
+    max-height: calc(100vh - 240px);
+}
+
+/* ================================
+   IMPROVED IMPORT DIALOG STYLES
+   ================================ */
+
+:host ::ng-deep .import-dialog .p-dialog {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+:host ::ng-deep .import-dialog .p-dialog-header {
+    padding: 20px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+:host ::ng-deep .import-dialog .p-dialog-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+}
+
+:host ::ng-deep .import-dialog .p-dialog-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+:host ::ng-deep .import-dialog .p-dialog-close:hover {
+    background: #f3f4f6;
+    color: #111827;
+    border-radius: 6px;
+}
+
+:host ::ng-deep .import-dialog .p-dialog-content {
+    padding: 24px;
+    background: #ffffff;
+}
+
+.import-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Drop Zone Styling */
+.drop-zone {
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 40px 20px;
+    background: #f9fafb;
+    text-align: center;
+    transition: all 0.2s ease;
+    margin-bottom: 16px;
+    cursor: pointer;
+}
+
+.drop-zone:hover {
+    border-color: #9ca3af;
+    background: #f3f4f6;
+}
+
+.drop-zone.drag-over {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.drop-zone i {
+    font-size: 48px !important;
+    color: #10b981;
+}
+
+.browse-btn {
+    margin-top: 8px;
+}
+
+/* File Info Section */
+.file-info-section {
+    margin-bottom: 16px;
+}
+
+.file-info-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.file-info-box:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.file-info-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #eff6ff;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.file-info-left i {
+    font-size: 24px !important;
+}
+
+.file-info-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+    word-break: break-word;
+}
+
+.file-size {
+    margin: 4px 0 0 0;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.remove-file-btn {
+    color: #9ca3af !important;
+    flex-shrink: 0;
+}
+
+.remove-file-btn:hover {
+    color: #dc2626 !important;
+    background: #fee2e2 !important;
+}
+
+/* Divider */
+.divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 16px 0 12px 0;
+}
+
+/* Dialog Actions */
+.dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.cancel-btn {
+    color: #6b7280 !important;
+    border-color: #d1d5db !important;
+    background: #ffffff !important;
+}
+
+.cancel-btn:hover:not(:disabled) {
+    background: #f3f4f6 !important;
+    border-color: #9ca3af !important;
+    color: #374151 !important;
+}
+
+.import-btn {
+    background: #2c3e50 !important;
+    border-color: #2c3e50 !important;
+    color: #ffffff !important;
+    padding: 6px 16px !important;
+}
+
+.import-btn:hover:not(:disabled) {
+    background: #1f2937 !important;
+    border-color: #1f2937 !important;
+}
+
+.import-btn:disabled {
+    background: #d1d5db !important;
+    border-color: #d1d5db !important;
+    cursor: not-allowed;
+}
+
+/* File upload component overrides */
+:host ::ng-deep .import-dialog-content .p-fileupload {
+    display: none;
+}
+
+:host ::ng-deep .import-dialog-content .p-fileupload.show {
+    display: block;
+}
+
+:host ::ng-deep .import-dialog-content .p-fileupload-choose {
+    display: none;
+}
+
+:host ::ng-deep .import-dialog-content .p-fileupload-choose.show {
+    display: inline-block;
+}
+
+/* Progress Spinner */
+:host ::ng-deep .import-dialog-content p-progressSpinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+:host ::ng-deep .import-dialog-content p-progressSpinner svg {
+    width: 50px !important;
+    height: 50px !important;
+}
+
+/* ================================
+   RUN RULES DIALOG STYLES
+   ================================ */
+
+:host ::ng-deep .run-rules-dialog .p-dialog {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-header {
+    padding: 16px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+}
+
+:host ::ng-deep .run-rules-dialog .p-dialog-content {
+    padding: 20px 24px;
+    background: #ffffff;
+}
+
+.run-rules-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.rules-list-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.rules-list-container table {
+    border-collapse: collapse;
+}
+
+.rules-list-container thead tr {
+    background: #f9fafb;
+}
+
+.rules-list-container tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* ================================
+   SORTING DIALOG STYLES
+   ================================ */
+
+:host ::ng-deep .sorting-dialog .p-dialog {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+:host ::ng-deep .sorting-dialog .p-dialog-header {
+    padding: 16px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+:host ::ng-deep .sorting-dialog .p-dialog-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+}
+
+:host ::ng-deep .sorting-dialog .p-dialog-content {
+    padding: 20px 24px;
+    background: #ffffff;
+}
+
+.sorting-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.sorting-list-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 200px;
+}
+
+.sorting-list-container table {
+    border-collapse: collapse;
+}
+
+.sorting-list-container thead tr {
+    background: #f9fafb;
+}
+
+.sorting-list-container tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .drop-zone {
+        padding: 30px 15px;
+    }
+
+    .drop-zone i {
+        font-size: 40px !important;
+    }
+
+    .dialog-actions {
+        flex-direction: column-reverse;
+    }
+
+    .import-btn,
+    .cancel-btn {
+        width: 100% !important;
+    }
+
+    :host ::ng-deep .import-dialog .p-dialog {
+        width: 100% !important;
+        max-width: calc(100% - 32px);
+    }
+}
