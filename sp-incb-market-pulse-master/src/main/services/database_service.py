@@ -344,16 +344,10 @@ class DatabaseService:
     
     def get_connection_info(self) -> dict:
         """Get current connection information"""
+        source_info = self.data_source.get_source_info()
+        is_oracle = source_info.get("type", "").lower() != "excel"
         return {
-            "mode": "Oracle" if self.use_oracle else "Excel",
-            "oracle_available": ORACLE_AVAILABLE,
-            "oracle_enabled": ORACLE_ENABLED,
-            "oracle_config": {
-                "host": self.oracle_config.get('host'),
-                "port": self.oracle_config.get('port'),
-                "service_name": self.oracle_config.get('service_name'),
-                "user": self.oracle_config.get('user')
-            } if self.use_oracle else None,
-            "excel_file": self.data_file_path if not self.use_oracle else None,
+            "mode": source_info.get("type", "Unknown"),
+            "source_info": source_info,
             "column_count": len(self.column_config.get_all_columns())
         }

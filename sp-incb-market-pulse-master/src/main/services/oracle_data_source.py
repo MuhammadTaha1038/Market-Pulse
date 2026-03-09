@@ -91,7 +91,10 @@ class OracleDataSource(DataSourceInterface):
         # Try to fetch from API first
         if self.credentials_api_url:
             try:
-                response = requests.get(self.credentials_api_url, timeout=10)
+                url = self.credentials_api_url
+                if not url.startswith(("http://", "https://")):
+                    url = "https://" + url
+                response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 data = response.json()
                 
