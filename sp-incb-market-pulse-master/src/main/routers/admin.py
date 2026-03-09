@@ -272,15 +272,19 @@ async def execute_oracle_query(request: ExecuteQueryRequest):
             
             cursor = connection.cursor()
             
+            # Strip trailing semicolons/whitespace — Oracle rejects them inside subqueries
+            clean_query = request.query.rstrip().rstrip(';').rstrip()
+            
             # Execute query with ROWNUM limit for safety
-            limited_query = f"SELECT * FROM ({request.query}) WHERE ROWNUM <= 1"
+            limited_query = f"SELECT * FROM ({clean_query}) WHERE ROWNUM <= 1"
             cursor.execute(limited_query)
             
             # Get column metadata
             columns = []
             for desc in cursor.description:
                 col_name = desc[0]
-                col_type = desc[1].__name__ if hasattr(desc[1], '__name__') else str(desc[1])
+                dt = desc[1]
+                col_type = getattr(dt, 'name', None) or getattr(dt, '__name__', None) or str(dt) if dt else 'UNKNOWN'
                 
                 # Map Oracle types to our types
                 data_type = "VARCHAR"
@@ -680,8 +684,11 @@ async def execute_oracle_query(request: ExecuteQueryRequest):
         
         cursor = connection.cursor()
         
+        # Strip trailing semicolons/whitespace — Oracle rejects them inside subqueries
+        clean_query = request.query.rstrip().rstrip(';').rstrip()
+        
         # Execute query with ROWNUM limit for safety
-        safe_query = f"SELECT * FROM ({request.query}) WHERE ROWNUM <= 5"
+        safe_query = f"SELECT * FROM ({clean_query}) WHERE ROWNUM <= 5"
         cursor.execute(safe_query)
         
         # Get column metadata
