@@ -688,7 +688,8 @@ async def execute_oracle_query(request: ExecuteQueryRequest):
         columns_metadata = []
         for desc in cursor.description:
             col_name = desc[0]
-            col_type = desc[1].__name__ if desc[1] else 'UNKNOWN'
+            dt = desc[1]
+            col_type = getattr(dt, 'name', None) or getattr(dt, '__name__', None) or str(dt) if dt else 'UNKNOWN'
             
             columns_metadata.append({
                 "name": col_name,
