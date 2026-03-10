@@ -289,7 +289,7 @@
     </p-dialog>
 
     <!-- Filter Dialog Component -->
-    <app-filter-dialog [(visible)]="showFilterDialog" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
+    <app-filter-dialog [(visible)]="showFilterDialog" [visibleOracleColumns]="visibleOracleColumns" [columnDataTypes]="columnDataTypes" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
 
     <!-- ================= EXPANDED TABLE VIEW ================= -->
     <div *ngIf="isTableExpanded" class="fixed inset-0 bg-white z-40 flex flex-col" [ngStyle]="{'padding-top': '64px', 'padding-left': '0px'}">

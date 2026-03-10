@@ -84,6 +84,11 @@ export class ManualColor implements OnInit {
   // Active filters for display as chips
   activeFilters: FilterCondition[] = [];
 
+  /** Oracle column names visible for the active CLO — fed to filter dialog */
+  visibleOracleColumns: string[] = [];
+  /** Oracle column name -> data type map for type-aware operator filtering */
+  columnDataTypes: { [oracleName: string]: string } = {};
+
   // Table data
   tableData: TableRow[] = [];
   
@@ -121,6 +126,23 @@ export class ManualColor implements OnInit {
     console.log('🚀 Manual Color component initialized');
     this.loadPresets();
     this.loadQueryData();
+    this.loadCloColumns();
+  }
+
+  /** Load CLO-visible columns and their data types for the filter dialog */
+  private loadCloColumns(): void {
+    let cloId: string | undefined;
+    try {
+      const raw = localStorage.getItem('user_clo_selection');
+      if (raw) cloId = JSON.parse(raw)?.cloId;
+    } catch { }
+    this.apiService.getSearchableFields(cloId).subscribe({
+      next: (res) => {
+        this.visibleOracleColumns = res.fields.map((f: any) => f.name);
+        this.columnDataTypes = Object.fromEntries(res.fields.map((f: any) => [f.name, f.data_type]));
+      },
+      error: (err) => console.warn('Could not load CLO column types for filter dialog:', err)
+    });
   }
 
   /**

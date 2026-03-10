@@ -109,6 +109,19 @@ export class Home implements OnInit, OnDestroy {
     activeVisibleOracleColumns: string[] = [];
 
     /**
+     * Static map of Oracle column name -> data type, used for type-aware operator
+     * filtering in the filter dialog.
+     */
+    columnDataTypes: { [oracleName: string]: string } = {
+        MESSAGE_ID: 'INTEGER', RANK: 'INTEGER', CONFIDENCE: 'INTEGER', CHILDREN_COUNT: 'INTEGER',
+        PRICE_LEVEL: 'FLOAT', BID: 'FLOAT', ASK: 'FLOAT', PX: 'FLOAT',
+        COV_PRICE: 'FLOAT', PERCENT_DIFF: 'FLOAT', PRICE_DIFF: 'FLOAT',
+        TICKER: 'VARCHAR', SECTOR: 'VARCHAR', CUSIP: 'VARCHAR', SOURCE: 'VARCHAR',
+        BIAS: 'VARCHAR', DIFF_STATUS: 'VARCHAR', PROCESSING_TYPE: 'VARCHAR',
+        DATE: 'DATE', DATE_1: 'DATE'
+    };
+
+    /**
      * Master list of ALL possible table columns matched to their Oracle column name.
      * Visibility is driven by the CLO mapping saved in localStorage.
      */

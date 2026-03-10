@@ -87,6 +87,23 @@ export class Settings implements OnInit {
     operatorOptions: any[] = [];
     filteredOperatorOptions: any[] = [];
 
+    private readonly NUMERIC_OPERATORS = [
+        { label: 'Equal to', value: 'equals' }, { label: 'Not equal to', value: 'not equal to' },
+        { label: 'Greater than', value: 'gt' }, { label: 'Less than', value: 'lt' },
+        { label: 'Greater than or equal', value: 'gte' }, { label: 'Less than or equal', value: 'lte' },
+        { label: 'Between', value: 'between' }
+    ];
+    private readonly TEXT_OPERATORS = [
+        { label: 'Equal to', value: 'equals' }, { label: 'Not equal to', value: 'not equal to' },
+        { label: 'Contains', value: 'contains' }, { label: 'Starts with', value: 'starts_with' },
+        { label: 'Ends with', value: 'ends with' }
+    ];
+    private readonly DATE_OPERATORS = [
+        { label: 'Equal to', value: 'equals' }, { label: 'Greater than', value: 'gt' },
+        { label: 'Less than', value: 'lt' }, { label: 'Greater than or equal', value: 'gte' },
+        { label: 'Less than or equal', value: 'lte' }, { label: 'Between', value: 'between' }
+    ];
+
     ruleConditions: RuleCondition[] = [
         { type: 'where', column: '', operator: '', value: '' }
     ];
@@ -234,10 +251,23 @@ export class Settings implements OnInit {
 
         this.apiService.getSearchableFields(cloId).subscribe({
             next: (res) => {
-                this.columnOptions = res.fields.map(f => ({ label: f.display_name, value: f.name }));
+                this.columnOptions = res.fields.map(f => ({ label: f.display_name, value: f.name, dataType: f.data_type }));
             },
             error: (err) => console.error('Error loading fields:', err)
         });
+    }
+
+    /**
+     * Returns type-appropriate operators for the given Oracle column name.
+     * Falls back to all operators when the column or its type is unknown.
+     */
+    getOperatorsForColumn(columnName: string): { label: string; value: string }[] {
+        const col = this.columnOptions.find((c: any) => c.value === columnName);
+        const dtype = col?.dataType || '';
+        if (dtype === 'INTEGER' || dtype === 'FLOAT') return this.NUMERIC_OPERATORS;
+        if (dtype === 'DATE') return this.DATE_OPERATORS;
+        if (dtype === 'VARCHAR') return this.TEXT_OPERATORS;
+        return this.operatorOptions; // fallback: all operators when type unknown
     }
 
     loadCronJobs() {

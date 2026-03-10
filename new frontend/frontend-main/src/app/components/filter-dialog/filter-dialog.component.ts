@@ -76,6 +76,12 @@ export class FilterDialogComponent implements OnInit, OnChanges {
    */
   @Input() visibleOracleColumns: string[] = [];
 
+  /**
+   * Map of Oracle column name -> data type (INTEGER, FLOAT, VARCHAR, DATE).
+   * When provided, the operator dropdown is restricted to type-appropriate operators.
+   */
+  @Input() columnDataTypes: { [oracleName: string]: string } = {};
+
   // Filter data
   filterConditions: FilterCondition[] = [];
   filterSubgroups: FilterSubgroup[] = [];
@@ -90,6 +96,33 @@ export class FilterDialogComponent implements OnInit, OnChanges {
     { label: 'Contains', value: 'contains' },
     { label: 'Starts with', value: 'starts_with' },
     { label: 'Ends with', value: 'ends with' },
+    { label: 'Greater than', value: 'gt' },
+    { label: 'Less than', value: 'lt' },
+    { label: 'Greater than or equal', value: 'gte' },
+    { label: 'Less than or equal', value: 'lte' },
+    { label: 'Between', value: 'between' }
+  ];
+
+  private readonly NUMERIC_OPERATORS = [
+    { label: 'Equal to', value: 'equals' },
+    { label: 'Not equal to', value: 'not equal to' },
+    { label: 'Greater than', value: 'gt' },
+    { label: 'Less than', value: 'lt' },
+    { label: 'Greater than or equal', value: 'gte' },
+    { label: 'Less than or equal', value: 'lte' },
+    { label: 'Between', value: 'between' }
+  ];
+
+  private readonly TEXT_OPERATORS = [
+    { label: 'Equal to', value: 'equals' },
+    { label: 'Not equal to', value: 'not equal to' },
+    { label: 'Contains', value: 'contains' },
+    { label: 'Starts with', value: 'starts_with' },
+    { label: 'Ends with', value: 'ends with' }
+  ];
+
+  private readonly DATE_OPERATORS = [
+    { label: 'Equal to', value: 'equals' },
     { label: 'Greater than', value: 'gt' },
     { label: 'Less than', value: 'lt' },
     { label: 'Greater than or equal', value: 'gte' },
@@ -139,6 +172,19 @@ export class FilterDialogComponent implements OnInit, OnChanges {
   getOperatorLabel(value: string): string {
     const operator = this.operatorOptions.find(op => op.value === value);
     return operator ? operator.label : value;
+  }
+
+  /**
+   * Returns the type-appropriate operator list for a given condition.
+   * Falls back to all operators when column type is unknown.
+   */
+  getOperatorsForCondition(condition: FilterCondition): { label: string; value: string }[] {
+    const oracleName = this.getBackendColumn(condition.columnDisplay);
+    const dtype = this.columnDataTypes[oracleName] || '';
+    if (dtype === 'INTEGER' || dtype === 'FLOAT') return this.NUMERIC_OPERATORS;
+    if (dtype === 'DATE') return this.DATE_OPERATORS;
+    if (dtype === 'VARCHAR') return this.TEXT_OPERATORS;
+    return this.operatorOptions; // fallback: all operators when type unknown
   }
 
   // ==================== MAIN CONDITIONS ====================
