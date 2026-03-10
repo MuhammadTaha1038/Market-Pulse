@@ -1,6 +1,7 @@
 module "s3_bucket" {
-  count  = var.bucket_required ? 1:0
-  source  = "git::https://gitlab.ihsmarkit.com/pvr/devops/lib/modules/terraform-aws-modules/s3/aws-s3-bucket-v2.git?ref=v5.x"
+  count   = var.bucket_required ? 1 : 0
+  source  = "repo.ihsmarkit.com/terraform__dvrdevops/dvr-s3-bucket/aws"
+  version = "~> 1.0.0"
 
   aws_region_secondary = local.dr_enabled
   product              = var.app_prefix
