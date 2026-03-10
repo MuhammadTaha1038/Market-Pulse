@@ -195,6 +195,7 @@ export class Settings implements OnInit {
         this.loadRestoreData();
         this.loadAllLogs();
         this.generateCalendar();
+        this.loadBufferState();
     }
 
     // ==================== DATA LOADING ====================
@@ -568,11 +569,56 @@ export class Settings implements OnInit {
 
     // ==================== FILE UPLOAD (Manual Colors) ====================
 
+    fileBuffered = false;
+    bufferFileName = '';
+    bufferFileSize = '';
+
+    loadBufferState(): void {
+        const saved = localStorage.getItem('color_buffer_file');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                this.fileBuffered = true;
+                this.bufferFileName = parsed.name;
+                this.bufferFileSize = parsed.size;
+            } catch {}
+        }
+    }
+
+    clearBuffer(): void {
+        this.fileBuffered = false;
+        this.bufferFileName = '';
+        this.bufferFileSize = '';
+        localStorage.removeItem('color_buffer_file');
+        this.messageService.add({ severity: 'info', summary: 'Buffer Cleared', detail: 'File removed from buffer.' });
+    }
+
+    private formatFileSize(bytes: number): string {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
     onFileSelected(event: Event): void {
         const input = event.target as HTMLInputElement;
         if (!input.files || input.files.length === 0) return;
         const file = input.files[0];
-        console.log('Imported file:', file);
+
+        if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+            this.messageService.add({ severity: 'error', summary: 'Invalid File', detail: 'Only .xlsx and .xls files are supported.' });
+            input.value = '';
+            return;
+        }
+
+        this.bufferFileName = file.name;
+        this.bufferFileSize = this.formatFileSize(file.size);
+        this.fileBuffered = true;
+
+        localStorage.setItem('color_buffer_file', JSON.stringify({ name: file.name, size: this.bufferFileSize }));
+
+        this.messageService.add({ severity: 'success', summary: 'File Queued', detail: `"${file.name}" saved in buffer. Run Automation to process it.` });
         input.value = '';
     }
 

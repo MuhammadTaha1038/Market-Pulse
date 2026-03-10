@@ -7,6 +7,7 @@
     [closable]="false"
     [draggable]="false"
     [resizable]="false"
+    appendTo="body"
     styleClass="w-[420px]"
     header="Run Automation">
 
@@ -149,21 +150,21 @@
 
         <!-- ── BUFFERED FILE ANIMATION (shown while a file is queued) ── -->
         <div *ngIf="fileBuffered"
-             class="relative flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5 shadow-sm">
+             class="relative flex items-center gap-4 rounded-xl border border-gray-300 bg-gray-50 px-6 py-5 shadow-sm">
 
             <!-- Pulsing icon -->
             <div class="relative flex-shrink-0">
-                <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <i class="pi pi-file-excel text-emerald-600 text-xl"></i>
+                <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                    <i class="pi pi-file text-gray-700 text-xl"></i>
                 </div>
                 <!-- Pulse ring -->
-                <span class="absolute inset-0 rounded-full bg-emerald-400 opacity-30 animate-ping"></span>
+                <span class="absolute inset-0 rounded-full bg-gray-500 opacity-20 animate-ping"></span>
             </div>
 
             <!-- File info -->
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 animate-pulse">
+                    <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-800 text-white animate-pulse">
                         ● Queued
                     </span>
                     <span class="text-xs text-gray-500">{{ bufferFileSize }}</span>
@@ -173,13 +174,13 @@
             </div>
 
             <!-- Progress bar (indeterminate) -->
-            <div class="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl overflow-hidden bg-emerald-100">
-                <div class="h-full bg-emerald-400 animate-[shimmer_2s_ease-in-out_infinite]" style="width:60%; animation: slideShimmer 2s ease-in-out infinite;"></div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl overflow-hidden bg-gray-200">
+                <div class="h-full bg-gray-700" style="width:60%; animation: slideShimmer 2s ease-in-out infinite;"></div>
             </div>
 
             <!-- Clear (X) button -->
             <button type="button"
-                class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
+                class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors"
                 title="Remove from buffer"
                 (click)="clearBuffer()">
                 <i class="pi pi-times text-sm"></i>

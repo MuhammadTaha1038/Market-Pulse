@@ -288,7 +288,7 @@
             <h2 class="text-lg font-semibold text-gray-900 mb-2">Manual Colors</h2>
             <p class="text-sm text-gray-600 mb-4">The colors will be processed in the next automation cycle</p>
 
-            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer" (click)="fileInput.click()">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer" (click)="fileInput.click()" *ngIf="!fileBuffered">
                 <input #fileInput type="file" accept=".xlsx,.xls" hidden (change)="onFileSelected($event)" />
                 <div class="flex flex-col items-center pointer-events-none">
                     <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
@@ -299,6 +299,42 @@
                         to download sample file
                     </p>
                 </div>
+            </div>
+
+            <!-- Hidden file input when buffer is active -->
+            <input *ngIf="fileBuffered" #fileInput type="file" accept=".xlsx,.xls" hidden (change)="onFileSelected($event)" />
+
+            <!-- Buffer indicator card -->
+            <div *ngIf="fileBuffered"
+                 class="relative flex items-center gap-4 rounded-xl border border-gray-300 bg-gray-50 px-5 py-4 mb-4 shadow-sm">
+                <!-- Pulsing icon -->
+                <div class="relative flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <i class="pi pi-file text-gray-700 text-lg"></i>
+                    </div>
+                    <span class="absolute inset-0 rounded-full bg-gray-500 opacity-20 animate-ping"></span>
+                </div>
+                <!-- File info -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-800 text-white animate-pulse">
+                            &#9679; Queued
+                        </span>
+                        <span class="text-xs text-gray-500">{{ bufferFileSize }}</span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800 truncate">{{ bufferFileName }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Will be processed in the next automation cycle.</p>
+                </div>
+                <!-- Shimmer bar -->
+                <div class="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl overflow-hidden bg-gray-200">
+                    <div class="h-full bg-gray-700" style="width:60%; animation: slideShimmer 2s ease-in-out infinite;"></div>
+                </div>
+                <!-- Clear button -->
+                <button type="button"
+                    class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Remove from buffer" (click)="clearBuffer()">
+                    <i class="pi pi-times text-xs"></i>
+                </button>
             </div>
 
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
