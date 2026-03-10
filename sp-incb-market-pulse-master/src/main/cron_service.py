@@ -417,11 +417,11 @@ def trigger_job_manually(job_id: int, override: bool = False) -> Dict:
                 time.sleep(10)  # Wait for manual execution to start
                 if job["is_active"]:
                     try:
+                        trigger = CronTrigger.from_crontab(job["schedule"], timezone=TIMEZONE)
                         scheduler.add_job(
                             func=run_automation_task,
                             args=[job_id, job["name"], "scheduled"],
-                            trigger='cron',
-                            **parse_cron_schedule(job["schedule"]),
+                            trigger=trigger,
                             id=f"cron_job_{job_id}",
                             replace_existing=True
                         )
