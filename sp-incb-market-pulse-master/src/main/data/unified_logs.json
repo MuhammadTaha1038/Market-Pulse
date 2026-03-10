@@ -1,6 +1,126 @@
 {
   "logs": [
     {
+      "log_id": 19,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: greater than 100",
+      "performed_by": "admin",
+      "performed_at": "2026-03-10T21:12:14.152241",
+      "entity_id": 5,
+      "entity_name": "greater than 100",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 5,
+          "name": "greater than 100",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "greater than",
+              "value": "100"
+            }
+          ],
+          "created_at": "2026-02-02T22:57:19.740689",
+          "updated_at": "2026-02-02T22:57:19.740719"
+        }
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
+      "log_id": 18,
+      "module": "rules",
+      "action": "revert",
+      "description": "Reverted: Deleted rule: greater than 100",
+      "performed_by": "admin",
+      "performed_at": "2026-03-10T21:12:10.690888",
+      "entity_id": 5,
+      "entity_name": "greater than 100",
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "original_log_id": 17,
+        "original_action": "delete"
+      }
+    },
+    {
+      "log_id": 17,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: greater than 100",
+      "performed_by": "admin",
+      "performed_at": "2026-03-10T21:11:59.114716",
+      "entity_id": 5,
+      "entity_name": "greater than 100",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 5,
+          "name": "greater than 100",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "greater than",
+              "value": "100"
+            }
+          ],
+          "created_at": "2026-02-02T22:57:19.740689",
+          "updated_at": "2026-02-02T22:57:19.740719"
+        }
+      },
+      "reverted_at": "2026-03-10T21:12:10.654768",
+      "reverted_by": "admin",
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
+      "log_id": 16,
+      "module": "rules",
+      "action": "delete",
+      "description": "Deleted rule: 100",
+      "performed_by": "admin",
+      "performed_at": "2026-03-10T21:11:58.086303",
+      "entity_id": 4,
+      "entity_name": "100",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 4,
+          "name": "100",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "equal to",
+              "value": "100"
+            }
+          ],
+          "created_at": "2026-02-02T18:33:15.394417",
+          "updated_at": "2026-02-02T18:33:15.394424"
+        }
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1
+      }
+    },
+    {
       "log_id": 15,
       "module": "rules",
       "action": "create",
@@ -406,5 +526,5 @@
       }
     }
   ],
-  "next_id": 16
+  "next_id": 20
 }
