@@ -224,7 +224,14 @@ export class Settings implements OnInit {
     }
 
     loadSearchableFields() {
-        this.apiService.getSearchableFields().subscribe({
+        // Read active CLO from localStorage so only the CLO-visible columns appear
+        let cloId: string | undefined;
+        try {
+            const raw = localStorage.getItem('user_clo_selection');
+            if (raw) cloId = JSON.parse(raw)?.cloId;
+        } catch { }
+
+        this.apiService.getSearchableFields(cloId).subscribe({
             next: (res) => {
                 this.columnOptions = res.fields.map(f => ({ label: f.display_name, value: f.name }));
             },

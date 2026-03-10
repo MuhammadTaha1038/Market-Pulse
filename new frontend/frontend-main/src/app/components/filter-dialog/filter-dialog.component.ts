@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
@@ -23,25 +23,30 @@ export interface FilterSubgroup {
 }
 
 // Column mapping: frontend display name -> backend oracle column name
+// This is the MASTER list. Actual columnOptions shown to users are filtered by CLO visibility.
 const COLUMN_MAPPING: { [key: string]: string } = {
   'Message ID': 'MESSAGE_ID',
   'Ticker': 'TICKER',
   'CUSIP': 'CUSIP',
+  'Sector': 'SECTOR',
   'Bias': 'BIAS',
   'Date': 'DATE',
+  'Date 1': 'DATE_1',
   'Source': 'SOURCE',
-  'Sector': 'SECTOR',
   'Rank': 'RANK',
-  'Price': 'PRICE_LEVEL',
+  'Price Level': 'PRICE_LEVEL',
   'BID': 'BID',
   'ASK': 'ASK',
   'PX': 'PX',
-  'Bwic Cover': 'BWIC_COVER',
   'Confidence': 'CONFIDENCE',
   'Cov Price': 'COV_PRICE',
   'Percent Diff': 'PERCENT_DIFF',
-  'Price Diff': 'PRICE_DIFF'
+  'Price Diff': 'PRICE_DIFF',
+  'Diff Status': 'DIFF_STATUS'
 };
+
+/** Full list of all possible column display names (used when no CLO filter is active) */
+const ALL_COLUMN_OPTIONS = Object.keys(COLUMN_MAPPING);
 
 @Component({
   selector: 'app-filter-dialog',
@@ -56,7 +61,7 @@ const COLUMN_MAPPING: { [key: string]: string } = {
   templateUrl: './filter-dialog.component.html',
   styleUrls: ['./filter-dialog.component.css']
 })
-export class FilterDialogComponent implements OnInit {
+export class FilterDialogComponent implements OnInit, OnChanges {
   @Input() visible: boolean = false;
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() filtersApplied = new EventEmitter<{
@@ -64,26 +69,19 @@ export class FilterDialogComponent implements OnInit {
     subgroups: FilterSubgroup[];
   }>();
 
+  /**
+   * Oracle column names that are visible for the active CLO.
+   * When provided, the column dropdown is restricted to these columns only.
+   * When empty/undefined the full list is shown.
+   */
+  @Input() visibleOracleColumns: string[] = [];
+
   // Filter data
   filterConditions: FilterCondition[] = [];
   filterSubgroups: FilterSubgroup[] = [];
 
-  // Column options (display names)
-  columnOptions = [
-    'Message ID',
-    'Ticker',
-    'CUSIP',
-    'Bias',
-    'Date',
-    'Source',
-    'Sector',
-    'Rank',
-    'Price',
-    'BID',
-    'ASK',
-    'PX',
-    'Bwic Cover'
-  ];
+  // Column options (display names) — filtered by CLO visibility
+  columnOptions: string[] = ALL_COLUMN_OPTIONS;
 
   // Operators aligned with backend (search.py + rules_service.py)
   operatorOptions = [
@@ -105,8 +103,28 @@ export class FilterDialogComponent implements OnInit {
   ];
 
   ngOnInit() {
+    this.refreshColumnOptions();
     if (this.filterConditions.length === 0) {
       this.addCondition();
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['visibleOracleColumns']) {
+      this.refreshColumnOptions();
+    }
+  }
+
+  /** Rebuild the column dropdown based on the current CLO's visible oracle columns */
+  private refreshColumnOptions(): void {
+    if (this.visibleOracleColumns && this.visibleOracleColumns.length > 0) {
+      const visibleSet = new Set(this.visibleOracleColumns);
+      this.columnOptions = ALL_COLUMN_OPTIONS.filter(displayName => {
+        const oracleKey = COLUMN_MAPPING[displayName];
+        return oracleKey && visibleSet.has(oracleKey);
+      });
+    } else {
+      this.columnOptions = ALL_COLUMN_OPTIONS;
     }
   }
 

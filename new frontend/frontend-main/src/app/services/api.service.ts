@@ -845,9 +845,12 @@ export class ApiService {
 
     /**
      * Get all searchable fields from column config (GET /api/search/fields)
+     * Pass cloId to get only the columns visible for that CLO.
      */
-    getSearchableFields(): Observable<SearchFieldsResponse> {
-        return this.http.get<SearchFieldsResponse>(`${this.baseUrl}/api/search/fields`);
+    getSearchableFields(cloId?: string): Observable<SearchFieldsResponse> {
+        let params = new HttpParams();
+        if (cloId) params = params.set('clo_id', cloId);
+        return this.http.get<SearchFieldsResponse>(`${this.baseUrl}/api/search/fields`, { params });
     }
 
     /**

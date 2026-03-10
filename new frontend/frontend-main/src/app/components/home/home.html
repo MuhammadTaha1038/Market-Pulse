@@ -430,5 +430,5 @@
     </p-dialog>
 
     <!-- ================= FILTER MODAL ================= -->
-    <app-filter-dialog [(visible)]="filterVisible" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
+    <app-filter-dialog [(visible)]="filterVisible" [visibleOracleColumns]="activeVisibleOracleColumns" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
 </div>

@@ -105,6 +105,9 @@ export class Home implements OnInit, OnDestroy {
     /** CLO ID from localStorage selection – passed to every API call */
     private activeCloId: string | undefined;
 
+    /** Oracle column names currently visible for the active CLO – fed to filter dialog */
+    activeVisibleOracleColumns: string[] = [];
+
     /**
      * Master list of ALL possible table columns matched to their Oracle column name.
      * Visibility is driven by the CLO mapping saved in localStorage.
@@ -145,9 +148,15 @@ export class Home implements OnInit, OnDestroy {
     ngOnInit() {
         console.log('🚀 Home component initialized - loading data from backend...');
 
-        // Apply CLO-based column visibility BEFORE loading data
+        // Fetch fresh CLO column visibility from backend, then load data.
+        // applyColumnVisibility() calls loadDataFromBackend() once columns are resolved.
         this.applyColumnVisibility();
-        this.loadDataFromBackend();
+
+        // If no CLO selection exists, load data immediately with default columns
+        const raw = localStorage.getItem('user_clo_selection');
+        if (!raw) {
+            this.loadDataFromBackend();
+        }
 
         // Set initial active menu item to Dashboard
         this.menuActiveService.setActiveMenuItem('Dashboard');
@@ -174,9 +183,9 @@ export class Home implements OnInit, OnDestroy {
     }
 
     /**
-     * Reads the CLO selection stored in localStorage by CLOSelectorComponent and
-     * filters tableColumns to only the columns the admin enabled for that CLO.
-     * Also stores activeCloId so every subsequent API call passes clo_id.
+     * Reads the CLO ID from localStorage, then fetches FRESH visible columns from the backend
+     * so any admin changes to the CLO mapping are immediately reflected without re-login.
+     * Falls back to localStorage visibleColumns if the API call fails.
      */
     private applyColumnVisibility(): void {
         try {
@@ -186,33 +195,55 @@ export class Home implements OnInit, OnDestroy {
             const selection: UserCLOSelection = JSON.parse(raw);
             this.activeCloId = selection.cloId || undefined;
 
-            const visible = new Set<string>(selection.visibleColumns || []);
-            if (visible.size === 0) return;
+            if (!this.activeCloId) return;
 
-            const columns: TableColumn[] = [];
-            let hasBid = false;
-            let hasAsk = false;
-
-            for (const { oracleKey, col } of this.ALL_TABLE_COLUMNS) {
-                if (visible.has(oracleKey)) {
-                    columns.push({ ...col });
-                    if (oracleKey === 'BID') hasBid = true;
-                    if (oracleKey === 'ASK') hasAsk = true;
+            // Fetch FRESH visible columns from backend — avoids stale localStorage snapshot
+            this.apiService.getUserColumns(this.activeCloId).subscribe({
+                next: (response: any) => {
+                    const visible = new Set<string>(response.visible_columns || []);
+                    if (visible.size > 0) {
+                        this._buildTableColumns(visible);
+                        // Reload data so column filtering is applied
+                        this.loadDataFromBackend();
+                    }
+                },
+                error: () => {
+                    // Fallback: use the snapshot stored at login time
+                    const visible = new Set<string>(selection.visibleColumns || []);
+                    if (visible.size > 0) this._buildTableColumns(visible);
                 }
-            }
-
-            // Insert computed MID column between BID and ASK when both are visible
-            if (hasBid && hasAsk) {
-                const bidIdx = columns.findIndex(c => c.field === 'bid');
-                columns.splice(bidIdx + 1, 0, { ...this.MID_COLUMN });
-            }
-
-            if (columns.length > 0) {
-                this.tableColumns = columns;
-                console.log(`✅ CLO "${this.activeCloId}" column visibility applied: ${columns.map(c => c.field).join(', ')}`);
-            }
+            });
         } catch (e) {
             console.warn('Could not apply CLO column visibility:', e);
+        }
+    }
+
+    /** Build tableColumns from a set of visible oracle column keys */
+    private _buildTableColumns(visible: Set<string>): void {
+        // Expose oracle keys so filter-dialog can filter its column dropdown
+        this.activeVisibleOracleColumns = Array.from(visible);
+
+        const columns: TableColumn[] = [];
+        let hasBid = false;
+        let hasAsk = false;
+
+        for (const { oracleKey, col } of this.ALL_TABLE_COLUMNS) {
+            if (visible.has(oracleKey)) {
+                columns.push({ ...col });
+                if (oracleKey === 'BID') hasBid = true;
+                if (oracleKey === 'ASK') hasAsk = true;
+            }
+        }
+
+        // Insert computed MID column between BID and ASK when both are visible
+        if (hasBid && hasAsk) {
+            const bidIdx = columns.findIndex(c => c.field === 'bid');
+            columns.splice(bidIdx + 1, 0, { ...this.MID_COLUMN });
+        }
+
+        if (columns.length > 0) {
+            this.tableColumns = columns;
+            console.log(`✅ CLO "${this.activeCloId}" column visibility applied: ${columns.map(c => c.field).join(', ')}`);
         }
     }
 
