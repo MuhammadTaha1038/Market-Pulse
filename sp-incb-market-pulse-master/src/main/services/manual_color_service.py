@@ -274,8 +274,10 @@ def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
         import os
 
         # ── 1. Load saved query for this CLO ──────────────────────────────────
+        # __file__ is src/main/services/manual_color_service.py
+        # dirname x3 → src/, then ".." → sp-incb-market-pulse-master/
         project_root = os.path.abspath(
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "../..")
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..")
         )
         config_path = os.path.join(project_root, "column_config.json")
 
@@ -299,19 +301,14 @@ def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
             }
 
         # ── 2. Execute Oracle query ────────────────────────────────────────────
-        import os as _os
-        data_source_type = _os.getenv("DATA_SOURCE", "excel")
-        if data_source_type != "oracle":
-            return {
-                "success": False,
-                "error": "Oracle data source is not configured (DATA_SOURCE != oracle). Cannot fetch live data."
-            }
-
+        # Manual color queries always run against Oracle regardless of DATA_SOURCE setting
         try:
             import oracledb
-            from services.data_source_factory import get_data_source
+            from services.oracle_data_source import OracleDataSource
 
-            data_source = get_data_source()
+            # Always use OracleDataSource directly — this endpoint queries Oracle
+            # regardless of what DATA_SOURCE env var is set to (which controls auto-runs)
+            data_source = OracleDataSource()
             credentials = data_source._fetch_credentials()
 
             dsn = oracledb.makedsn(
