@@ -749,7 +749,7 @@ async def save_clo_query(request: SaveQueryRequest):
         import json
         import os
         
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
         config_path = os.path.join(project_root, "column_config.json")
         
         # Load existing config
@@ -806,7 +806,7 @@ async def update_clo_columns(clo_id: str = Body(...), columns: List[Dict] = Body
         import json
         import os
         
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
         config_path = os.path.join(project_root, "column_config.json")
         
         # Load existing config

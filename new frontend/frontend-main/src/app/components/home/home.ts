@@ -12,7 +12,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { CustomTableComponent, TableColumn, TableRow, TableConfig } from '../custom-table/custom-table.component';
 import { FilterDialogComponent, FilterCondition } from '../filter-dialog/filter-dialog.component';
-import { ApiService, ColorProcessed, SearchFilter, Rule, RuleConditionBackend, Preset } from '../../services/api.service';
+import { ApiService, ColorProcessed, SearchFilter, Rule, RuleConditionBackend, Preset, UserCLOSelection } from '../../services/api.service';
 import { TableStateService } from './table-state.service';
 import { NextRunService } from '../../services/next-run.service';
 import { MenuActiveService } from '../../layout/service/menu-active.service';
@@ -74,6 +74,7 @@ export class Home implements OnInit, OnDestroy {
     importPreviewFile: File | null = null;  // file used for last import preview (for re-download)
 
     // Table configuration - Excel-like editable (messageId column editable, others auto-fill)
+    // This default is overwritten by applyColumnVisibility() on init based on CLO selection.
     tableColumns: TableColumn[] = [
         { field: 'messageId', header: 'Message ID', width: '180px', editable: true },
         { field: 'ticker', header: 'Ticker', width: '140px', editable: false },
@@ -101,6 +102,37 @@ export class Home implements OnInit, OnDestroy {
     private tableStateSub!: Subscription;
     private timerSub!: Subscription;
 
+    /** CLO ID from localStorage selection – passed to every API call */
+    private activeCloId: string | undefined;
+
+    /**
+     * Master list of ALL possible table columns matched to their Oracle column name.
+     * Visibility is driven by the CLO mapping saved in localStorage.
+     */
+    private readonly ALL_TABLE_COLUMNS: { oracleKey: string; col: TableColumn }[] = [
+        { oracleKey: 'MESSAGE_ID',   col: { field: 'messageId',   header: 'Message ID',   width: '160px', editable: true  } },
+        { oracleKey: 'TICKER',       col: { field: 'ticker',      header: 'Ticker',        width: '140px', editable: false } },
+        { oracleKey: 'CUSIP',        col: { field: 'cusip',       header: 'CUSIP',         width: '140px', editable: false } },
+        { oracleKey: 'SECTOR',       col: { field: 'sector',      header: 'Sector',        width: '140px', editable: false } },
+        { oracleKey: 'BIAS',         col: { field: 'bias',        header: 'Bias',          width: '120px', editable: false } },
+        { oracleKey: 'DATE',         col: { field: 'date',        header: 'Date',          width: '120px', editable: false } },
+        { oracleKey: 'DATE_1',       col: { field: 'date1',       header: 'Date 1',        width: '120px', editable: false } },
+        { oracleKey: 'BID',          col: { field: 'bid',         header: 'BID',           width: '100px', editable: false } },
+        { oracleKey: 'ASK',          col: { field: 'ask',         header: 'ASK',           width: '100px', editable: false } },
+        { oracleKey: 'PX',           col: { field: 'px',          header: 'PX',            width: '100px', editable: false } },
+        { oracleKey: 'PRICE_LEVEL',  col: { field: 'priceLevel',  header: 'Price Level',   width: '120px', editable: false } },
+        { oracleKey: 'SOURCE',       col: { field: 'source',      header: 'Source',        width: '140px', editable: false } },
+        { oracleKey: 'RANK',         col: { field: 'rank',        header: 'Rank',          width: '100px', editable: false } },
+        { oracleKey: 'COV_PRICE',    col: { field: 'covPrice',    header: 'Cov Price',     width: '120px', editable: false } },
+        { oracleKey: 'PERCENT_DIFF', col: { field: 'percentDiff', header: '% Diff',        width: '100px', editable: false } },
+        { oracleKey: 'PRICE_DIFF',   col: { field: 'priceDiff',   header: 'Price Diff',    width: '120px', editable: false } },
+        { oracleKey: 'CONFIDENCE',   col: { field: 'confidence',  header: 'Confidence',    width: '100px', editable: false } },
+        { oracleKey: 'DIFF_STATUS',  col: { field: 'diffStatus',  header: 'Diff Status',   width: '120px', editable: false } },
+    ];
+
+    /** Computed MID column (BID+ASK)/2 — shown only when both BID and ASK are visible */
+    private readonly MID_COLUMN: TableColumn = { field: 'mid', header: 'MID', width: '100px', editable: false };
+
     constructor(
         private apiService: ApiService,
         private messageService: MessageService,
@@ -112,6 +144,9 @@ export class Home implements OnInit, OnDestroy {
 
     ngOnInit() {
         console.log('🚀 Home component initialized - loading data from backend...');
+
+        // Apply CLO-based column visibility BEFORE loading data
+        this.applyColumnVisibility();
         this.loadDataFromBackend();
 
         // Set initial active menu item to Dashboard
@@ -139,6 +174,83 @@ export class Home implements OnInit, OnDestroy {
     }
 
     /**
+     * Reads the CLO selection stored in localStorage by CLOSelectorComponent and
+     * filters tableColumns to only the columns the admin enabled for that CLO.
+     * Also stores activeCloId so every subsequent API call passes clo_id.
+     */
+    private applyColumnVisibility(): void {
+        try {
+            const raw = localStorage.getItem('user_clo_selection');
+            if (!raw) return;
+
+            const selection: UserCLOSelection = JSON.parse(raw);
+            this.activeCloId = selection.cloId || undefined;
+
+            const visible = new Set<string>(selection.visibleColumns || []);
+            if (visible.size === 0) return;
+
+            const columns: TableColumn[] = [];
+            let hasBid = false;
+            let hasAsk = false;
+
+            for (const { oracleKey, col } of this.ALL_TABLE_COLUMNS) {
+                if (visible.has(oracleKey)) {
+                    columns.push({ ...col });
+                    if (oracleKey === 'BID') hasBid = true;
+                    if (oracleKey === 'ASK') hasAsk = true;
+                }
+            }
+
+            // Insert computed MID column between BID and ASK when both are visible
+            if (hasBid && hasAsk) {
+                const bidIdx = columns.findIndex(c => c.field === 'bid');
+                columns.splice(bidIdx + 1, 0, { ...this.MID_COLUMN });
+            }
+
+            if (columns.length > 0) {
+                this.tableColumns = columns;
+                console.log(`✅ CLO "${this.activeCloId}" column visibility applied: ${columns.map(c => c.field).join(', ')}`);
+            }
+        } catch (e) {
+            console.warn('Could not apply CLO column visibility:', e);
+        }
+    }
+
+    /**
+     * Convert a ColorProcessed backend object to a TableRow, mapping ALL available
+     * fields so column visibility works for any configured column set.
+     */
+    private colorToRow(color: ColorProcessed, index: number): TableRow {
+        return {
+            _rowId: `row_${color.message_id}`,
+            _selected: false,
+            rowNumber: String(index + 1),
+            messageId: String(color.message_id),
+            ticker: color.ticker,
+            sector: color.sector,
+            cusip: color.cusip,
+            bias: color.bias,
+            date: color.date ? new Date(color.date).toLocaleDateString() : '',
+            date1: color.date_1 ? new Date(color.date_1).toLocaleDateString() : '',
+            bid: color.bid,
+            mid: (color.bid + color.ask) / 2,
+            ask: color.ask,
+            px: color.px,
+            priceLevel: color.price_level,
+            source: color.source,
+            rank: color.rank,
+            covPrice: color.cov_price,
+            percentDiff: color.percent_diff,
+            priceDiff: color.price_diff,
+            confidence: color.confidence,
+            diffStatus: color.diff_status,
+            isParent: color.is_parent,
+            parentRow: color.parent_message_id,
+            childrenCount: color.children_count || 0
+        };
+    }
+
+    /**
      * Get filtered table data based on search query
      * Searches by messageId or cusip fields
      */
@@ -162,30 +274,12 @@ export class Home implements OnInit, OnDestroy {
     private loadDataFromBackend() {
         console.log('📡 Fetching colors from backend API...');
 
-        this.apiService.getColors(0, 100).subscribe({
+        this.apiService.getColors(0, 100, undefined, this.activeCloId).subscribe({
             next: (response) => {
                 console.log('✅ Colors received from backend:', response.colors.length);
 
                 // Convert backend format to table format with parent-child relationships
-                this.tableData = response.colors.map((color: ColorProcessed, index: number) => ({
-                    _rowId: `row_${color.message_id}`,
-                    _selected: false,
-                    rowNumber: String(index + 1),
-                    messageId: String(color.message_id),
-                    ticker: color.ticker,
-                    cusip: color.cusip,
-                    bias: color.bias,
-                    date: color.date ? new Date(color.date).toLocaleDateString() : '',
-                    bid: color.bid,
-                    mid: (color.bid + color.ask) / 2,
-                    ask: color.ask,
-                    px: color.px,
-                    source: color.source,
-                    rank: color.rank,
-                    isParent: color.is_parent,
-                    parentRow: color.parent_message_id,
-                    childrenCount: color.children_count || 0
-                }));
+                this.tableData = response.colors.map((color: ColorProcessed, index: number) => this.colorToRow(color, index));
 
                 console.log('✅ Loaded', this.tableData.length, 'colors from backend');
             },
@@ -233,15 +327,23 @@ export class Home implements OnInit, OnDestroy {
                     const rowData: Partial<TableRow> = {
                         messageId: String(color.message_id),
                         ticker: color.ticker,
+                        sector: color.sector,
                         cusip: color.cusip,
                         bias: color.bias,
                         date: color.date ? new Date(color.date).toLocaleDateString() : '',
+                        date1: color.date_1 ? new Date(color.date_1).toLocaleDateString() : '',
                         bid: color.bid,
                         mid: (color.bid + color.ask) / 2,
                         ask: color.ask,
                         px: color.px,
+                        priceLevel: color.price_level,
                         source: color.source,
                         rank: color.rank,
+                        covPrice: color.cov_price,
+                        percentDiff: color.percent_diff,
+                        priceDiff: color.price_diff,
+                        confidence: color.confidence,
+                        diffStatus: color.diff_status,
                         isParent: color.is_parent,
                         parentRow: color.parent_message_id,
                         childrenCount: color.children_count || 0
@@ -407,15 +509,23 @@ export class Home implements OnInit, OnDestroy {
                         rowNumber: String(index + 1),
                         messageId: String(record.MESSAGE_ID || ''),
                         ticker: record.TICKER || '',
+                        sector: record.SECTOR || '',
                         cusip: record.CUSIP || '',
                         bias: record.BIAS || '',
                         date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
+                        date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
                         bid: record.BID || 0,
                         mid: ((Number(record.BID) || 0) + (Number(record.ASK) || 0)) / 2,
                         ask: record.ASK || 0,
                         px: record.PX || 0,
+                        priceLevel: record.PRICE_LEVEL || 0,
                         source: record.SOURCE || '',
                         rank: record.RANK || 5,
+                        covPrice: record.COV_PRICE || 0,
+                        percentDiff: record.PERCENT_DIFF || 0,
+                        priceDiff: record.PRICE_DIFF || 0,
+                        confidence: record.CONFIDENCE || 0,
+                        diffStatus: record.DIFF_STATUS || '',
                         isParent: record.IS_PARENT ?? true,
                         parentRow: record.PARENT_MESSAGE_ID || undefined,
                         childrenCount: record.CHILDREN_COUNT || 0
@@ -538,15 +648,23 @@ export class Home implements OnInit, OnDestroy {
                     rowNumber: String(index + 1),
                     messageId: String(record.MESSAGE_ID || ''),
                     ticker: record.TICKER || '',
+                    sector: record.SECTOR || '',
                     cusip: record.CUSIP || '',
                     bias: record.BIAS || '',
                     date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
+                    date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
                     bid: record.BID || 0,
                     mid: ((record.BID || 0) + (record.ASK || 0)) / 2,
                     ask: record.ASK || 0,
                     px: record.PX || 0,
+                    priceLevel: record.PRICE_LEVEL || 0,
                     source: record.SOURCE || '',
                     rank: record.RANK || 5,
+                    covPrice: record.COV_PRICE || 0,
+                    percentDiff: record.PERCENT_DIFF || 0,
+                    priceDiff: record.PRICE_DIFF || 0,
+                    confidence: record.CONFIDENCE || 0,
+                    diffStatus: record.DIFF_STATUS || '',
                     isParent: record.IS_PARENT ?? true,
                     parentRow: record.PARENT_MESSAGE_ID || undefined,
                     childrenCount: record.CHILDREN_COUNT || 0
