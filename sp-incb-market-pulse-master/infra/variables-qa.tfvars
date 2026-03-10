@@ -10,3 +10,6 @@ release_version        = ""
 bucket_required        = true
 bucket_name            = "sp-incb-qa-market-pulse"
 dr_enabled             = false
+# TODO: get these two bucket names from client DevOps team
+primary_bin_bucket     = "REPLACE_WITH_CLIENT_BINARY_BUCKET_US_EAST_1"
+secondary_bin_bucket   = "REPLACE_WITH_CLIENT_BINARY_BUCKET_US_WEST_2"
