@@ -779,6 +779,17 @@ export class ApiService {
     }
 
     /**
+     * Fetch live Oracle query data for a CLO and create a preview session.
+     * Same response format as importManualColorFile.
+     */
+    fetchManualColorFromQuery(cloId: string, userId: number = 1): Observable<any> {
+        return this.http.post<any>(`${this.baseUrl}/api/manual-color/fetch-from-query`, {
+            clo_id: cloId,
+            user_id: userId
+        });
+    }
+
+    /**
      * Import Excel file for manual color processing (NEW BACKEND)
      * This should replace the existing uploadManualColors method
      */

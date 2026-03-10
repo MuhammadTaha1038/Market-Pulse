@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from services.manual_color_service import (
     import_manual_colors,
+    fetch_from_clo_query,
     get_session_preview,
     delete_rows,
     apply_selected_rules,
@@ -73,7 +74,33 @@ class SessionSummary(BaseModel):
     rows_count: int
 
 
+class FetchFromQueryRequest(BaseModel):
+    clo_id: str
+    user_id: int = 1
+
+
 # API Endpoints
+
+@router.post("/fetch-from-query", response_model=ImportResponse)
+async def fetch_data_from_clo_oracle_query(request: FetchFromQueryRequest):
+    """
+    Fetch live Oracle data for a CLO, apply sorting (no rules), and create a session.
+
+    This enables the Manual Color Processing page to auto-load data on init
+    using the CLO's configured Oracle query instead of requiring an Excel upload.
+
+    Returns the same format as /import so the frontend can use the same code path.
+    """
+    try:
+        result = fetch_from_clo_query(
+            clo_id=request.clo_id,
+            user_id=request.user_id
+        )
+        return ImportResponse(**result)
+    except Exception as e:
+        logger.error(f"Error in fetch_data_from_clo_oracle_query: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/import", response_model=ImportResponse)
 async def import_excel_for_manual_processing(

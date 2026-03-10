@@ -64,6 +64,8 @@ export class ManualColor implements OnInit {
 
   // Session management
   currentSessionId: string | null = null;
+  isLoadingQuery = false;
+  dataSource: 'query' | 'excel' | null = null;
 
   // Undo history
   private undoStack: TableRow[][] = [];
@@ -118,6 +120,94 @@ export class ManualColor implements OnInit {
   ngOnInit() {
     console.log('🚀 Manual Color component initialized');
     this.loadPresets();
+    this.loadQueryData();
+  }
+
+  /**
+   * Auto-load CLO Oracle query data on page init.
+   * Reads the active CLO from localStorage and calls the backend.
+   */
+  private loadQueryData() {
+    const raw = localStorage.getItem('user_clo_selection');
+    if (!raw) {
+      console.warn('⚠️ No CLO selected — manual color page cannot auto-load data');
+      return;
+    }
+    let cloId: string;
+    try {
+      cloId = JSON.parse(raw).cloId;
+    } catch {
+      return;
+    }
+    if (!cloId) return;
+
+    this.isLoadingQuery = true;
+    console.log('🔍 Loading Oracle query data for CLO:', cloId);
+
+    this.apiService.fetchManualColorFromQuery(cloId, 1).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.applyPreviewResponse(response);
+          this.dataSource = 'query';
+          this.messageService.add({
+            severity: 'info',
+            summary: 'Data Loaded',
+            detail: `Loaded ${response.rows_imported} rows from Oracle query for CLO: ${cloId}`
+          });
+          if (response.parsing_errors?.length > 0) {
+            this.messageService.add({
+              severity: 'warn',
+              summary: 'Parsing Warnings',
+              detail: `${response.parsing_errors.length} rows could not be parsed`
+            });
+          }
+        } else {
+          console.warn('⚠️ fetch-from-query returned error:', response.error);
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'Could Not Load Query Data',
+            detail: response.error || 'Import an Excel file to work with data'
+          });
+        }
+      },
+      error: (err) => {
+        console.warn('⚠️ fetch-from-query endpoint error:', err);
+        this.messageService.add({
+          severity: 'info',
+          summary: 'No Live Data Available',
+          detail: 'Oracle data source is not active. Import an Excel file to get started.'
+        });
+      },
+      complete: () => {
+        this.isLoadingQuery = false;
+      }
+    });
+  }
+
+  /**
+   * Shared helper: take a /import or /fetch-from-query response and populate the table.
+   */
+  private applyPreviewResponse(response: any) {
+    this.currentSessionId = response.session_id;
+    this.tableData = (response.sorted_preview ?? []).map((row: any) => ({
+      _rowId: `row_${row.row_id ?? row.message_id}`,
+      _selected: false,
+      rowNumber: String(row.message_id),
+      messageId: row.message_id,
+      ticker: row.ticker,
+      cusip: row.cusip,
+      bias: row.bias,
+      date: row.date ? new Date(row.date).toLocaleDateString() : '',
+      bid: row.bid,
+      mid: ((row.bid ?? 0) + (row.ask ?? 0)) / 2,
+      ask: row.ask,
+      px: row.px,
+      source: row.source,
+      rank: row.rank,
+      isParent: row.is_parent,
+      parentRow: row.parent_message_id,
+      childrenCount: row.children_count ?? 0
+    }));
   }
 
   // ==================== FILE UPLOAD ====================
@@ -187,40 +277,19 @@ export class ManualColor implements OnInit {
     this.apiService.importManualColorFile(this.selectedFile, 1).subscribe({
       next: (response: any) => {
         console.log('✅ File imported successfully:', response);
-        
-        if (response.success) {
-          this.currentSessionId = response.session_id;
-          
-          // Convert backend data to table format
-          this.tableData = response.sorted_preview.map((row: any, index: number) => ({
-            _rowId: `row_${row.message_id}`,
-            _selected: false,
-            rowNumber: String(row.message_id),  // Use message_id as row identifier
-            messageId: row.message_id,
-            ticker: row.ticker,
-            cusip: row.cusip,
-            bias: row.bias,
-            date: row.date ? new Date(row.date).toLocaleDateString() : '',
-            bid: row.bid,
-            mid: (row.bid + row.ask) / 2,
-            ask: row.ask,
-            px: row.px,
-            source: row.source,
-            rank: row.rank,
-            isParent: row.is_parent,
-            parentRow: row.parent_message_id,  // Use parent_message_id
-            childrenCount: row.children_count || 0
-          }));
 
+        if (response.success) {
+          this.applyPreviewResponse(response);
+          this.dataSource = 'excel';
           this.showImportDialog = false;
-          
+
           this.messageService.add({
             severity: 'success',
             summary: 'Import Successful',
-            detail: `Imported ${response.rows_imported} rows. ${response.statistics.parent_rows} parents, ${response.statistics.child_rows} children.`
+            detail: `Imported ${response.rows_imported} rows from Excel. ${response.statistics?.parent_rows ?? 0} parents, ${response.statistics?.child_rows ?? 0} children.`
           });
 
-          if (response.parsing_errors && response.parsing_errors.length > 0) {
+          if (response.parsing_errors?.length > 0) {
             this.messageService.add({
               severity: 'warn',
               summary: 'Parsing Warnings',

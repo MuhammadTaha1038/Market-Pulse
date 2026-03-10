@@ -257,6 +257,248 @@ def import_manual_colors(
         }
 
 
+def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
+    """
+    Fetch data from the saved Oracle query for a CLO, apply sorting, and create a session.
+
+    Args:
+        clo_id: CLO identifier
+        user_id: User ID for session naming
+
+    Returns:
+        Dict with session_id, sorted_preview, rows_imported, statistics (same format as import_manual_colors)
+    """
+    start_time = datetime.now()
+    try:
+        import json
+        import os
+
+        # ── 1. Load saved query for this CLO ──────────────────────────────────
+        project_root = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "../..")
+        )
+        config_path = os.path.join(project_root, "column_config.json")
+
+        if not os.path.exists(config_path):
+            return {"success": False, "error": "column_config.json not found"}
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        clo_config = config.get(clo_id, {})
+        queries = clo_config.get("queries", {})
+        oracle_query = (
+            queries.get("base_query", {}).get("query")
+            or clo_config.get("oracle_query", "")
+        )
+
+        if not oracle_query:
+            return {
+                "success": False,
+                "error": f"No saved Oracle query found for CLO '{clo_id}'. Please configure a query in the admin panel."
+            }
+
+        # ── 2. Execute Oracle query ────────────────────────────────────────────
+        import os as _os
+        data_source_type = _os.getenv("DATA_SOURCE", "excel")
+        if data_source_type != "oracle":
+            return {
+                "success": False,
+                "error": "Oracle data source is not configured (DATA_SOURCE != oracle). Cannot fetch live data."
+            }
+
+        try:
+            import oracledb
+            from services.data_source_factory import get_data_source
+
+            data_source = get_data_source()
+            credentials = data_source._fetch_credentials()
+
+            dsn = oracledb.makedsn(
+                data_source.oracle_host,
+                data_source.oracle_port,
+                service_name=data_source.oracle_service,
+            )
+            connection = oracledb.connect(
+                user=credentials["username"],
+                password=credentials["password"],
+                dsn=dsn,
+            )
+            cursor = connection.cursor()
+
+            clean_query = oracle_query.rstrip().rstrip(";").rstrip()
+            cursor.execute(clean_query)
+
+            columns = [desc[0] for desc in cursor.description]
+            rows_raw = cursor.fetchall()
+            cursor.close()
+            connection.close()
+
+            logger.info(f"✅ Oracle query returned {len(rows_raw)} rows for CLO '{clo_id}'")
+        except Exception as db_err:
+            logger.error(f"❌ Oracle query failed for CLO '{clo_id}': {db_err}", exc_info=True)
+            return {"success": False, "error": f"Oracle query failed: {str(db_err)}"}
+
+        # ── 3. Convert to ColorRaw objects ────────────────────────────────────
+        def safe_float(val, default=0.0):
+            try:
+                return float(val) if val is not None else default
+            except Exception:
+                return default
+
+        def safe_int(val, default=0):
+            try:
+                return int(val) if val is not None else default
+            except Exception:
+                return default
+
+        col_map = {c.upper(): i for i, c in enumerate(columns)}
+
+        def get_col(row, name, default=None):
+            idx = col_map.get(name.upper())
+            return row[idx] if idx is not None else default
+
+        raw_colors = []
+        parsing_errors = []
+        for idx, row in enumerate(rows_raw):
+            try:
+                date_val = get_col(row, "DATE")
+                if date_val is None:
+                    date_val = datetime.now()
+                elif not isinstance(date_val, datetime):
+                    date_val = pd.to_datetime(date_val)
+
+                date_1_val = get_col(row, "DATE_1") or date_val
+                if not isinstance(date_1_val, datetime):
+                    date_1_val = pd.to_datetime(date_1_val)
+
+                color_raw = ColorRaw(
+                    message_id=safe_int(get_col(row, "MESSAGE_ID"), idx),
+                    ticker=str(get_col(row, "TICKER") or ""),
+                    sector=str(get_col(row, "SECTOR") or ""),
+                    cusip=str(get_col(row, "CUSIP") or ""),
+                    date=date_val,
+                    price_level=safe_float(get_col(row, "PRICE_LEVEL")),
+                    bid=safe_float(get_col(row, "BID")),
+                    ask=safe_float(get_col(row, "ASK")),
+                    px=safe_float(get_col(row, "PX")),
+                    source=str(get_col(row, "SOURCE") or "ORACLE"),
+                    bias=str(get_col(row, "BIAS") or ""),
+                    rank=safe_int(get_col(row, "RANK"), 1),
+                    cov_price=safe_float(get_col(row, "COV_PRICE")),
+                    percent_diff=safe_float(get_col(row, "PERCENT_DIFF")),
+                    price_diff=safe_float(get_col(row, "PRICE_DIFF")),
+                    confidence=safe_int(get_col(row, "CONFIDENCE"), 5),
+                    date_1=date_1_val,
+                    diff_status=str(get_col(row, "DIFF_STATUS") or ""),
+                )
+                raw_colors.append(color_raw)
+            except Exception as row_err:
+                parsing_errors.append(f"Row {idx + 1}: {str(row_err)}")
+                logger.warning(f"⚠️ Failed to parse Oracle row {idx + 1}: {row_err}")
+
+        logger.info(f"✅ Parsed {len(raw_colors)} valid rows, {len(parsing_errors)} errors")
+
+        # ── 4. Apply sorting (RankingEngine, no rules) ─────────────────────────
+        sorted_colors = ranking_engine.run_colors(raw_colors)
+
+        # ── 5. Create session ──────────────────────────────────────────────────
+        session_id = generate_session_id(user_id)
+        session = ManualColorSession(session_id)
+
+        raw_data_dict = [
+            {
+                "row_id": i,
+                "message_id": c.message_id,
+                "ticker": c.ticker,
+                "sector": c.sector,
+                "cusip": c.cusip,
+                "date": c.date.isoformat(),
+                "price_level": c.price_level,
+                "bid": c.bid,
+                "ask": c.ask,
+                "px": c.px,
+                "source": c.source,
+                "bias": c.bias,
+                "rank": c.rank,
+                "cov_price": c.cov_price,
+                "percent_diff": c.percent_diff,
+                "price_diff": c.price_diff,
+                "confidence": c.confidence,
+                "date_1": c.date_1.isoformat(),
+                "diff_status": c.diff_status,
+            }
+            for i, c in enumerate(raw_colors)
+        ]
+
+        sorted_data_dict = [
+            {
+                "row_id": i,
+                "message_id": c.message_id,
+                "ticker": c.ticker,
+                "sector": c.sector,
+                "cusip": c.cusip,
+                "date": c.date.isoformat() if c.date else None,
+                "price_level": c.price_level,
+                "bid": c.bid,
+                "ask": c.ask,
+                "px": c.px,
+                "source": c.source,
+                "bias": c.bias,
+                "rank": c.rank,
+                "cov_price": c.cov_price,
+                "percent_diff": c.percent_diff,
+                "price_diff": c.price_diff,
+                "confidence": c.confidence,
+                "date_1": c.date_1.isoformat() if c.date_1 else None,
+                "diff_status": c.diff_status,
+                "is_parent": c.is_parent,
+                "parent_message_id": c.parent_message_id,
+                "children_count": c.children_count,
+            }
+            for i, c in enumerate(sorted_colors)
+        ]
+
+        session.update(
+            original_filename=f"oracle_query_{clo_id}",
+            raw_data=raw_data_dict,
+            sorted_data=sorted_data_dict,
+            filtered_data=sorted_data_dict.copy(),
+            rows_imported=len(raw_colors),
+            rows_valid=len(raw_colors) - len(parsing_errors),
+            parsing_errors=parsing_errors,
+            status="preview",
+        )
+
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info(f"✅ CLO query fetch completed in {duration:.2f}s — session {session_id}")
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "filename": f"oracle_query_{clo_id}",
+            "rows_imported": len(raw_colors),
+            "rows_valid": len(raw_colors) - len(parsing_errors),
+            "parsing_errors": parsing_errors,
+            "sorted_preview": sorted_data_dict,
+            "statistics": {
+                "total_rows": len(sorted_colors),
+                "parent_rows": sum(1 for c in sorted_colors if c.is_parent),
+                "child_rows": sum(1 for c in sorted_colors if not c.is_parent),
+                "unique_cusips": len(set(c.cusip for c in sorted_colors)),
+            },
+            "duration_seconds": duration,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ fetch_from_clo_query failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "duration_seconds": (datetime.now() - start_time).total_seconds(),
+        }
+
+
 def get_session_preview(session_id: str) -> Dict:
     """
     Get current preview data for session
