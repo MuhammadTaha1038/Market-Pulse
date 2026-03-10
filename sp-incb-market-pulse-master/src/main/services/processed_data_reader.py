@@ -47,8 +47,11 @@ class ProcessedDataReader:
         logger.info(f"ProcessedDataReader initialized for: {self.output_destination}")
     
     def _get_local_output_path(self) -> str:
-        """Get local output file path."""
+        """Get local output file path. Respects OUTPUT_DIR env var if set."""
         from pathlib import Path
+        output_dir = os.getenv("OUTPUT_DIR", "").strip()
+        if output_dir:
+            return str(Path(output_dir) / "Processed_Colors_Output.xlsx")
         base_dir = Path(__file__).parent.parent.parent.parent.parent
         return str(base_dir / "Processed_Colors_Output.xlsx")
     
@@ -115,52 +118,71 @@ class ProcessedDataReader:
             return pd.DataFrame()
     
     def _read_from_s3(self, nrows: Optional[int] = None) -> pd.DataFrame:
-        """Read from AWS S3."""
+        """
+        Read all per-sector accumulated files from S3.
+
+        Each sector has exactly ONE file:
+          {S3_PREFIX}{SECTOR}/Processed_Colors_{SECTOR}.{format}
+
+        Data is already deduped at write time (newest MESSAGE_ID wins) so no
+        dedup step is needed here.  Reading is fast: one file per sector,
+        typically 5-20 files total regardless of how many runs have happened.
+        """
         try:
             if not self.s3_bucket:
                 raise ValueError("S3_BUCKET_NAME not configured")
-            
-            # Build S3 key
-            filename = f"Processed_Colors_Output.{self.s3_file_format}"
-            s3_key = f"{self.s3_prefix}{filename}".lstrip('/')
-            
-            logger.info(f"Reading from S3: s3://{self.s3_bucket}/{s3_key}")
-            
-            # Download from S3
+
             s3_client = self._get_s3_client()
-            response = s3_client.get_object(Bucket=self.s3_bucket, Key=s3_key)
-            file_content = response['Body'].read()
-            
-            # Parse based on format
-            if self.s3_file_format == "csv":
-                if nrows:
-                    df = pd.read_csv(io.BytesIO(file_content), nrows=nrows)
-                else:
-                    df = pd.read_csv(io.BytesIO(file_content))
-            elif self.s3_file_format == "parquet":
-                df = pd.read_parquet(io.BytesIO(file_content))
-                if nrows:
-                    df = df.head(nrows)
-            else:  # xlsx
-                if nrows:
-                    df = pd.read_excel(io.BytesIO(file_content), nrows=nrows)
-                else:
-                    df = pd.read_excel(io.BytesIO(file_content))
-            
-            logger.info(f"✅ Read {len(df)} rows from S3")
-            return df
-            
+            prefix = self.s3_prefix.lstrip('/')
+            fmt = self.s3_file_format
+            ext = f'.{fmt}'
+
+            # List only Processed_Colors_*.{ext} sector files
+            paginator = s3_client.get_paginator('list_objects_v2')
+            keys = []
+            for page in paginator.paginate(Bucket=self.s3_bucket, Prefix=prefix):
+                for obj in page.get('Contents', []):
+                    key = obj['Key']
+                    fname = key.split('/')[-1]
+                    if fname.startswith('Processed_Colors_') and key.endswith(ext):
+                        keys.append(key)
+
+            if not keys:
+                logger.warning(f"No sector files found in S3 under '{prefix}'")
+                return pd.DataFrame()
+
+            logger.info(f"Reading {len(keys)} sector file(s) from S3")
+
+            dfs = []
+            for key in keys:
+                try:
+                    response = s3_client.get_object(Bucket=self.s3_bucket, Key=key)
+                    body = response['Body'].read()
+                    if fmt == 'csv':
+                        df = pd.read_csv(io.BytesIO(body))
+                    elif fmt == 'parquet':
+                        df = pd.read_parquet(io.BytesIO(body), engine='pyarrow')
+                    else:
+                        df = pd.read_excel(io.BytesIO(body), engine='openpyxl')
+                    dfs.append(df)
+                    logger.info(f"  {key}: {len(df)} row(s)")
+                except Exception as e:
+                    logger.error(f"  Failed to read {key}: {e} — skipping")
+
+            if not dfs:
+                return pd.DataFrame()
+
+            combined = pd.concat(dfs, ignore_index=True)
+
+            if nrows:
+                combined = combined.head(nrows)
+
+            logger.info(f"✅ S3 read complete: {len(combined)} row(s) from {len(dfs)} sector file(s)")
+            return combined
+
         except NoCredentialsError:
             logger.error("AWS credentials not found")
             raise
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
-            if error_code == 'NoSuchKey':
-                logger.warning(f"File not found in S3: {s3_key}")
-                return pd.DataFrame()
-            else:
-                logger.error(f"S3 error: {e}")
-                raise
         except Exception as e:
             logger.error(f"Error reading from S3: {e}")
             raise

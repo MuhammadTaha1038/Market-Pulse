@@ -4,6 +4,7 @@ Uploads processed data to AWS S3 bucket.
 """
 import os
 import io
+import logging
 import pandas as pd
 from typing import Dict, Any, Optional
 from output_destination_interface import OutputDestinationInterface
@@ -18,6 +19,8 @@ except ImportError:
     boto3 = None
     ClientError = Exception
     NoCredentialsError = Exception
+
+logger = logging.getLogger(__name__)
 
 
 class S3Destination(OutputDestinationInterface):
@@ -78,7 +81,93 @@ class S3Destination(OutputDestinationInterface):
         
         buffer.seek(0)
         return buffer
-    
+
+    def _read_file_buffer(self, buffer: io.BytesIO) -> pd.DataFrame:
+        """
+        Read a BytesIO buffer back into a DataFrame.
+        Format must match self.file_format used when the file was written.
+        Returns an empty DataFrame on any parse error.
+        """
+        buffer.seek(0)
+        try:
+            if self.file_format == "csv":
+                return pd.read_csv(buffer)
+            elif self.file_format == "parquet":
+                return pd.read_parquet(buffer, engine='pyarrow')
+            else:
+                return pd.read_excel(buffer, engine='openpyxl')
+        except Exception as e:
+            return pd.DataFrame()
+
+    def load_output(self, filename: str) -> pd.DataFrame:
+        """
+        Download an existing S3 object and parse it back to a DataFrame.
+
+        Used by _save_per_clo_to_s3 to implement append semantics:
+        download → merge (dedup) → upload.
+
+        Returns an empty DataFrame when the object does not yet exist
+        or on any read error (first-run safe).
+        """
+        if not self.bucket_name:
+            return pd.DataFrame()
+
+        # Ensure correct extension in the key
+        if not filename.endswith(f'.{self.file_format}'):
+            base_name = filename.rsplit('.', 1)[0]
+            filename = f"{base_name}.{self.file_format}"
+
+        s3_key = f"{self.prefix}{filename}".lstrip('/')
+
+        try:
+            s3_client = self._get_s3_client()
+            response = s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+            body = response['Body'].read()
+            return self._read_file_buffer(io.BytesIO(body))
+        except ClientError as e:
+            if e.response['Error']['Code'] in ('NoSuchKey', '404'):
+                return pd.DataFrame()   # First run for this sector — normal
+            raise   # Other AWS errors should surface
+        except Exception:
+            return pd.DataFrame()
+
+    def get_object_row_count(self, s3_key: str) -> int:
+        """
+        Return the row_count stored in S3 object metadata.
+        Written by save_output() via the 'row_count' metadata key.
+        Returns 0 if the metadata is absent or any error occurs.
+        """
+        if not self.bucket_name:
+            return 0
+        try:
+            s3_client = self._get_s3_client()
+            response = s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            return int(response.get('Metadata', {}).get('row_count', 0))
+        except Exception:
+            return 0
+
+    def delete_objects_by_keys(self, keys: list) -> int:
+        """
+        Delete multiple S3 objects in one API call (batches of ≤1000 per AWS limit).
+        Returns the number of objects successfully deleted.
+        """
+        if not self.bucket_name or not keys:
+            return 0
+        try:
+            s3_client = self._get_s3_client()
+            deleted = 0
+            for i in range(0, len(keys), 1000):
+                batch = [{'Key': k} for k in keys[i:i + 1000]]
+                resp = s3_client.delete_objects(
+                    Bucket=self.bucket_name,
+                    Delete={'Objects': batch}
+                )
+                deleted += len(resp.get('Deleted', []))
+            return deleted
+        except Exception as e:
+            logger.error(f"S3 delete_objects error: {e}")
+            return 0
+
     def save_output(self, df: pd.DataFrame, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Save DataFrame to AWS S3.

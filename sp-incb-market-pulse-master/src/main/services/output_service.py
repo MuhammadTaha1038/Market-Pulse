@@ -2,130 +2,156 @@
 # -*- coding: utf-8 -*-
 """
 Output Service - Write processed colors to output destination
-Supports: Local Excel files, AWS S3, or both
 
-TESTING MODE:
-- File auto-clears if it exceeds 5 MB
-- Keeps only last 100 existing records when appending
-- Limits total records to 150 for fast testing
-- In production with S3, these limits will be removed
+Configuration via OUTPUT_DESTINATION in .env:
+  local  – append with duplicate prevention to local Excel (default)
+  s3     – upload one file per sub-asset to S3
+  both   – append locally AND upload per sub-asset to S3
+
+Duplicate prevention:
+  Rows whose MESSAGE_ID already exists in the local file are replaced by the
+  newest version (old entry removed, new one appended).  No row count limits.
+
+S3 output:
+  Each run groups processed rows by SECTOR (which maps to a CLO sub-asset ID).
+  ALL columns are always written to S3 — no column filtering at write time.
+  Column visibility (CLO config) is applied only at READ time (search API layer)
+  so that historical data is never lost when an admin changes column settings.
+  S3 key pattern:  {S3_PREFIX}{SECTOR}/Processed_Colors_{SECTOR}.{S3_FILE_FORMAT}
 """
+import io
+import os
 import pandas as pd
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
 import logging
 from models.color import ColorProcessed
 from services.output_destination_factory import get_output_destination
-import os
+from services.s3_destination import S3Destination
 
 logger = logging.getLogger(__name__)
+
+# Computed output columns that are always kept regardless of CLO visible_columns config.
+# These are not raw-input columns so they won't appear in clo_mappings visible_columns.
+_ALWAYS_INCLUDE = frozenset({
+    'PROCESSED_AT', 'PROCESSING_TYPE',
+    'RANK', 'BIAS', 'COV_PRICE', 'PERCENT_DIFF', 'PRICE_DIFF',
+    'CONFIDENCE', 'DIFF_STATUS', 'IS_PARENT', 'PARENT_MESSAGE_ID', 'CHILDREN_COUNT',
+})
 
 
 class OutputService:
     """
-    Service for writing processed color data to configured output destination(s)
-    Supports: Local Excel files, AWS S3, or both
+    Service for writing processed color data to configured output destination(s).
+    Supports: Local Excel files, AWS S3, or both.
     """
-    
+
     def __init__(self, output_file_path: str = None):
-        """
-        Initialize output service with configured destination(s)
-        
-        Args:
-            output_file_path: Path to output Excel file (used for local destination)
-        """
         if output_file_path is None:
-            # Store output in Data-main directory
-            base_dir = Path(__file__).parent.parent.parent.parent.parent
-            output_file_path = base_dir / "Processed_Colors_Output.xlsx"
-        
+            # Respect OUTPUT_DIR env var if set; otherwise default to Data-main/ root
+            output_dir = os.getenv("OUTPUT_DIR", "").strip()
+            if output_dir:
+                Path(output_dir).mkdir(parents=True, exist_ok=True)
+                output_file_path = Path(output_dir) / "Processed_Colors_Output.xlsx"
+            else:
+                base_dir = Path(__file__).parents[4]
+                output_file_path = base_dir / "Processed_Colors_Output.xlsx"
+
         self.output_file_path = str(output_file_path)
-        
-        # Get configured output destination(s)
+        self._dest_type = os.getenv("OUTPUT_DESTINATION", "local").lower()
+
+        # Destination instances (primarily used for S3 uploads)
         self.destination = get_output_destination()
         self.use_multiple_destinations = isinstance(self.destination, list)
-        
-        logger.info(f"OutputService initialized with: {self._get_destination_summary()}")
-        
-        # Create file with headers if using local Excel destination
-        self._initialize_output_file()
-    
-    def _get_destination_summary(self) -> str:
-        """Get summary of configured destinations"""
-        if self.use_multiple_destinations:
-            types = [d.get_destination_info()['type'] for d in self.destination]
-            return f"Multiple destinations: {', '.join(types)}"
+
+        # Resolve S3 destination for per-CLO uploads
+        if self._dest_type == "s3":
+            self._s3_dest = self.destination if isinstance(self.destination, S3Destination) else None
+        elif self._dest_type == "both":
+            dests = self.destination if isinstance(self.destination, list) else [self.destination]
+            self._s3_dest = next((d for d in dests if isinstance(d, S3Destination)), None)
         else:
-            return f"{self.destination.get_destination_info()['type']} destination"
-    
-    def _initialize_output_file(self):
-        """Create output file with headers if it doesn't exist or clear if too large"""
-        # Check if file exists and is too large (> 5 MB)
-        if os.path.exists(self.output_file_path):
-            file_size_mb = os.path.getsize(self.output_file_path) / (1024 * 1024)
-            if file_size_mb > 5:
-                logger.warning(f"Output file is {file_size_mb:.2f} MB - creating fresh file for testing")
-                os.remove(self.output_file_path)
-        
+            self._s3_dest = None
+
+        logger.info(f"OutputService initialized | mode={self._dest_type} | file={self.output_file_path}")
+        self._ensure_output_file()
+
+    def _ensure_output_file(self):
+        """Create output Excel file with headers if it does not yet exist."""
         if not os.path.exists(self.output_file_path):
             logger.info("Creating new output file with headers")
-            # Create empty DataFrame with all columns
             df = pd.DataFrame(columns=[
-                'PROCESSED_AT',
-                'PROCESSING_TYPE',
-                'MESSAGE_ID',
-                'TICKER',
-                'SECTOR',
-                'CUSIP',
-                'DATE',
-                'PRICE_LEVEL',
-                'BID',
-                'ASK',
-                'PX',
-                'SOURCE',
-                'BIAS',
-                'RANK',
-                'COV_PRICE',
-                'PERCENT_DIFF',
-                'PRICE_DIFF',
-                'CONFIDENCE',
-                'DATE_1',
-                'DIFF_STATUS',
-                'IS_PARENT',
-                'PARENT_MESSAGE_ID',
-                'CHILDREN_COUNT'
+                'RUN_ID', 'PROCESSED_AT', 'PROCESSING_TYPE',
+                'MESSAGE_ID', 'TICKER', 'SECTOR', 'CUSIP', 'DATE',
+                'PRICE_LEVEL', 'BID', 'ASK', 'PX', 'SOURCE', 'BIAS', 'RANK',
+                'COV_PRICE', 'PERCENT_DIFF', 'PRICE_DIFF', 'CONFIDENCE',
+                'DATE_1', 'DIFF_STATUS', 'IS_PARENT', 'PARENT_MESSAGE_ID', 'CHILDREN_COUNT',
             ])
-            df.to_excel(self.output_file_path, index=False)
+            df.to_excel(self.output_file_path, index=False, engine='openpyxl')
             logger.info(f"Created output file: {self.output_file_path}")
     
+    # ── public write API ─────────────────────────────────────────────────────
+
     def append_processed_colors(
-        self, 
-        colors: List[ColorProcessed], 
-        processing_type: str = "AUTOMATED"
+        self,
+        colors: List[ColorProcessed],
+        processing_type: str = "AUTOMATED",
+        run_id: Optional[int] = None,
     ) -> int:
         """
-        Append processed colors to output Excel file
-        
-        Args:
-            colors: List of processed color data
-            processing_type: "AUTOMATED" or "MANUAL" to track the source
-            
-        Returns:
-            Number of records appended
+        Persist processed colors to configured destination(s).
+
+        local / both:
+            Reads existing local Excel, removes any stale rows whose MESSAGE_ID
+            appears in the new batch (newest version wins), appends, and writes
+            back.  No row-count or file-size limits.
+
+        s3 / both:
+            Uploads one file per SECTOR (sub-asset) to S3.  ALL columns are
+            always written — write path is never column-filtered.  Column
+            visibility (CLO config) is applied at read time in the search API
+            layer so no historical data is ever lost when an admin changes
+            column settings.
+
+        Returns the number of new records written.
         """
+        # Always ensure the output file exists (even for empty runs)
+        if self._dest_type in ("local", "both"):
+            self._ensure_output_file()
+
         if not colors:
-            logger.warning("No colors to append")
+            logger.warning("No colors to append — 0 records passed the exclusion rules")
             return 0
-        
-        logger.info(f"Appending {len(colors)} processed colors (type: {processing_type})")
-        
-        # Convert ColorProcessed objects to DataFrame
-        records = []
+
+        logger.info(
+            f"Saving {len(colors)} processed colors "
+            f"(type={processing_type}, dest={self._dest_type})"
+        )
+        new_df = self._colors_to_dataframe(colors, processing_type, run_id)
+
+        if self._dest_type in ("local", "both"):
+            self._append_to_local_file(new_df)
+
+        if self._dest_type in ("s3", "both"):
+            self._save_per_clo_to_s3(new_df)
+
+        return len(new_df)
+
+    # ── private helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _colors_to_dataframe(
+        colors: List[ColorProcessed],
+        processing_type: str,
+        run_id: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Convert a list of ColorProcessed objects to a flat DataFrame."""
         processed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+        records = []
         for color in colors:
-            record = {
+            records.append({
+                'RUN_ID': run_id,
                 'PROCESSED_AT': processed_at,
                 'PROCESSING_TYPE': processing_type,
                 'MESSAGE_ID': color.message_id,
@@ -148,68 +174,162 @@ class OutputService:
                 'DIFF_STATUS': color.diff_status,
                 'IS_PARENT': color.is_parent,
                 'PARENT_MESSAGE_ID': color.parent_message_id,
-                'CHILDREN_COUNT': color.children_count
-            }
-            records.append(record)
-        
-        new_df = pd.DataFrame(records)
-        
-        # Read existing data
+                'CHILDREN_COUNT': color.children_count,
+            })
+        return pd.DataFrame(records)
+
+    def _append_to_local_file(self, new_df: pd.DataFrame):
+        """
+        Merge new rows into the local Excel file with duplicate prevention.
+
+        Any existing row whose MESSAGE_ID is present in new_df is removed first
+        so the latest processed version always wins.
+        """
         try:
-            existing_df = pd.read_excel(self.output_file_path)
-            logger.info(f"Existing records: {len(existing_df)}")
-            
-            # Keep only last 100 records for testing (prevent file bloat)
-            if len(existing_df) > 100:
-                logger.info(f"Keeping only last 100 records (was {len(existing_df)})")
-                existing_df = existing_df.tail(100)
+            existing_df = pd.read_excel(self.output_file_path, engine='openpyxl')
+            logger.info(f"Existing records in local file: {len(existing_df)}")
         except Exception as e:
-            logger.warning(f"Could not read existing file: {e}. Creating new one.")
+            logger.warning(f"Could not read existing file ({e}) — starting fresh.")
             existing_df = pd.DataFrame()
-        
-        # Append new data
+
+        # Remove stale rows for any MESSAGE_ID present in the new batch
+        if len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns:
+            new_ids = set(new_df['MESSAGE_ID'].dropna())
+            before = len(existing_df)
+            existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
+            replaced = before - len(existing_df)
+            if replaced:
+                logger.info(
+                    f"Dedup: replaced {replaced} stale row(s) "
+                    f"(same MESSAGE_ID — newest version kept)"
+                )
+
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-        
-        # Limit to 150 total records for testing
-        if len(combined_df) > 150:
-            logger.info(f"Trimming to 150 records (was {len(combined_df)})")
-            combined_df = combined_df.tail(150)
-        
-        # Write back to Excel
-        combined_df.to_excel(self.output_file_path, index=False)
-        
-        # Also save to configured destination(s) if not already local Excel
-        self._save_to_destinations(combined_df, "Processed_Colors_Output.xlsx")
-        
-        logger.info(f"✅ Appended {len(records)} records. Total records: {len(combined_df)}")
-        return len(records)
-    
-    def _save_to_destinations(self, df: pd.DataFrame, filename: str):
+        combined_df.to_excel(self.output_file_path, index=False, engine='openpyxl')
+        logger.info(
+            f"✅ Local file written: {len(new_df)} new + "
+            f"{len(existing_df)} retained = {len(combined_df)} total"
+        )
+
+    # ── S3 helpers ────────────────────────────────────────────────────────────
+
+    def _apply_clo_column_filter(
+        self, df: pd.DataFrame, sector: str, clo_service
+    ) -> pd.DataFrame:
         """
-        Save DataFrame to configured output destination(s)
-        
-        Args:
-            df: DataFrame to save
-            filename: Base filename for the output
+        Project *df* through the current CLO column-visibility config.
+
+        Logic:
+        - Always keep RUN_ID + PROCESSED_AT + PROCESSING_TYPE + MESSAGE_ID + SECTOR
+          (collectively the audit / dedup spine — never hidden).
+        - Always keep _ALWAYS_INCLUDE computed columns.
+        - Keep any column the admin has marked visible for *sector*.
+        - Drop everything else.
+
+        If the CLO service is unavailable or the sector has no mapping, all
+        columns are retained (safe default).
         """
-        try:
-            if self.use_multiple_destinations:
-                # Save to multiple destinations
-                for dest in self.destination:
-                    result = dest.save_output(df, filename)
-                    if result['status'] == 'success':
-                        logger.info(f"✅ {result['message']}")
-                    else:
-                        logger.error(f"❌ {result['message']}")
+        # Spine columns that must always travel with the data
+        _SPINE = frozenset({'RUN_ID', 'PROCESSED_AT', 'PROCESSING_TYPE', 'MESSAGE_ID', 'SECTOR'})
+
+        if clo_service is None:
+            return df
+
+        visible_cols = clo_service.get_visible_columns_for_clo(str(sector))
+        if not visible_cols:
+            return df   # No mapping → keep all
+
+        keep = [
+            c for c in df.columns
+            if c in visible_cols or c in _ALWAYS_INCLUDE or c in _SPINE
+        ]
+        if not keep:
+            logger.warning(f"CLO filter for '{sector}' would remove all columns — keeping all")
+            return df
+
+        return df[keep]
+
+    def _save_per_clo_to_s3(self, new_df: pd.DataFrame, *, force_sectors: list = None):
+        """
+        Append processed rows into per-sector S3 files with full-schema preservation.
+
+        **Core principle — write path is NEVER column-filtered.**
+        All columns produced by the processing pipeline are always written to S3
+        regardless of what the admin has set in the CLO column-visibility config.
+        Column visibility is a READ-TIME concern (applied in the search API layer
+        before returning data to the frontend).  This guarantees:
+          * Historical data is never deleted when an admin removes a column.
+          * Adding a column later: old rows show NaN for it, new rows have values.
+          * No schema inconsistency or data loss across config changes.
+
+        **Per-sector strategy — download → dedup → merge → upload:**
+          1. Download the existing accumulated file for this sector from S3
+             (empty DF on first run — safe).
+          2. Dedup: remove existing rows where MESSAGE_ID appears in the new
+             batch (newest version always wins).
+          3. Concat: pd.concat takes the column UNION — NaN fills any gaps
+             caused by schema additions between runs.
+          4. Upload: overwrites the sector’s S3 object with the full merged DF.
+
+        S3 key pattern:
+          {S3_PREFIX}{SECTOR}/Processed_Colors_{SECTOR}.{S3_FILE_FORMAT}
+        """
+        if self._s3_dest is None:
+            logger.error("S3 destination not configured — skipping S3 upload")
+            return
+
+        # Fallback: no SECTOR column → single combined upload
+        if 'SECTOR' not in new_df.columns or new_df['SECTOR'].isna().all():
+            filename = "Processed_Colors_ALL"
+            existing = self._s3_dest.load_output(filename)
+            if len(existing) > 0 and 'MESSAGE_ID' in existing.columns:
+                new_ids = set(new_df['MESSAGE_ID'].dropna())
+                existing = existing[~existing['MESSAGE_ID'].isin(new_ids)]
+            merged = pd.concat([existing, new_df], ignore_index=True)
+            result = self._s3_dest.save_output(merged, filename)
+            logger.info(f"S3 fallback (no SECTOR): {result.get('message', result)}")
+            return
+
+        # Determine which sectors to process
+        if force_sectors is not None:
+            sectors = [s for s in force_sectors if str(s).strip()]
+        else:
+            sectors = [s for s in new_df['SECTOR'].dropna().unique() if str(s).strip()]
+
+        logger.info(f"S3 per-CLO upload ({len(sectors)} sub-asset(s)): {sectors}")
+
+        for sector in sectors:
+            filename = f"{sector}/Processed_Colors_{sector}"
+
+            # Step 1: download existing accumulation for this sector
+            try:
+                existing_df = self._s3_dest.load_output(filename)
+            except Exception as e:
+                logger.warning(f"Could not download existing S3 data for '{sector}': {e} — starting fresh")
+                existing_df = pd.DataFrame()
+
+            # Step 2: dedup — remove existing rows superseded by new batch
+            new_sector_df = new_df[new_df['SECTOR'] == sector].copy() if 'SECTOR' in new_df.columns else new_df.copy()
+            if len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns and len(new_sector_df) > 0:
+                new_ids = set(new_sector_df['MESSAGE_ID'].dropna())
+                before = len(existing_df)
+                existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
+                replaced = before - len(existing_df)
+                if replaced:
+                    logger.info(f"S3 dedup [{sector}]: replaced {replaced} stale row(s)")
+
+            # Step 3: merge — column union, NaN fills schema gaps (no data loss)
+            merged_df = pd.concat([existing_df, new_sector_df], ignore_index=True)
+
+            # Step 4: upload full schema — NO column filtering here
+            result = self._s3_dest.save_output(merged_df, filename)
+            if result.get('status') == 'success':
+                logger.info(
+                    f"✅ S3 [{sector}]: {result['message']} "
+                    f"({len(merged_df)} total rows, {len(merged_df.columns)} cols)"
+                )
             else:
-                # Save to single destination
-                result = self.destination.save_output(df, filename)
-                if result['status'] == 'success':
-                    logger.info(f"✅ {result['message']}")
-                else:
-                    logger.error(f"❌ {result['message']}")
-        except Exception as e:
-            logger.error(f"Error saving to destination(s): {str(e)}")
+                logger.error(f"❌ S3 [{sector}]: {result.get('message', 'unknown error')}")
     
     def get_processed_count(self) -> dict:
         """
@@ -252,8 +372,129 @@ class OutputService:
     def clear_output_file(self):
         """Clear all data from output file (keep headers)"""
         logger.warning("Clearing output file")
-        self._initialize_output_file()
+        # Remove existing file so _ensure_output_file recreates it fresh
+        if os.path.exists(self.output_file_path):
+            os.remove(self.output_file_path)
+        self._ensure_output_file()
         logger.info("Output file cleared")
+
+    def delete_run_output(self, run_id: int) -> dict:
+        """
+        Remove all output rows that belong to a specific automation run.
+
+        Local: reads the Excel file, drops rows where RUN_ID == run_id, rewrites.
+        S3:    re-uploads each affected CLO file without those rows.
+
+        Returns a dict with 'deleted' (row count) and 'message'.
+        """
+        deleted_total = 0
+
+        # ── local ────────────────────────────────────────────────────────────
+        if self._dest_type in ("local", "both"):
+            try:
+                df = pd.read_excel(self.output_file_path, engine='openpyxl')
+                if 'RUN_ID' in df.columns:
+                    before = len(df)
+                    df = df[df['RUN_ID'] != run_id]
+                    deleted_local = before - len(df)
+                    df.to_excel(self.output_file_path, index=False, engine='openpyxl')
+                    deleted_total += deleted_local
+                    logger.info(
+                        f"✅ Deleted {deleted_local} row(s) for RUN_ID={run_id} from local file"
+                    )
+                else:
+                    logger.warning(
+                        "RUN_ID column missing in local output file — "
+                        "rows from older runs cannot be targeted by run_id"
+                    )
+            except Exception as e:
+                logger.error(f"Error deleting run output from local file: {e}")
+                raise
+
+        # ── S3 ────────────────────────────────────────────────────────────────
+        # Single-file-per-sector design: each sector has one accumulated file
+        # named {PREFIX}{SECTOR}/Processed_Colors_{SECTOR}.{ext}
+        # To delete a run: download each sector file, filter out rows with
+        # RUN_ID == run_id, then re-upload.  Sectors with no matching rows are
+        # left unchanged (no re-upload needed).
+        if self._dest_type in ("s3", "both") and self._s3_dest is not None:
+            try:
+                s3_client = self._s3_dest._get_s3_client()
+                bucket = self._s3_dest.bucket_name
+                prefix = self._s3_dest.prefix.lstrip('/')
+                ext = f'.{self._s3_dest.file_format}'
+                fmt = self._s3_dest.file_format
+
+                # Find all Processed_Colors_*.{ext} sector files
+                sector_keys = []
+                paginator = s3_client.get_paginator('list_objects_v2')
+                for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                    for obj in page.get('Contents', []):
+                        key = obj['Key']
+                        fname = key.split('/')[-1]
+                        if fname.startswith('Processed_Colors_') and key.endswith(ext):
+                            sector_keys.append(key)
+
+                if not sector_keys:
+                    logger.info(f"S3: no sector files found for RUN_ID={run_id} deletion")
+                else:
+                    for key in sector_keys:
+                        try:
+                            response = s3_client.get_object(Bucket=bucket, Key=key)
+                            body = response['Body'].read()
+                            if fmt == 'csv':
+                                sector_df = pd.read_csv(io.BytesIO(body))
+                            elif fmt == 'parquet':
+                                sector_df = pd.read_parquet(io.BytesIO(body), engine='pyarrow')
+                            else:
+                                sector_df = pd.read_excel(io.BytesIO(body), engine='openpyxl')
+
+                            if 'RUN_ID' not in sector_df.columns:
+                                continue
+
+                            before = len(sector_df)
+                            sector_df = sector_df[sector_df['RUN_ID'] != run_id]
+                            removed = before - len(sector_df)
+
+                            if removed == 0:
+                                continue  # Nothing to do for this sector
+
+                            deleted_total += removed
+                            # Re-upload the filtered file
+                            buf = io.BytesIO()
+                            if fmt == 'csv':
+                                sector_df.to_csv(buf, index=False)
+                            elif fmt == 'parquet':
+                                sector_df.to_parquet(buf, index=False, engine='pyarrow')
+                            else:
+                                sector_df.to_excel(buf, index=False, engine='openpyxl')
+                            buf.seek(0)
+                            s3_client.put_object(
+                                Bucket=bucket,
+                                Key=key,
+                                Body=buf.getvalue(),
+                            )
+                            logger.info(
+                                f"✅ S3 [{key}]: removed {removed} row(s) for RUN_ID={run_id}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Error processing S3 sector file {key}: {e}")
+
+            except Exception as e:
+                logger.error(f"Error deleting run output from S3: {e}")
+
+        if deleted_total == 0:
+            return {
+                "deleted": 0,
+                "message": (
+                    f"No rows found for RUN_ID={run_id}. "
+                    "Run may have produced no output or used an older schema without RUN_ID."
+                )
+            }
+        return {
+            "deleted": deleted_total,
+            "message": f"Deleted {deleted_total} output row(s) for RUN_ID={run_id}"
+        }
     
     def read_processed_colors(
         self, 
@@ -286,17 +527,13 @@ class OutputService:
             from services.processed_data_reader import get_processed_data_reader
             reader = get_processed_data_reader()
             
-            # PERFORMANCE OPTIMIZATION: Only read what we need
-            # If limit is small (< 100), read only a reasonable chunk
-            if limit and limit < 100:
-                # Read only 10x the limit to account for filtering
-                # This dramatically speeds up queries for small previews
+            # For local Excel: applying nrows is a genuine performance win (reading stops at row N).
+            # For S3: nrows does NOT prevent full file downloads — skip the optimization.
+            if self._dest_type == "local" and limit and limit < 100:
                 nrows_to_read = min(limit * 10, 2000)
                 logger.info(f"PERFORMANCE: Reading only {nrows_to_read} rows for limit={limit}")
                 df = reader.read_processed_data(nrows=nrows_to_read)
             else:
-                # For larger requests or no limit, read everything (slower)
-                logger.info("Reading all rows from processed data")
                 df = reader.read_processed_data()
             
             if len(df) == 0:

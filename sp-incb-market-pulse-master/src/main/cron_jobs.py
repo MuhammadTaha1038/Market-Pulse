@@ -24,6 +24,8 @@ from cron_service import (
     get_execution_logs,
     get_next_run_time
 )
+from services.output_service import get_output_service
+import logging_service
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +314,38 @@ async def get_job_logs(job_id: int, limit: int = 20):
         logger.error(f"Error fetching logs for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.delete("/logs/{log_id}/output")
+async def delete_run_output(log_id: int):
+    """
+    Delete all processed output rows that belong to a specific automation run.
+
+    Removes matching rows from the local Excel file (and re-uploads to S3 if
+    the destination is configured) using the RUN_ID column added to each row
+    during processing.
+    """
+    try:
+        output_service = get_output_service()
+        result = output_service.delete_run_output(log_id)
+
+        # Log to the restore module so it appears in the Restore & Email logs panel
+        logging_service.add_log(
+            module='restore',
+            action='delete_output',
+            description=(
+                f"Removed output data for automation run #{log_id} "
+                f"({result.get('deleted', 0)} row(s) deleted)"
+            ),
+            performed_by='admin',
+            entity_id=log_id,
+            can_revert=False,
+            metadata={'run_id': log_id, 'deleted_count': result.get('deleted', 0)}
+        )
+
+        return {"log_id": log_id, **result}
+    except Exception as e:
+        logger.error(f"Error deleting run output for log {log_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/schedule-examples", response_model=CronScheduleExamples)
 async def get_schedule_examples():

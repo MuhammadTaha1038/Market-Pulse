@@ -4,6 +4,7 @@ Saves processed data to local Excel files.
 """
 import os
 import pandas as pd
+from pathlib import Path
 from typing import Dict, Any, Optional
 from output_destination_interface import OutputDestinationInterface
 
@@ -19,9 +20,9 @@ class LocalExcelDestination(OutputDestinationInterface):
             output_dir: Directory to save Excel files (default: project root)
         """
         if not output_dir:
-            # Default to project root
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-            self.output_dir = project_root
+            # Default: same root as ProcessedDataReader and OutputService (Data-main/)
+            # __file__ is in services/ → parents[4] walks up to Data-main/
+            self.output_dir = str(Path(__file__).parents[4])
         else:
             self.output_dir = output_dir
         

@@ -111,9 +111,9 @@ async def generic_search(request: SearchRequest):
         
         logger.info(f"Generic search: {len(request.filters)} filters, limit={request.limit}, clo_id={request.clo_id}")
         
-        # Read data (will be replaced with S3 query in future)
-        max_read = min(request.limit * 10, 2000)
-        all_records = output_service.read_processed_colors(limit=max_read)
+        # Read ALL records so filtering + skip/limit pagination works correctly.
+        # output_service handles local vs S3 efficiently internally.
+        all_records = output_service.read_processed_colors(limit=None)
         
         if not all_records:
             return SearchResponse(

@@ -145,9 +145,11 @@ async def get_todays_colors(
         #     OFFSET :skip ROWS FETCH NEXT :limit ROWS ONLY
         # """
         # ----------------------------------------------------------------
-        max_read = min(limit * 10, 1000)  # Read buffer for filtering
+        # Read ALL records so in-Python filtering and skip/limit pagination
+        # work correctly regardless of dataset size.
+        # (A cap like min(limit*10, 1000) would make pages >100 invisible.)
         processed_records = output_service.read_processed_colors(
-            limit=max_read,
+            limit=None,
             processing_type=processing_type,
             cusip=cusip
         )

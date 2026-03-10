@@ -1129,6 +1129,12 @@ export class ApiService {
         return this.http.delete<{ message: string }>(`${this.baseUrl}/api/backup/history/${backupId}`);
     }
 
+    deleteRunOutput(runId: number): Observable<{ message: string; deleted: number; log_id: number }> {
+        return this.http.delete<{ message: string; deleted: number; log_id: number }>(
+            `${this.baseUrl}/api/cron/logs/${runId}/output`
+        );
+    }
+
     getBackupStats(): Observable<any> {
         return this.http.get<any>(`${this.baseUrl}/api/backup/stats`);
     }

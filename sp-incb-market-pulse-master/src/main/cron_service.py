@@ -96,22 +96,27 @@ def get_execution_logs() -> List[Dict]:
         return []
 
 
+def _get_next_log_id() -> int:
+    """Compute the next auto-incremented log ID without saving."""
+    logs = get_execution_logs()
+    if logs:
+        return max(log.get("id", 0) for log in logs) + 1
+    return 1
+
+
 def save_execution_log(log_entry: Dict):
     """Save execution log entry"""
     logs = get_execution_logs()
-    
-    # Add auto-incrementing ID
-    if logs:
-        max_id = max(log.get("id", 0) for log in logs)
-        log_entry["id"] = max_id + 1
-    else:
-        log_entry["id"] = 1
-    
+
+    # Assign auto-incrementing ID only when not already pre-assigned
+    if not log_entry.get("id"):
+        log_entry["id"] = _get_next_log_id()
+
     logs.insert(0, log_entry)  # Most recent first
-    
+
     # Keep only last 100 logs
     logs = logs[:100]
-    
+
     storage.save("cron_logs", {"logs": logs})
 
 
@@ -127,7 +132,10 @@ def run_automation_task(job_id: int, job_name: str, triggered_by: str = "schedul
     5. Save processed colors to output file
     """
     start_time = datetime.now()
+    # Pre-compute the log ID so output rows can be tagged with it
+    _run_id = _get_next_log_id()
     log_entry = {
+        "id": _run_id,
         "job_id": job_id,
         "job_name": job_name,
         "triggered_by": triggered_by,
@@ -185,7 +193,7 @@ def run_automation_task(job_id: int, job_name: str, triggered_by: str = "schedul
         
         # Step 5: Save to output file
         logger.info("💾 Saving processed colors to output...")
-        output_service.append_processed_colors(processed_colors, processing_type="AUTOMATED")
+        output_service.append_processed_colors(processed_colors, processing_type="AUTOMATED", run_id=_run_id)
         logger.info(f"✅ Saved {len(processed_colors)} processed colors")
         
         # Success

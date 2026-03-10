@@ -615,20 +615,15 @@
                 <div class="relative pl-4">
                     <div class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
                     <div class="space-y-2">
-                        <div *ngIf="cronLogs.length === 0" class="p-3 text-sm text-gray-400">No recent changes</div>
-                        <div *ngFor="let log of cronLogs" class="flex justify-between items-center p-3 rounded-lg transition-colors cursor-pointer hover:bg-gray-50">
+                        <div *ngIf="cronExecutionLogs.length === 0" class="p-3 text-sm text-gray-400">No automation runs found</div>
+                        <div *ngFor="let log of cronExecutionLogs | slice:0:4" class="flex justify-between items-center p-3 rounded-lg transition-colors hover:bg-gray-50">
                             <div>
-                                <p class="text-sm text-gray-900">{{ log.description }}</p>
-                                <p class="text-xs text-gray-500">{{ formatDate(log.performed_at) }}</p>
+                                <p class="text-sm text-gray-900">{{ log.job_name }}</p>
+                                <p class="text-xs text-gray-500">{{ formatDate(log.start_time) }} &mdash; {{ log.triggered_by === 'manual_override' ? 'Manual Override' : log.triggered_by === 'manual' ? 'Manual' : 'Scheduled' }}</p>
                             </div>
-                            <button
-                                *ngIf="log.can_revert && !log.reverted_at"
-                                (click)="revertLog(log)"
-                                class="text-sm rounded-2xl p-2 !bg-gray-200 text-black hover:text-cyan-500 flex items-center gap-1 transition-colors"
-                                title="Revert this change">
-                                <i class="pi pi-undo text-xs"></i>
-                                Revert
-                            </button>
+                            <span [class]="log.status === 'success' ? 'text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600' : 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600'">
+                                {{ log.status }}
+                            </span>
                         </div>
                     </div>
                 </div>

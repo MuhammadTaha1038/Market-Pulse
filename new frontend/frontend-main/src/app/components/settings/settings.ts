@@ -292,7 +292,29 @@ export class Settings implements OnInit {
 
     loadRestoreData() {
         this.loadingRestoreData = true;
-        this.apiService.getBackupHistory(10).subscribe({
+        // Primary source: cron execution logs (always populated on runs)
+        this.apiService.getCronExecutionLogs(4).subscribe({
+            next: (res) => {
+                if (res.logs && res.logs.length > 0) {
+                    this.restoreData = res.logs.map(log => ({
+                        id: log.id,
+                        details: log.job_name,
+                        date: new Date(log.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                        time: new Date(log.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                        process: (log.triggered_by === 'manual' || log.triggered_by === 'manual_override') ? 'Manual' : 'Automated'
+                    }));
+                    this.loadingRestoreData = false;
+                } else {
+                    // Fallback: backup history if cron logs are empty
+                    this.loadRestoreDataFromBackups();
+                }
+            },
+            error: () => this.loadRestoreDataFromBackups()
+        });
+    }
+
+    private loadRestoreDataFromBackups() {
+        this.apiService.getBackupHistory(4).subscribe({
             next: (res) => {
                 this.restoreData = res.backups.map((backup: any) => ({
                     id: backup.id,
@@ -303,23 +325,9 @@ export class Settings implements OnInit {
                 }));
                 this.loadingRestoreData = false;
             },
-            error: () => {
-                // Fallback: use cron execution logs if backup endpoint not available
-                this.apiService.getCronExecutionLogs(10).subscribe({
-                    next: (res) => {
-                        this.restoreData = res.logs.map(log => ({
-                            details: log.job_name,
-                            date: new Date(log.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                            time: new Date(log.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                            process: log.triggered_by === 'manual' ? 'Manual' : 'Automated'
-                        }));
-                        this.loadingRestoreData = false;
-                    },
-                    error: (err) => {
-                        console.error('Error loading restore data:', err);
-                        this.loadingRestoreData = false;
-                    }
-                });
+            error: (err) => {
+                console.error('Error loading restore data:', err);
+                this.loadingRestoreData = false;
             }
         });
     }
@@ -999,19 +1007,22 @@ export class Settings implements OnInit {
 
     removeData(item: RestoreData): void {
         if (item.id) {
-            this.messageService.add({ severity: 'warn', summary: 'Removing...', detail: `Removing data for ${item.details}` });
-            this.apiService.deleteBackup(item.id).subscribe({
+            this.messageService.add({ severity: 'warn', summary: 'Removing...', detail: `Removing output data for run #${item.id}` });
+            this.apiService.deleteRunOutput(item.id).subscribe({
                 next: (res) => {
-                    this.messageService.add({ severity: 'success', summary: 'Removed', detail: res.message || `Data removed for ${item.details}` });
+                    const detail = res.deleted > 0
+                        ? `${res.deleted} row(s) removed for run #${item.id}`
+                        : res.message;
+                    this.messageService.add({ severity: 'success', summary: 'Removed', detail });
                     this.loadRestoreData();
                     this.loadAllLogs();
                 },
                 error: (err) => {
-                    this.messageService.add({ severity: 'error', summary: 'Error', detail: err.error?.detail || `Failed to remove data for ${item.details}` });
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: err.error?.detail || `Failed to remove output data for run #${item.id}` });
                 }
             });
         } else {
-            this.messageService.add({ severity: 'warn', summary: 'Warning', detail: 'No backup ID available for this entry' });
+            this.messageService.add({ severity: 'warn', summary: 'Warning', detail: 'No run ID available for this entry' });
         }
     }
 

@@ -9,31 +9,48 @@
     [resizable]="false"
     appendTo="body"
     styleClass="w-[420px]"
-    header="Run Automation">
+    header="Run Automation — Choose Mode">
 
     <div class="py-2 space-y-3">
         <p class="text-gray-700 text-sm leading-relaxed" *ngIf="fileBuffered">
             A file <span class="font-semibold text-gray-900">{{ bufferFileName }}</span> is queued in the buffer.
-            Running automation will process this file and overwrite the current output.
+            Choose how to run the automation:
         </p>
         <p class="text-gray-700 text-sm leading-relaxed" *ngIf="!fileBuffered">
-            This will trigger the automation job immediately and overwrite the existing output data.
+            Choose how to run the automation job:
         </p>
-        <p class="text-xs text-gray-400">Are you sure you want to continue?</p>
+        <div class="space-y-2 text-sm">
+            <div class="flex items-start gap-2">
+                <i class="pi pi-calendar text-gray-400 mt-0.5 text-xs"></i>
+                <span class="text-gray-600"><span class="font-medium text-gray-800">Run now (keep schedule)</span> — runs immediately, next scheduled run is preserved.</span>
+            </div>
+            <div class="flex items-start gap-2">
+                <i class="pi pi-exclamation-triangle text-amber-400 mt-0.5 text-xs"></i>
+                <span class="text-gray-600"><span class="font-medium text-gray-800">Run &amp; Overwrite</span> — runs now and overwrites the existing output. Next scheduled run is cancelled.</span>
+            </div>
+        </div>
     </div>
 
     <ng-template pTemplate="footer">
-        <div class="flex gap-2 justify-end">
+        <div class="flex gap-2 justify-end flex-wrap">
             <button pButton label="Cancel" icon="pi pi-times"
                 class="p-button-outlined p-button-sm"
+                [disabled]="processingAutomation"
                 (click)="cancelRunAutomation()">
             </button>
             <button pButton
-                [label]="processingAutomation ? 'Running…' : (fileBuffered ? 'Run & Process Buffer' : 'Run Automation')"
+                [label]="processingAutomation ? 'Running…' : 'Run Now (Keep Schedule)'"
                 icon="pi pi-play"
-                class="p-button-sm"
+                class="p-button-outlined p-button-sm"
                 [disabled]="processingAutomation"
-                (click)="confirmRunAutomation()">
+                (click)="confirmRunAutomation(false)">
+            </button>
+            <button pButton
+                [label]="processingAutomation ? 'Running…' : 'Run &amp; Overwrite'"
+                icon="pi pi-exclamation-triangle"
+                class="p-button-sm p-button-warning"
+                [disabled]="processingAutomation"
+                (click)="confirmRunAutomation(true)">
             </button>
         </div>
     </ng-template>

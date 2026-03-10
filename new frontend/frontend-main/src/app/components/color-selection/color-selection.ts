@@ -72,7 +72,7 @@ export class ColorSelection implements OnInit, OnDestroy {
     this.showOverwriteDialog = true;
   }
 
-  confirmRunAutomation() {
+  confirmRunAutomation(withOverride: boolean) {
     this.showOverwriteDialog = false;
     this.processingAutomation = true;
 
@@ -91,14 +91,16 @@ export class ColorSelection implements OnInit, OnDestroy {
           return;
         }
 
-        this.apiService.triggerCronJob(job.id, true).subscribe({
+        this.apiService.triggerCronJob(job.id, withOverride).subscribe({
           next: () => {
             this.processingAutomation = false;
             this.clearBuffer();
             this.messageService.add({
               severity: 'success',
               summary: 'Automation Triggered',
-              detail: `Job "${job.name}" started successfully. Buffered file has been processed.`
+              detail: withOverride
+                ? `Job "${job.name}" started and existing output will be overwritten.`
+                : `Job "${job.name}" started. Scheduled run is preserved.`
             });
           },
           error: (err) => {
@@ -111,7 +113,7 @@ export class ColorSelection implements OnInit, OnDestroy {
           }
         });
       },
-      error: (err) => {
+      error: () => {
         this.processingAutomation = false;
         this.messageService.add({
           severity: 'error',
@@ -190,3 +192,8 @@ export class ColorSelection implements OnInit, OnDestroy {
   goToHelpPage(): void {
     this.router.navigate(['/temp']);
   }
+
+  ngOnDestroy() {
+    this.timerSub?.unsubscribe();
+  }
+}
