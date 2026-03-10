@@ -1,1 +1,12 @@
-env = "qa"
+env                    = "qa"
+app_prefix             = "sp-incb"
+app_name               = "market-pulse"
+aws_region_primary     = "us-east-1"
+aws_region_secondary   = "us-west-2"
+lambda_handler         = "handler.app"
+lambda_pkg_s3_name     = "market-pulse.zip"
+code_version           = "1.0.0"
+release_version        = ""
+bucket_required        = true
+bucket_name            = "sp-incb-qa-market-pulse"
+dr_enabled             = false
