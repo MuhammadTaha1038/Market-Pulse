@@ -19,3 +19,9 @@
     background-position: top, right, bottom, left;
     background-repeat: no-repeat;
 }
+
+@keyframes slideShimmer {
+    0%   { transform: translateX(-120%); }
+    50%  { transform: translateX(80%); }
+    100% { transform: translateX(250%); }
+}

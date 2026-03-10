@@ -1,3 +1,43 @@
+<p-toast position="top-right"></p-toast>
+
+<!-- ── Overwrite Confirmation Dialog ────────────────────────────────────── -->
+<p-dialog
+    [(visible)]="showOverwriteDialog"
+    [modal]="true"
+    [closable]="false"
+    [draggable]="false"
+    [resizable]="false"
+    styleClass="w-[420px]"
+    header="Run Automation">
+
+    <div class="py-2 space-y-3">
+        <p class="text-gray-700 text-sm leading-relaxed" *ngIf="fileBuffered">
+            A file <span class="font-semibold text-gray-900">{{ bufferFileName }}</span> is queued in the buffer.
+            Running automation will process this file and overwrite the current output.
+        </p>
+        <p class="text-gray-700 text-sm leading-relaxed" *ngIf="!fileBuffered">
+            This will trigger the automation job immediately and overwrite the existing output data.
+        </p>
+        <p class="text-xs text-gray-400">Are you sure you want to continue?</p>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-2 justify-end">
+            <button pButton label="Cancel" icon="pi pi-times"
+                class="p-button-outlined p-button-sm"
+                (click)="cancelRunAutomation()">
+            </button>
+            <button pButton
+                [label]="processingAutomation ? 'Running…' : (fileBuffered ? 'Run & Process Buffer' : 'Run Automation')"
+                icon="pi pi-play"
+                class="p-button-sm"
+                [disabled]="processingAutomation"
+                (click)="confirmRunAutomation()">
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>
+
 <div class="min-h-screen p-8 pt-12 space-y-8">
     <!-- Hidden file input for import -->
     <input #fileInput type="file" accept=".xlsx,.xls" style="display: none" (change)="onFileSelected($event)" />
@@ -40,7 +80,7 @@
 
             <!-- Bottom Section - 3 divided parts (below image) -->
             <div class="grid grid-cols-3 border border-gray-200 rounded-b-xl bg-white h-20">
-                <!-- Preset Settings -->
+                <!-- Rules -->
                 <div class="flex items-center justify-center p-4 border-r border-gray-300 gap-2 cursor-pointer hover:bg-gray-50 transition-colors" (click)="goToRulesPage()">
                     <img src="./assets/icon/control.png" alt="Rules" class="w-5 h-5" />
                     <span class="text-gray-800 font-medium">Rules</span>
@@ -54,9 +94,12 @@
 
                 <!-- Run Automation -->
                 <div class="flex items-center justify-center p-3 cursor-pointer hover:bg-gray-50 transition-colors" (click)="runAutomation()">
-                    <button class="px-4 py-2 rounded-lg font-semibold flex items-center gap-2">
-                        <img src="./assets/icon/settings.png" alt="Play" class="w-4 h-4" />
-                        Run Automation
+                    <button class="px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                        [class.opacity-60]="processingAutomation"
+                        [disabled]="processingAutomation">
+                        <p-progressSpinner *ngIf="processingAutomation" [style]="{width:'16px',height:'16px'}" strokeWidth="4"></p-progressSpinner>
+                        <img *ngIf="!processingAutomation" src="./assets/icon/settings.png" alt="Play" class="w-4 h-4" />
+                        {{ processingAutomation ? 'Running…' : 'Run Automation' }}
                     </button>
                 </div>
             </div>
@@ -103,30 +146,80 @@
 
     <!-- Import Colors Section -->
     <section class="rounded-2xl px-6 py-6">
-        <!-- DASHED IMPORT AREA (FULLY CLICKABLE) -->
-        <div class="relative flex flex-col items-center justify-center rounded-xl dashed-border-wide bg-gray-50/60 min-h-[140px] px-6 py-8 gap-3 text-center cursor-pointer hover:bg-gray-100 transition" (click)="fileInput.click()">
-            <!-- QUESTION MARK -->
-            <button type="button" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600" pTooltip="Import color help" (click)="goToHelpPage()">
+
+        <!-- ── BUFFERED FILE ANIMATION (shown while a file is queued) ── -->
+        <div *ngIf="fileBuffered"
+             class="relative flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5 shadow-sm">
+
+            <!-- Pulsing icon -->
+            <div class="relative flex-shrink-0">
+                <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <i class="pi pi-file-excel text-emerald-600 text-xl"></i>
+                </div>
+                <!-- Pulse ring -->
+                <span class="absolute inset-0 rounded-full bg-emerald-400 opacity-30 animate-ping"></span>
+            </div>
+
+            <!-- File info -->
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 animate-pulse">
+                        ● Queued
+                    </span>
+                    <span class="text-xs text-gray-500">{{ bufferFileSize }}</span>
+                </div>
+                <p class="text-sm font-semibold text-gray-800 truncate">{{ bufferFileName }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">Waiting for automation run — click <strong>Run Automation</strong> to process now.</p>
+            </div>
+
+            <!-- Progress bar (indeterminate) -->
+            <div class="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl overflow-hidden bg-emerald-100">
+                <div class="h-full bg-emerald-400 animate-[shimmer_2s_ease-in-out_infinite]" style="width:60%; animation: slideShimmer 2s ease-in-out infinite;"></div>
+            </div>
+
+            <!-- Clear (X) button -->
+            <button type="button"
+                class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
+                title="Remove from buffer"
+                (click)="clearBuffer()">
+                <i class="pi pi-times text-sm"></i>
+            </button>
+        </div>
+
+        <!-- ── DEFAULT DASHED IMPORT AREA (shown when no file is buffered) ── -->
+        <div *ngIf="!fileBuffered"
+             class="relative flex flex-col items-center justify-center rounded-xl dashed-border-wide bg-gray-50/60 min-h-[140px] px-6 py-8 gap-3 text-center cursor-pointer hover:bg-gray-100 transition"
+             (click)="fileInput.click()">
+
+            <!-- Question mark -->
+            <button type="button" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                pTooltip="Import color help"
+                (click)="$event.stopPropagation(); goToHelpPage()">
                 <i class="pi pi-question-circle"></i>
             </button>
 
-            <!-- TITLE -->
+            <!-- Title -->
             <div class="flex items-center gap-2 text-gray-700">
                 <i class="pi pi-download text-lg mt-2"></i>
                 <h3 class="text-base font-semibold">Import Colors</h3>
             </div>
 
-            <!-- DESCRIPTION -->
+            <!-- Description -->
             <p class="text-sm text-gray-500 leading-relaxed max-w-md">
                 Manual colors bulk upload via excel,
-                <a href="assets/sample-files/color-import-sample.xlsx" download class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700" (click)="$event.stopPropagation()"> Click here </a>
+                <a href="assets/sample-files/color-import-sample.xlsx" download
+                   class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700"
+                   (click)="$event.stopPropagation()"> Click here </a>
                 to download sample file
             </p>
         </div>
 
-        <!-- IMPORT BUTTON (BELOW, RIGHT ALIGNED) -->
-        <div class="flex justify-end">
-            <button type="button" class="inline-flex items-center rounded-b-xl bg-gray-900 text-white text-sm font-medium px-8 py-3 hover:bg-gray-800" (click)="fileInput.click()">Import</button>
+        <!-- Import button (hide when file is buffered) -->
+        <div class="flex justify-end" *ngIf="!fileBuffered">
+            <button type="button"
+                class="inline-flex items-center rounded-b-xl bg-gray-900 text-white text-sm font-medium px-8 py-3 hover:bg-gray-800"
+                (click)="fileInput.click()">Import</button>
         </div>
+
     </section>
 </div>

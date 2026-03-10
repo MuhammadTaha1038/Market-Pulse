@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ChipModule } from 'primeng/chip';
 import { DividerModule } from 'primeng/divider';
+import { DialogModule } from 'primeng/dialog';
+import { ToastModule } from 'primeng/toast';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { MessageService } from 'primeng/api';
 import { ApiService } from '../../services/api.service';
 import { NextRunService } from '../../services/next-run.service';
 import { Router } from '@angular/router';
@@ -11,19 +15,31 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-color-selection',
   standalone: true,
-  imports: [CommonModule, ButtonModule, ChipModule, DividerModule],
+  imports: [CommonModule, ButtonModule, ChipModule, DividerModule, DialogModule, ToastModule, ProgressSpinnerModule],
   templateUrl: './color-selection.html',
-  styleUrls: ['./color-selection.css']
+  styleUrls: ['./color-selection.css'],
+  providers: [MessageService]
 })
 export class ColorSelection implements OnInit, OnDestroy {
   nextRunTimer = '--:--:--';
-  uploading = false;
   private timerSub!: Subscription;
+
+  // ── Buffer state ─────────────────────────────────────────────────────────
+  fileBuffered = false;
+  bufferFileName = '';
+  bufferFileSize = '';
+  bufferUploading = false;
+  private bufferedFile: File | null = null;
+
+  // ── Run Automation dialog ─────────────────────────────────────────────────
+  showOverwriteDialog = false;
+  processingAutomation = false;
 
   constructor(
     private apiService: ApiService,
     private router: Router,
-    private nextRunService: NextRunService
+    private nextRunService: NextRunService,
+    private messageService: MessageService
   ) {}
 
   ngOnInit() {
@@ -31,6 +47,15 @@ export class ColorSelection implements OnInit, OnDestroy {
     this.timerSub = this.nextRunService.timer$.subscribe(val => {
       this.nextRunTimer = val;
     });
+
+    // Restore buffer state persisted across navigation
+    const saved = localStorage.getItem('color_buffer_file');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      this.fileBuffered = true;
+      this.bufferFileName = parsed.name;
+      this.bufferFileSize = parsed.size;
+    }
   }
 
   goToPresetSettings() {
@@ -41,40 +66,127 @@ export class ColorSelection implements OnInit, OnDestroy {
     this.router.navigate(['/settings'], { queryParams: { section: 'rules' } });
   }
 
+  // ── Run Automation ────────────────────────────────────────────────────────
+
   runAutomation() {
-    this.router.navigate(['/home']);
+    this.showOverwriteDialog = true;
   }
+
+  confirmRunAutomation() {
+    this.showOverwriteDialog = false;
+    this.processingAutomation = true;
+
+    // Fetch the first active cron job and trigger it
+    this.apiService.getActiveCronJobs().subscribe({
+      next: (res: any) => {
+        const jobs = res.jobs ?? res ?? [];
+        const job = jobs[0];
+        if (!job) {
+          this.processingAutomation = false;
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'No Active Jobs',
+            detail: 'No active automation job found. Configure a cron job first.'
+          });
+          return;
+        }
+
+        this.apiService.triggerCronJob(job.id, true).subscribe({
+          next: () => {
+            this.processingAutomation = false;
+            this.clearBuffer();
+            this.messageService.add({
+              severity: 'success',
+              summary: 'Automation Triggered',
+              detail: `Job "${job.name}" started successfully. Buffered file has been processed.`
+            });
+          },
+          error: (err) => {
+            this.processingAutomation = false;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Automation Failed',
+              detail: err.error?.detail || 'Failed to trigger automation job.'
+            });
+          }
+        });
+      },
+      error: (err) => {
+        this.processingAutomation = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Could not fetch cron jobs.'
+        });
+      }
+    });
+  }
+
+  cancelRunAutomation() {
+    this.showOverwriteDialog = false;
+  }
+
+  // ── Manual Color ──────────────────────────────────────────────────────────
 
   runManual() {
     this.router.navigate(['/manual-color']);
   }
 
+  // ── File Buffer ───────────────────────────────────────────────────────────
+
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      const file = input.files[0];
+    if (!input.files || input.files.length === 0) return;
 
-      // Check file type
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-        alert('Please upload an Excel file (.xlsx or .xls)');
-        return;
-      }
+    const file = input.files[0];
 
-      this.uploading = true;
-
-      // Navigate to manual-color page with uploaded file
-      setTimeout(() => {
-        this.uploading = false;
-        alert(`File "${file.name}" uploaded successfully! You can now review and process the data.`);
-        this.router.navigate(['/manual-color']);
-      }, 1500);
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Invalid File',
+        detail: 'Please upload an Excel file (.xlsx or .xls)'
+      });
+      input.value = '';
+      return;
     }
+
+    this.bufferedFile = file;
+    this.bufferFileName = file.name;
+    this.bufferFileSize = this.formatFileSize(file.size);
+    this.fileBuffered = true;
+
+    // Persist across navigation
+    localStorage.setItem('color_buffer_file', JSON.stringify({
+      name: file.name,
+      size: this.bufferFileSize
+    }));
+
+    this.messageService.add({
+      severity: 'success',
+      summary: 'File Queued',
+      detail: `"${file.name}" is saved in buffer. Click Run Automation to process it.`
+    });
+
+    // Reset input so same file can be re-selected
+    input.value = '';
   }
+
+  clearBuffer() {
+    this.bufferedFile = null;
+    this.fileBuffered = false;
+    this.bufferFileName = '';
+    this.bufferFileSize = '';
+    localStorage.removeItem('color_buffer_file');
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+
   goToHelpPage(): void {
-        this.router.navigate(['/temp']);
-    }
-
-  ngOnDestroy() {
-    this.timerSub?.unsubscribe();
+    this.router.navigate(['/temp']);
   }
-}
