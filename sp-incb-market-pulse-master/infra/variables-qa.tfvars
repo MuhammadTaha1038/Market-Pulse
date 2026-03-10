@@ -13,3 +13,5 @@ dr_enabled             = false
 # TODO: get these two bucket names from client DevOps team
 primary_bin_bucket     = "REPLACE_WITH_CLIENT_BINARY_BUCKET_US_EAST_1"
 secondary_bin_bucket   = "REPLACE_WITH_CLIENT_BINARY_BUCKET_US_WEST_2"
+# TODO: get the Oracle credentials API URL from the client
+oracle_credentials_api_url = "REPLACE_WITH_ORACLE_CREDENTIALS_API_URL"

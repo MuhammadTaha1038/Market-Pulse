@@ -147,5 +147,8 @@ variable "dr_enabled" {
   description = "Whether this application will have DR"  
 }
 
-
-
+variable "oracle_credentials_api_url" {
+  type        = string
+  description = "URL of the internal API that returns Oracle DB credentials. Used by Lambda to authenticate with Oracle."
+  default     = ""
+}
