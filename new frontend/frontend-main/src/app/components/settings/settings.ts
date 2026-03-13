@@ -21,6 +21,7 @@ import {
     Preset,
     PresetCreate
 } from '../../services/api.service';
+import { AutomationStatusService } from '../../services/automation-status.service';
 
 interface RuleCondition {
     type: 'where' | 'and' | 'or' | 'subgroup';
@@ -176,6 +177,7 @@ export class Settings implements OnInit {
         private router: Router,
         private assetStateService: AssetStateService,
         private apiService: ApiService,
+        private automationStatusService: AutomationStatusService,
         private messageService: MessageService,
         public layoutService: LayoutService,
         private menuActiveService: MenuActiveService
@@ -864,6 +866,7 @@ export class Settings implements OnInit {
     }
 
     triggerJob(job: CronJob, override: boolean = false): void {
+        this.automationStatusService.beginRun();
         this.apiService.triggerCronJob(job.id, override).subscribe({
             next: (res) => {
                 this.messageService.add({
@@ -873,8 +876,10 @@ export class Settings implements OnInit {
                 });
                 this.loadCronJobs();
                 this.loadCronExecutionLogs();
+                this.automationStatusService.endRun();
             },
             error: (err) => {
+                this.automationStatusService.endRun();
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: err.error?.detail || 'Failed to trigger job' });
             }
         });

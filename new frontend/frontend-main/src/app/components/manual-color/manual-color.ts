@@ -12,6 +12,7 @@ import { MessageService } from 'primeng/api';
 import { CustomTableComponent, TableColumn, TableRow, TableConfig } from '../custom-table/custom-table.component';
 import { FilterDialogComponent, FilterCondition } from '../filter-dialog/filter-dialog.component';
 import { ApiService, SearchFilter, Rule, RuleConditionBackend, Preset } from '../../services/api.service';
+import { AutomationStatusService } from '../../services/automation-status.service';
 
 @Component({
   selector: 'app-manual-color',
@@ -61,6 +62,7 @@ export class ManualColor implements OnInit {
   availablePresets: Preset[] = [];
   selectedPresetId: number | null = null;
   loadingPresets = false;
+  presetsDialogVisible = false;
 
   // Session management
   currentSessionId: string | null = null;
@@ -109,7 +111,8 @@ export class ManualColor implements OnInit {
 
   constructor(
     private messageService: MessageService,
-    private apiService: ApiService
+    private apiService: ApiService,
+    private automationStatusService: AutomationStatusService
   ) {}
 
   ngOnInit() {
@@ -654,6 +657,7 @@ export class ManualColor implements OnInit {
   runAutomation(override: boolean = false) {
     if (override) {
       this.runningAutomation = true;
+      this.automationStatusService.beginRun();
       this.messageService.add({
         severity: 'info',
         summary: 'Override & Run',
@@ -669,6 +673,7 @@ export class ManualColor implements OnInit {
               detail: 'No active cron jobs found to override'
             });
             this.runningAutomation = false;
+            this.automationStatusService.endRun();
             return;
           }
 
@@ -681,6 +686,7 @@ export class ManualColor implements OnInit {
                 detail: res.message || 'Cron job overridden and executed'
               });
               this.runningAutomation = false;
+              this.automationStatusService.endRun();
             },
             error: (err) => {
               this.messageService.add({
@@ -689,6 +695,7 @@ export class ManualColor implements OnInit {
                 detail: err.error?.detail || 'Failed to trigger automation'
               });
               this.runningAutomation = false;
+              this.automationStatusService.endRun();
             }
           });
         },
@@ -699,6 +706,7 @@ export class ManualColor implements OnInit {
             detail: 'Failed to fetch active cron jobs'
           });
           this.runningAutomation = false;
+          this.automationStatusService.endRun();
         }
       });
     } else {
@@ -712,6 +720,7 @@ export class ManualColor implements OnInit {
       }
 
       this.runningAutomation = true;
+      this.automationStatusService.beginRun();
       this.messageService.add({
         severity: 'info',
         summary: 'Processing',
@@ -728,6 +737,7 @@ export class ManualColor implements OnInit {
               detail: 'No active rules found. Go to Settings to configure rules.'
             });
             this.runningAutomation = false;
+            this.automationStatusService.endRun();
             return;
           }
 
@@ -765,6 +775,7 @@ export class ManualColor implements OnInit {
           });
 
           this.runningAutomation = false;
+          this.automationStatusService.endRun();
         },
         error: () => {
           this.messageService.add({
@@ -773,6 +784,7 @@ export class ManualColor implements OnInit {
             detail: 'Failed to fetch active rules'
           });
           this.runningAutomation = false;
+          this.automationStatusService.endRun();
         }
       });
     }
@@ -1188,11 +1200,7 @@ export class ManualColor implements OnInit {
   // ==================== PRESETS ====================
 
   showPresetsDialog() {
-    console.log('🎛️ Presets dialog requested');
-    this.messageService.add({
-      severity: 'info',
-      summary: 'Presets',
-      detail: 'Preset filters will be loaded from settings'
-    });
+    this.loadPresets();
+    this.presetsDialogVisible = true;
   }
 }

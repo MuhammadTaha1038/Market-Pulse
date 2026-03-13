@@ -212,6 +212,8 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     if (childRow.parentRow === undefined || childRow.parentRow === null) return null;
 
     const parentRef = String(childRow.parentRow);
+    const childCusip = String(childRow['cusip'] ?? '').trim().toUpperCase();
+    const candidateParents: TableRow[] = [];
 
     // Match parentRow value against parent's _rowId or messageId
     for (const row of this._processedData) {
@@ -221,7 +223,21 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
       // parentRow is the raw message_id, _rowId is "row_{message_id}"
       if (row._rowId === `row_${parentRef}`) return row._rowId!;
       // Match against messageId field
-      if (String(row['messageId'] ?? '') === parentRef) return row._rowId!;
+      if (String(row['messageId'] ?? '') === parentRef) {
+        candidateParents.push(row);
+      }
+    }
+
+    // If duplicate message IDs exist, prefer parent from the same CUSIP.
+    if (candidateParents.length > 0) {
+      if (childCusip) {
+        const sameCusipParent = candidateParents.find(
+          p => String(p['cusip'] ?? '').trim().toUpperCase() === childCusip
+        );
+        if (sameCusipParent?._rowId) return sameCusipParent._rowId;
+      }
+      // Fallback to first candidate when CUSIP is unavailable.
+      if (candidateParents[0]?._rowId) return candidateParents[0]._rowId;
     }
 
     return null;

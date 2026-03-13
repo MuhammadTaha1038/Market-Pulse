@@ -18,6 +18,7 @@ import logging
 import sys
 import os
 import pytz
+import logging_service
 
 # Import storage
 sys.path.insert(0, os.path.dirname(__file__))
@@ -33,14 +34,8 @@ from manual_upload_service import get_buffered_files, process_buffered_file
 
 logger = logging.getLogger(__name__)
 
-# Timezone is configurable via CRON_TIMEZONE in .env (default: UTC)
-# Examples: 'UTC', 'America/New_York', 'Asia/Karachi', 'Europe/London'
-_tz_name = os.getenv("CRON_TIMEZONE", "UTC")
-try:
-    TIMEZONE = pytz.timezone(_tz_name)
-except Exception:
-    logger.warning(f"Invalid CRON_TIMEZONE '{_tz_name}', falling back to UTC")
-    TIMEZONE = pytz.utc
+# Get timezone (adjust this to your timezone)
+TIMEZONE = pytz.timezone('Asia/Karachi')  # Change to your timezone
 
 # Global scheduler instance with timezone
 scheduler = BackgroundScheduler(timezone=TIMEZONE)
@@ -96,27 +91,22 @@ def get_execution_logs() -> List[Dict]:
         return []
 
 
-def _get_next_log_id() -> int:
-    """Compute the next auto-incremented log ID without saving."""
-    logs = get_execution_logs()
-    if logs:
-        return max(log.get("id", 0) for log in logs) + 1
-    return 1
-
-
 def save_execution_log(log_entry: Dict):
     """Save execution log entry"""
     logs = get_execution_logs()
-
-    # Assign auto-incrementing ID only when not already pre-assigned
-    if not log_entry.get("id"):
-        log_entry["id"] = _get_next_log_id()
-
+    
+    # Add auto-incrementing ID
+    if logs:
+        max_id = max(log.get("id", 0) for log in logs)
+        log_entry["id"] = max_id + 1
+    else:
+        log_entry["id"] = 1
+    
     logs.insert(0, log_entry)  # Most recent first
-
+    
     # Keep only last 100 logs
     logs = logs[:100]
-
+    
     storage.save("cron_logs", {"logs": logs})
 
 
@@ -132,10 +122,7 @@ def run_automation_task(job_id: int, job_name: str, triggered_by: str = "schedul
     5. Save processed colors to output file
     """
     start_time = datetime.now()
-    # Pre-compute the log ID so output rows can be tagged with it
-    _run_id = _get_next_log_id()
     log_entry = {
-        "id": _run_id,
         "job_id": job_id,
         "job_name": job_name,
         "triggered_by": triggered_by,
@@ -193,7 +180,7 @@ def run_automation_task(job_id: int, job_name: str, triggered_by: str = "schedul
         
         # Step 5: Save to output file
         logger.info("💾 Saving processed colors to output...")
-        output_service.append_processed_colors(processed_colors, processing_type="AUTOMATED", run_id=_run_id)
+        output_service.append_processed_colors(processed_colors, processing_type="AUTOMATED")
         logger.info(f"✅ Saved {len(processed_colors)} processed colors")
         
         # Success
@@ -307,7 +294,19 @@ def create_job(name: str, schedule: str, is_active: bool = True) -> Dict:
     
     jobs.append(new_job)
     save_jobs(jobs)
-    
+
+    # Log the operation
+    logging_service.add_log(
+        module='cron',
+        action='create',
+        description=f"Created cron job: {name} (schedule: {schedule})",
+        entity_id=job_id,
+        entity_name=name,
+        can_revert=True,
+        revert_data={'action': 'delete', 'job_id': job_id},
+        metadata={'schedule': schedule, 'is_active': is_active}
+    )
+
     return new_job
 
 
@@ -324,7 +323,10 @@ def update_job(job_id: int, name: Optional[str] = None, schedule: Optional[str] 
     
     if not job:
         raise ValueError(f"Job with ID {job_id} not found")
-    
+
+    # Save original state for revert
+    original_state = {k: v for k, v in job.items()}
+
     # Update fields
     if name is not None:
         job["name"] = name
@@ -360,22 +362,59 @@ def update_job(job_id: int, name: Optional[str] = None, schedule: Optional[str] 
         job["next_run"] = None
     
     save_jobs(jobs)
+
+    # Log the operation
+    updated_fields = []
+    if name is not None: updated_fields.append('name')
+    if schedule is not None: updated_fields.append('schedule')
+    if is_active is not None: updated_fields.append('is_active')
+    logging_service.add_log(
+        module='cron',
+        action='update',
+        description=f"Updated cron job: {job['name']} (fields: {', '.join(updated_fields)})",
+        entity_id=job_id,
+        entity_name=job['name'],
+        can_revert=True,
+        revert_data={'action': 'restore', 'job_data': original_state},
+        metadata={'updated_fields': updated_fields}
+    )
+
     return job
 
 
 def delete_job(job_id: int):
     """Delete cron job"""
     jobs = get_all_jobs()
-    
+
+    # Find the job before deleting for logging
+    deleted_job = None
+    for j in jobs:
+        if j["id"] == job_id:
+            deleted_job = {k: v for k, v in j.items()}
+            break
+
     # Remove from APScheduler
     try:
         scheduler.remove_job(f"cron_job_{job_id}")
     except:
         pass
-    
+
     # Remove from storage
     jobs = [j for j in jobs if j["id"] != job_id]
     save_jobs(jobs)
+
+    # Log the operation
+    if deleted_job:
+        logging_service.add_log(
+            module='cron',
+            action='delete',
+            description=f"Deleted cron job: {deleted_job['name']}",
+            entity_id=job_id,
+            entity_name=deleted_job['name'],
+            can_revert=True,
+            revert_data={'action': 'restore', 'job_data': deleted_job},
+            metadata={'schedule': deleted_job.get('schedule', '')}
+        )
 
 
 def toggle_job(job_id: int) -> Dict:
@@ -425,11 +464,11 @@ def trigger_job_manually(job_id: int, override: bool = False) -> Dict:
                 time.sleep(10)  # Wait for manual execution to start
                 if job["is_active"]:
                     try:
-                        trigger = CronTrigger.from_crontab(job["schedule"], timezone=TIMEZONE)
                         scheduler.add_job(
                             func=run_automation_task,
                             args=[job_id, job["name"], "scheduled"],
-                            trigger=trigger,
+                            trigger='cron',
+                            **parse_cron_schedule(job["schedule"]),
                             id=f"cron_job_{job_id}",
                             replace_existing=True
                         )

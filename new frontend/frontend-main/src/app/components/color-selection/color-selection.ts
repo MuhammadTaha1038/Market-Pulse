@@ -8,6 +8,7 @@ import { ToastModule } from 'primeng/toast';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { ApiService } from '../../services/api.service';
+import { AutomationStatusService } from '../../services/automation-status.service';
 import { NextRunService } from '../../services/next-run.service';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -39,6 +40,7 @@ export class ColorSelection implements OnInit, OnDestroy {
   constructor(
     private apiService: ApiService,
     private router: Router,
+    private automationStatusService: AutomationStatusService,
     private nextRunService: NextRunService,
     private messageService: MessageService
   ) {}
@@ -76,6 +78,7 @@ export class ColorSelection implements OnInit, OnDestroy {
   confirmRunAutomation(withOverride: boolean) {
     this.showOverwriteDialog = false;
     this.processingAutomation = true;
+    this.automationStatusService.beginRun();
 
     // Fetch the first active cron job and trigger it
     this.apiService.getActiveCronJobs().subscribe({
@@ -84,6 +87,7 @@ export class ColorSelection implements OnInit, OnDestroy {
         const job = jobs[0];
         if (!job) {
           this.processingAutomation = false;
+          this.automationStatusService.endRun();
           this.messageService.add({
             severity: 'warn',
             summary: 'No Active Jobs',
@@ -95,6 +99,7 @@ export class ColorSelection implements OnInit, OnDestroy {
         this.apiService.triggerCronJob(job.id, withOverride).subscribe({
           next: () => {
             this.processingAutomation = false;
+            this.automationStatusService.endRun();
             this.clearBuffer();
             this.messageService.add({
               severity: 'success',
@@ -106,6 +111,7 @@ export class ColorSelection implements OnInit, OnDestroy {
           },
           error: (err) => {
             this.processingAutomation = false;
+            this.automationStatusService.endRun();
             this.messageService.add({
               severity: 'error',
               summary: 'Automation Failed',
@@ -116,6 +122,7 @@ export class ColorSelection implements OnInit, OnDestroy {
       },
       error: () => {
         this.processingAutomation = false;
+        this.automationStatusService.endRun();
         this.messageService.add({
           severity: 'error',
           summary: 'Error',

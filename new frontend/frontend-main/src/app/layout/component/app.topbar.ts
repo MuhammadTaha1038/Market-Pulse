@@ -7,6 +7,7 @@ import { LayoutService } from '../service/layout.service';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { AssetStateService } from 'src/app/services/asset-state.service';
+import { AutomationStatusService } from 'src/app/services/automation-status.service';
 import { NextRunService } from 'src/app/services/next-run.service';
 import { TableStateService } from '../../components/home/table-state.service';
 import { filter, Subscription } from 'rxjs';
@@ -52,7 +53,7 @@ import { filter, Subscription } from 'rxjs';
             <div class="layout-topbar-actions">
                 <!-- ASSET SELECTION -->
                 <div class="asset-selection" *ngIf="isHomeRoute && assetOptions.length > 0">
-                    <span class="asset-dot"></span>
+                    <span class="asset-dot" [class.running]="showRunningIndicator" [attr.title]="showRunningIndicator ? 'Running' : null"></span>
                     <p-select [options]="assetOptions" [(ngModel)]="selectedAsset" optionLabel="name" class="asset-selector" (ngModelChange)="onAssetChange($event)"> </p-select>
                 </div>
 
@@ -152,7 +153,30 @@ import { filter, Subscription } from 'rxjs';
                 width: 12px;
                 height: 12px;
                 border-radius: 50%;
+                background-color: #cbd5e1;
+                transition:
+                    background-color 0.2s ease,
+                    box-shadow 0.2s ease,
+                    transform 0.2s ease;
+            }
+
+            .asset-dot.running {
                 background-color: #22c55e;
+                box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+                animation: assetDotPulse 1.8s ease-in-out infinite;
+            }
+
+            @keyframes assetDotPulse {
+                0%,
+                100% {
+                    transform: scale(1);
+                    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.22);
+                }
+
+                50% {
+                    transform: scale(1.08);
+                    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.12);
+                }
             }
 
             .asset-selector {
@@ -364,6 +388,7 @@ export class AppTopbar implements OnInit, OnDestroy {
 
     showUserMenu = false;
     isTableExpanded = false;
+    isAutomationRunning = false;
 
     isHomeRoute = false;
     private routerSub!: Subscription;
@@ -372,15 +397,21 @@ export class AppTopbar implements OnInit, OnDestroy {
     private mainTypeSub!: Subscription;
     private subsSub!: Subscription;
     private tableExpandedSub!: Subscription;
+    private automationSub!: Subscription;
 
     get isMenuButtonDisabled(): boolean {
         return this.isTableExpanded && this.isHomeRoute;
+    }
+
+    get showRunningIndicator(): boolean {
+        return this.isAutomationRunning || this.nextRunTimer === 'Running...';
     }
 
     constructor(
         public layoutService: LayoutService,
         private router: Router,
         private assetStateService: AssetStateService,
+        private automationStatusService: AutomationStatusService,
         private nextRunService: NextRunService,
         private tableStateService: TableStateService
     ) {}
@@ -423,6 +454,10 @@ export class AppTopbar implements OnInit, OnDestroy {
         this.timerSub = this.nextRunService.timer$.subscribe((val) => {
             this.nextRunTimer = val;
         });
+
+        this.automationSub = this.automationStatusService.isRunning$.subscribe((running) => {
+            this.isAutomationRunning = running;
+        });
     }
 
     private updateHomeRoute(url: string): void {
@@ -460,5 +495,6 @@ export class AppTopbar implements OnInit, OnDestroy {
         this.mainTypeSub?.unsubscribe();
         this.subsSub?.unsubscribe();
         this.tableExpandedSub?.unsubscribe();
+        this.automationSub?.unsubscribe();
     }
 }

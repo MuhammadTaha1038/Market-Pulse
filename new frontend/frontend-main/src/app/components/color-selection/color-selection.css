@@ -25,3 +25,22 @@
     50%  { transform: translateX(80%); }
     100% { transform: translateX(250%); }
 }
+
+.buffer-ready-rail {
+    position: relative;
+}
+
+.buffer-ready-fill {
+    position: relative;
+    width: 100%;
+    background: linear-gradient(90deg, #111827 0%, #374151 45%, #111827 100%);
+}
+
+.buffer-ready-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+    transform: translateX(-140%);
+    animation: slideShimmer 2s ease-in-out infinite;
+}

@@ -13,6 +13,7 @@ import { MessageService } from 'primeng/api';
 import { CustomTableComponent, TableColumn, TableRow, TableConfig } from '../custom-table/custom-table.component';
 import { FilterDialogComponent, FilterCondition } from '../filter-dialog/filter-dialog.component';
 import { ApiService, ColorProcessed, SearchFilter, Rule, RuleConditionBackend, Preset, UserCLOSelection } from '../../services/api.service';
+import { AutomationStatusService } from '../../services/automation-status.service';
 import { AssetStateService } from '../../services/asset-state.service';
 import { TableStateService } from './table-state.service';
 import { NextRunService } from '../../services/next-run.service';
@@ -156,6 +157,7 @@ export class Home implements OnInit, OnDestroy {
 
     constructor(
         private apiService: ApiService,
+        private automationStatusService: AutomationStatusService,
         private assetStateService: AssetStateService,
         private messageService: MessageService,
         private router: Router,
@@ -441,17 +443,22 @@ export class Home implements OnInit, OnDestroy {
         const rawValue = String(event.value || '').trim();
         if (!rawValue) return;
 
+        // Detect whether the user typed a CUSIP (contains letters) or a Message ID (purely numeric).
+        const isCusipInput = /[a-zA-Z]/.test(rawValue);
+        const searchType: 'cusip' | 'message_id' | 'any' = isCusipInput ? 'cusip' : 'message_id';
+
         const table = this.isTableExpanded ? this.expandedTable : this.mainTable;
-        // Unified lookup keeps row-edit search flexible for both Message ID and CUSIP.
-        this.apiService.securitySearch(rawValue, 'any', 10).subscribe({
+        this.apiService.securitySearch(rawValue, searchType, 10).subscribe({
             next: (response) => {
                 if (response.results && response.results.length > 0) {
                     const record = response.results[0];
                     const rowData: Partial<TableRow> = {
-                        messageId: String(record.MESSAGE_ID || rawValue),
+                        // When input was a CUSIP, keep messageId from record only (don't fall back to rawValue).
+                        messageId: isCusipInput ? String(record.MESSAGE_ID || '') : String(record.MESSAGE_ID || rawValue),
                         ticker: record.TICKER || '',
                         sector: record.SECTOR || '',
-                        cusip: record.CUSIP || '',
+                        // When input was a CUSIP and record has no CUSIP field, use rawValue.
+                        cusip: record.CUSIP || (isCusipInput ? rawValue : ''),
                         bias: record.BIAS || '',
                         date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
                         date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
@@ -473,10 +480,11 @@ export class Home implements OnInit, OnDestroy {
                     };
                     if (table) table.updateRowData(event.row._rowId!, rowData);
                 } else {
+                    // Not found: place the typed value in the correct column based on input type.
                     const notFoundData: Partial<TableRow> = {
-                        messageId: rawValue,
+                        messageId: isCusipInput ? '' : rawValue,
+                        cusip: isCusipInput ? rawValue : '',
                         ticker: 'NOT FOUND',
-                        cusip: '',
                         bias: '',
                         date: '',
                         bid: 0,
@@ -491,9 +499,9 @@ export class Home implements OnInit, OnDestroy {
             error: (error) => {
                 console.error('Error during security lookup:', error);
                 const errorData: Partial<TableRow> = {
-                    messageId: rawValue,
+                    messageId: isCusipInput ? '' : rawValue,
+                    cusip: isCusipInput ? rawValue : 'ERROR',
                     ticker: 'ERROR',
-                    cusip: 'ERROR',
                     bias: 'ERROR',
                     date: 'ERROR',
                     bid: 'ERROR',
@@ -827,6 +835,7 @@ export class Home implements OnInit, OnDestroy {
 
         if (override) {
             this.runningAutomation = true;
+            this.automationStatusService.beginRun();
             this.messageService.add({
                 severity: 'info',
                 summary: 'Override & Run',
@@ -842,6 +851,7 @@ export class Home implements OnInit, OnDestroy {
                             detail: 'No active cron jobs found to override'
                         });
                         this.runningAutomation = false;
+                        this.automationStatusService.endRun();
                         return;
                     }
 
@@ -855,6 +865,7 @@ export class Home implements OnInit, OnDestroy {
                             });
                             this.loadDataFromBackend();
                             this.runningAutomation = false;
+                            this.automationStatusService.endRun();
                         },
                         error: (err) => {
                             this.messageService.add({
@@ -863,6 +874,7 @@ export class Home implements OnInit, OnDestroy {
                                 detail: err.error?.detail || 'Failed to trigger automation'
                             });
                             this.runningAutomation = false;
+                            this.automationStatusService.endRun();
                         }
                     });
                 },
@@ -873,6 +885,7 @@ export class Home implements OnInit, OnDestroy {
                         detail: 'Failed to fetch active cron jobs'
                     });
                     this.runningAutomation = false;
+                    this.automationStatusService.endRun();
                 }
             });
         } else {
@@ -886,6 +899,7 @@ export class Home implements OnInit, OnDestroy {
             }
 
             this.runningAutomation = true;
+            this.automationStatusService.beginRun();
             this.messageService.add({
                 severity: 'info',
                 summary: 'Processing',
@@ -902,6 +916,7 @@ export class Home implements OnInit, OnDestroy {
                             detail: 'No active rules found. Go to Settings to configure rules.'
                         });
                         this.runningAutomation = false;
+                        this.automationStatusService.endRun();
                         return;
                     }
 
@@ -937,6 +952,7 @@ export class Home implements OnInit, OnDestroy {
                     });
 
                     this.runningAutomation = false;
+                    this.automationStatusService.endRun();
                 },
                 error: () => {
                     this.messageService.add({
@@ -945,6 +961,7 @@ export class Home implements OnInit, OnDestroy {
                         detail: 'Failed to fetch active rules'
                     });
                     this.runningAutomation = false;
+                    this.automationStatusService.endRun();
                 }
             });
         }

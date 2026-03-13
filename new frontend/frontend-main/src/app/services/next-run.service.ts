@@ -10,6 +10,7 @@ export class NextRunService implements OnDestroy {
     private timerInterval: any = null;
     private nextRunTarget: Date | null = null;
     private refreshTimeout: any = null;
+    private pollingInterval: any = null;
     private initialized = false;
 
     constructor(private apiService: ApiService) {}
@@ -19,6 +20,9 @@ export class NextRunService implements OnDestroy {
         if (this.initialized) return;
         this.initialized = true;
         this.fetchNextRun();
+
+        // Keep countdown aligned with any schedule/job changes made elsewhere in the UI.
+        this.pollingInterval = setInterval(() => this.fetchNextRun(), 30000);
     }
 
     private fetchNextRun(): void {
@@ -147,5 +151,6 @@ export class NextRunService implements OnDestroy {
     ngOnDestroy(): void {
         if (this.timerInterval) clearInterval(this.timerInterval);
         if (this.refreshTimeout) clearTimeout(this.refreshTimeout);
+        if (this.pollingInterval) clearInterval(this.pollingInterval);
     }
 }

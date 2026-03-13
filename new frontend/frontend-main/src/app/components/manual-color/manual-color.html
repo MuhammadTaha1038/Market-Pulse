@@ -291,6 +291,56 @@
     <!-- Filter Dialog Component -->
     <app-filter-dialog [(visible)]="showFilterDialog" [visibleOracleColumns]="visibleOracleColumns" [columnDataTypes]="columnDataTypes" (filtersApplied)="onFiltersApplied($event)"> </app-filter-dialog>
 
+    <!-- ============ PRESETS SELECTION DIALOG ============ -->
+    <p-dialog header="Apply a Preset" [(visible)]="presetsDialogVisible" [modal]="true" [style]="{'width': '480px'}" [closable]="true">
+        <div class="presets-dialog-content py-2">
+            <!-- Loading -->
+            <div *ngIf="loadingPresets" class="flex justify-center py-8">
+                <p-progressSpinner [style]="{width: '40px', height: '40px'}" strokeWidth="4"></p-progressSpinner>
+            </div>
+
+            <!-- Preset list -->
+            <div *ngIf="!loadingPresets" class="presets-list-container max-h-[350px] overflow-y-auto">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-white z-10">
+                        <tr class="border-b border-gray-200">
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500">Preset Name</th>
+                            <th class="text-left py-2 px-3 text-sm font-medium text-gray-500">Description</th>
+                            <th class="text-center py-2 px-3 text-sm font-medium text-gray-500 w-20">Select</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let preset of availablePresets"
+                            class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                            [class.bg-blue-50]="selectedPresetId === preset.id"
+                            (click)="selectedPresetId = preset.id">
+                            <td class="py-3 px-3 text-sm text-gray-800 font-medium">{{ preset.name }}</td>
+                            <td class="py-3 px-3 text-sm text-gray-500">{{ preset.description || '-' }}</td>
+                            <td class="py-3 px-3 text-center">
+                                <span class="inline-block w-3 h-3 rounded-full"
+                                    [class.bg-blue-500]="selectedPresetId === preset.id"
+                                    [class.bg-gray-200]="selectedPresetId !== preset.id">
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div *ngIf="availablePresets.length === 0" class="text-center py-8 text-gray-500 text-sm">
+                    No presets available. Create presets in Settings → Preset.
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+                <button pButton label="Cancel" class="p-button-outlined p-button-sm !rounded-lg" (click)="presetsDialogVisible = false; selectedPresetId = null"></button>
+                <button pButton label="Apply" icon="pi pi-check" class="p-button-sm !bg-gray-900 !border-gray-900 hover:!bg-black !text-white !rounded-lg !px-6"
+                    [disabled]="selectedPresetId === null"
+                    (click)="applyPreset(selectedPresetId!); presetsDialogVisible = false">
+                </button>
+            </div>
+        </div>
+    </p-dialog>
+
     <!-- ================= EXPANDED TABLE VIEW ================= -->
     <div *ngIf="isTableExpanded" class="fixed inset-0 bg-white z-40 flex flex-col" [ngStyle]="{'padding-top': '64px', 'padding-left': '0px'}">
         <!-- MINIMIZE BUTTON AT TOP-RIGHT -->
