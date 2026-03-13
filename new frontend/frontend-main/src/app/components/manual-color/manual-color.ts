@@ -65,7 +65,7 @@ export class ManualColor implements OnInit {
   // Session management
   currentSessionId: string | null = null;
   isLoadingQuery = false;
-  dataSource: 'query' | 'excel' | null = null;
+  dataSource: 'oracle' | 'excel' | null = null;
 
   // Undo history
   private undoStack: TableRow[][] = [];
@@ -93,18 +93,8 @@ export class ManualColor implements OnInit {
   tableData: TableRow[] = [];
   
   // Table configuration
-  tableColumns: TableColumn[] = [
-    { field: 'messageId', header: 'Message ID', width: '180px', editable: true },
-    { field: 'ticker', header: 'Ticker', width: '140px', editable: true },
-    { field: 'cusip', header: 'CUSIP', width: '140px', editable: true },
-    { field: 'bias', header: 'Bias', width: '120px', editable: true },
-    { field: 'date', header: 'Date', width: '120px', editable: true },
-    { field: 'bid', header: 'BID', width: '100px', editable: true, type: 'number' },
-    { field: 'mid', header: 'MID', width: '100px', editable: true, type: 'number' },
-    { field: 'ask', header: 'ASK', width: '100px', editable: true, type: 'number' },
-    { field: 'px', header: 'PX', width: '100px', editable: true, type: 'number' },
-    { field: 'source', header: 'Source', width: '140px', editable: true }
-  ];
+  // Populated dynamically from CLO visible-column config after init; falls back to getDefaultColumns()
+  tableColumns: TableColumn[] = [];
 
   tableConfig: TableConfig = {
     editable: true,
@@ -129,13 +119,31 @@ export class ManualColor implements OnInit {
     this.loadCloColumns();
   }
 
+  /** Resolve the active CLO from topbar (selectedAssetState) or CLO-selector (user_clo_selection). */
+  private resolveActiveCloContext(): { cloId: string | undefined; cloName: string } {
+    let cloId: string | undefined;
+    let cloName = 'unknown';
+    try {
+      const rawAsset = localStorage.getItem('selectedAssetState');
+      if (rawAsset) {
+        const parsed = JSON.parse(rawAsset);
+        cloId = parsed?.asset?.value;
+        cloName = parsed?.asset?.name || cloName;
+      }
+    } catch { }
+    try {
+      const rawUser = localStorage.getItem('user_clo_selection');
+      if (rawUser) {
+        const sel = JSON.parse(rawUser);
+        if (!cloId) { cloId = sel?.cloId; cloName = sel?.cloName || cloName; }
+      }
+    } catch { }
+    return { cloId, cloName };
+  }
+
   /** Load CLO-visible columns and their data types for the filter dialog */
   private loadCloColumns(): void {
-    let cloId: string | undefined;
-    try {
-      const raw = localStorage.getItem('user_clo_selection');
-      if (raw) cloId = JSON.parse(raw)?.cloId;
-    } catch { }
+    const { cloId } = this.resolveActiveCloContext();
     this.apiService.getSearchableFields(cloId).subscribe({
       next: (res) => {
         this.visibleOracleColumns = res.fields.map((f: any) => f.name);
@@ -146,48 +154,97 @@ export class ManualColor implements OnInit {
   }
 
   /**
-   * Auto-load CLO Oracle query data on page init.
-   * Reads the active CLO from localStorage and calls the backend.
+   * Build table columns from the CLO visible-column list returned by getUserColumns().
+   * Falls back to getDefaultColumns() when the list is empty.
+   */
+  private buildTableColumns(visibleOracleNames: string[]): void {
+    const ALL_COLS: { [k: string]: TableColumn } = {
+      'MESSAGE_ID':   { field: 'messageId',   header: 'Message ID',  width: '180px', editable: true },
+      'TICKER':       { field: 'ticker',       header: 'Ticker',      width: '140px', editable: true },
+      'SECTOR':       { field: 'sector',       header: 'Sector',      width: '140px', editable: true },
+      'CUSIP':        { field: 'cusip',        header: 'CUSIP',       width: '140px', editable: true },
+      'DATE':         { field: 'date',         header: 'Date',        width: '120px', editable: true },
+      'PRICE_LEVEL':  { field: 'priceLevel',   header: 'Price Level', width: '120px', editable: true, type: 'number' },
+      'BID':          { field: 'bid',          header: 'BID',         width: '100px', editable: true, type: 'number' },
+      'ASK':          { field: 'ask',          header: 'ASK',         width: '100px', editable: true, type: 'number' },
+      'PX':           { field: 'px',           header: 'PX',          width: '100px', editable: true, type: 'number' },
+      'SOURCE':       { field: 'source',       header: 'Source',      width: '140px', editable: true },
+      'BIAS':         { field: 'bias',         header: 'Bias',        width: '120px', editable: true },
+      'RANK':         { field: 'rank',         header: 'Rank',        width: '80px',  editable: false, type: 'number' },
+      'COV_PRICE':    { field: 'covPrice',     header: 'Cov Price',   width: '110px', editable: true, type: 'number' },
+      'PERCENT_DIFF': { field: 'percentDiff',  header: '% Diff',      width: '100px', editable: true, type: 'number' },
+      'PRICE_DIFF':   { field: 'priceDiff',    header: 'Price Diff',  width: '110px', editable: true, type: 'number' },
+      'CONFIDENCE':   { field: 'confidence',   header: 'Confidence',  width: '110px', editable: true, type: 'number' },
+      'DATE_1':       { field: 'date1',        header: 'Date 1',      width: '120px', editable: true },
+      'DIFF_STATUS':  { field: 'diffStatus',   header: 'Diff Status', width: '120px', editable: true },
+    };
+    const midCol: TableColumn = { field: 'mid', header: 'MID', width: '100px', editable: true, type: 'number' };
+    const cols: TableColumn[] = [];
+    for (const name of visibleOracleNames) {
+      const key = name.toUpperCase().replace(/ /g, '_');
+      const col = ALL_COLS[key];
+      if (col) {
+        cols.push(col);
+        // Insert MID synthetic column between ASK and the next column
+        if (key === 'ASK') cols.push(midCol);
+      }
+    }
+    this.tableColumns = cols.length > 0 ? cols : this.getDefaultColumns();
+  }
+
+  private getDefaultColumns(): TableColumn[] {
+    return [
+      { field: 'messageId', header: 'Message ID', width: '180px', editable: true },
+      { field: 'ticker',    header: 'Ticker',      width: '140px', editable: true },
+      { field: 'cusip',     header: 'CUSIP',       width: '140px', editable: true },
+      { field: 'bias',      header: 'Bias',        width: '120px', editable: true },
+      { field: 'date',      header: 'Date',        width: '120px', editable: true },
+      { field: 'bid',       header: 'BID',         width: '100px', editable: true, type: 'number' },
+      { field: 'mid',       header: 'MID',         width: '100px', editable: true, type: 'number' },
+      { field: 'ask',       header: 'ASK',         width: '100px', editable: true, type: 'number' },
+      { field: 'px',        header: 'PX',          width: '100px', editable: true, type: 'number' },
+      { field: 'source',    header: 'Source',      width: '140px', editable: true },
+    ];
+  }
+
+  /**
+   * Auto-load CLO data on page init. Reads the active CLO from both localStorage
+   * sources (topbar selectedAssetState OR CLO-selector user_clo_selection), then:
+   * 1. Fetches visible columns to build table columns dynamically.
+   * 2. Calls the backend fetch-from-query endpoint (which uses DATA_SOURCE env var).
    */
   private loadQueryData() {
-    const raw = localStorage.getItem('user_clo_selection');
-    if (!raw) {
+    const { cloId, cloName } = this.resolveActiveCloContext();
+    if (!cloId) {
       console.warn('⚠️ No CLO selected — manual color page cannot auto-load data');
+      this.tableColumns = this.getDefaultColumns();
       return;
     }
-    let cloId: string;
-    try {
-      cloId = JSON.parse(raw).cloId;
-    } catch {
-      return;
-    }
-    if (!cloId) return;
 
     this.isLoadingQuery = true;
-    console.log('🔍 Loading Oracle query data for CLO:', cloId);
+    console.log('🔍 Loading data for CLO:', cloId, '(', cloName, ')');
+
+    // Fetch visible columns to populate table columns before data arrives
+    this.apiService.getUserColumns(cloId).subscribe({
+      next: (colRes: any) => this.buildTableColumns(colRes.visible_columns || []),
+      error: () => { this.tableColumns = this.getDefaultColumns(); }
+    });
 
     this.apiService.fetchManualColorFromQuery(cloId, 1).subscribe({
       next: (response: any) => {
         if (response.success) {
           this.applyPreviewResponse(response);
-          this.dataSource = 'query';
+          this.dataSource = this.normalizeDataSource(response.data_source);
           this.messageService.add({
-            severity: 'info',
+            severity: 'success',
             summary: 'Data Loaded',
-            detail: `Loaded ${response.rows_imported} rows from Oracle query for CLO: ${cloId}`
+            detail: `Loaded ${response.rows_imported} rows for ${cloName} from ${this.dataSource === 'oracle' ? 'Oracle query' : 'Excel data source'}`
           });
-          if (response.parsing_errors?.length > 0) {
-            this.messageService.add({
-              severity: 'warn',
-              summary: 'Parsing Warnings',
-              detail: `${response.parsing_errors.length} rows could not be parsed`
-            });
-          }
         } else {
           console.warn('⚠️ fetch-from-query returned error:', response.error);
           this.messageService.add({
             severity: 'warn',
-            summary: 'Could Not Load Query Data',
+            summary: 'Could Not Load Data',
             detail: response.error || 'Import an Excel file to work with data'
           });
         }
@@ -195,14 +252,12 @@ export class ManualColor implements OnInit {
       error: (err) => {
         console.warn('⚠️ fetch-from-query endpoint error:', err);
         this.messageService.add({
-          severity: 'info',
-          summary: 'No Live Data Available',
-          detail: 'Oracle data source is not active. Import an Excel file to get started.'
+          severity: 'warn',
+          summary: 'Data Source Unavailable',
+          detail: 'Could not load data automatically. Import an Excel file to get started.'
         });
       },
-      complete: () => {
-        this.isLoadingQuery = false;
-      }
+      complete: () => { this.isLoadingQuery = false; }
     });
   }
 
@@ -217,19 +272,31 @@ export class ManualColor implements OnInit {
       rowNumber: String(row.message_id),
       messageId: row.message_id,
       ticker: row.ticker,
+      sector: row.sector,
       cusip: row.cusip,
       bias: row.bias,
       date: row.date ? new Date(row.date).toLocaleDateString() : '',
+      priceLevel: row.price_level,
       bid: row.bid,
       mid: ((row.bid ?? 0) + (row.ask ?? 0)) / 2,
       ask: row.ask,
       px: row.px,
       source: row.source,
       rank: row.rank,
+      covPrice: row.cov_price,
+      percentDiff: row.percent_diff,
+      priceDiff: row.price_diff,
+      confidence: row.confidence,
+      date1: row.date_1 ? new Date(row.date_1).toLocaleDateString() : '',
+      diffStatus: row.diff_status,
       isParent: row.is_parent,
       parentRow: row.parent_message_id,
       childrenCount: row.children_count ?? 0
     }));
+  }
+
+  private normalizeDataSource(source: any): 'oracle' | 'excel' {
+    return String(source ?? 'excel').toLowerCase() === 'oracle' ? 'oracle' : 'excel';
   }
 
   // ==================== FILE UPLOAD ====================

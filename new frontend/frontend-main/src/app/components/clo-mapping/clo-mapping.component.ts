@@ -14,6 +14,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { TabsModule } from 'primeng/tabs';
 import { DialogModule } from 'primeng/dialog';
 import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
 import {
     ApiService,
     CLOHierarchy,
@@ -39,7 +40,8 @@ import {
         InputTextModule,
         TabsModule,
         DialogModule,
-        TagModule
+        TagModule,
+        TooltipModule
     ],
     providers: [MessageService],
     template: `
@@ -137,7 +139,17 @@ import {
 
                                 <div *ngIf="dataSourceType === 'excel'" class="mb-4 p-3 bg-amber-50 border-l-4 border-amber-400 rounded text-sm text-amber-800">
                                     <i class="pi pi-exclamation-triangle mr-2"></i>
-                                    <strong>Note:</strong> Currently using Excel data source. Set <code class="bg-amber-100 px-1 rounded">DATA_SOURCE=oracle</code> in backend .env to enable Oracle queries.
+                                    <strong>Note:</strong> Currently using Excel data source. Set <code class="bg-amber-100 px-1 rounded">DATA_SOURCE=oracle</code> in backend .env to enable Oracle queries. You can still save a query below — it will be used when Oracle mode is activated.
+                                </div>
+
+                                <!-- Column alias requirement notice (always shown) -->
+                                <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded text-sm text-blue-800">
+                                    <i class="pi pi-info-circle mr-2"></i>
+                                    <strong>Required column aliases:</strong> Your query's SELECT must alias its output columns to these exact names (case-insensitive):
+                                    <code class="block bg-blue-100 px-2 py-1 rounded mt-1 font-mono text-xs leading-6">
+                                        MESSAGE_ID, TICKER, SECTOR, CUSIP, DATE, PRICE_LEVEL, BID, ASK, PX, SOURCE, BIAS, RANK, COV_PRICE, PERCENT_DIFF, PRICE_DIFF, CONFIDENCE, DATE_1, DIFF_STATUS
+                                    </code>
+                                    Example: <code class="bg-blue-100 px-1 rounded">SELECT col.PRICE_BID AS BID, col.PRICE_ASK AS ASK ...</code>
                                 </div>
 
                                 <!-- Saved query indicator -->
@@ -162,7 +174,8 @@ import {
                                 <div class="flex items-center gap-3 mt-3">
                                     <button pButton label="Run Query & Fetch Columns" icon="pi pi-play"
                                         class="!rounded-full !px-4 !py-2 !bg-gray-900 !text-white !text-sm hover:!bg-black"
-                                        (click)="executeOracleQuery()" [disabled]="!oracleQuery || queryExecuting" [loading]="queryExecuting"></button>
+                                        (click)="executeOracleQuery()" [disabled]="!oracleQuery || queryExecuting || dataSourceType !== 'oracle'" [loading]="queryExecuting"
+                                        [pTooltip]="dataSourceType !== 'oracle' ? 'Switch DATA_SOURCE=oracle in backend .env to run queries' : ''" tooltipPosition="top"></button>
                                     <button pButton label="Save Query" icon="pi pi-save"
                                         class="!rounded-full !px-4 !py-2 !bg-green-600 !text-white !text-sm hover:!bg-green-700"
                                         (click)="saveOracleQuery()" [disabled]="!oracleQuery || querySaving" [loading]="querySaving"></button>
@@ -545,16 +558,17 @@ export class CloMappingComponent implements OnInit {
                 this.queryExecuting = false;
                 this.queryResult = response.message || `Found ${response.columns?.length || 0} columns`;
 
-                if (response.columns && response.columns.length > 0) {
-                    this.allColumns = response.columns;
-                    this.filterColumns();
-                }
+                // Show sample data result — do NOT overwrite allColumns here.
+                // allColumns drives the Column Mapping tab (tab 1) and must retain
+                // the visible/hidden state from clo_mappings.json.
+                // Overwriting it with Oracle query response (which has `enabled` not `visible`)
+                // would reset all checkboxes to unchecked and corrupt the mapping on next Save.
                 if (response.sample_data && response.sample_data.length > 0) {
                     this.sampleData = response.sample_data;
                     this.sampleColumns = Object.keys(response.sample_data[0]);
                 }
 
-                this.messageService.add({ severity: 'success', summary: 'Query Executed', detail: `Found ${response.columns?.length || 0} columns` });
+                this.messageService.add({ severity: 'success', summary: 'Query Executed', detail: `Found ${response.columns?.length || 0} columns — switch to Column Mapping tab to configure visibility` });
                 setTimeout(() => { this.queryResult = ''; }, 5000);
             },
             error: (error) => {

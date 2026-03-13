@@ -65,8 +65,6 @@ export class StackedChartComponent implements OnInit, OnDestroy {
         const sortedMonths = [...monthBiasMap.keys()].sort().slice(-12);
         if (!sortedMonths.length) { this.useMockData(); return; }
 
-        this.chartWidth = Math.max(sortedMonths.length * this.monthWidth, 600);
-
         const monthLabels = sortedMonths.map((m) => {
             const [y, mo] = m.split('-');
             return new Date(+y, +mo - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
@@ -187,7 +185,7 @@ export class StackedChartComponent implements OnInit, OnDestroy {
                     );
                 }
             },
-            grid: { left: 48, right: 24, top: 32, bottom: 40 },
+            grid: { left: 48, right: 24, top: 32, bottom: 40, containLabel: false },
             xAxis: {
                 type: 'category',
                 data: months,
@@ -238,7 +236,6 @@ export class StackedChartComponent implements OnInit, OnDestroy {
             Object.fromEntries(Object.entries(m).map(([bias, pct]) => [bias, Math.round((pct / 100) * mockTotals[i])]))
         );
 
-        this.chartWidth = months.length * this.monthWidth;
         this.options    = this.buildOptions(months, biasOrder, series, mockTotals, mockCounts);
     }
 

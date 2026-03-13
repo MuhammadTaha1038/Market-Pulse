@@ -13,6 +13,7 @@ import { MessageService } from 'primeng/api';
 import { CustomTableComponent, TableColumn, TableRow, TableConfig } from '../custom-table/custom-table.component';
 import { FilterDialogComponent, FilterCondition } from '../filter-dialog/filter-dialog.component';
 import { ApiService, ColorProcessed, SearchFilter, Rule, RuleConditionBackend, Preset, UserCLOSelection } from '../../services/api.service';
+import { AssetStateService } from '../../services/asset-state.service';
 import { TableStateService } from './table-state.service';
 import { NextRunService } from '../../services/next-run.service';
 import { MenuActiveService } from '../../layout/service/menu-active.service';
@@ -101,6 +102,7 @@ export class Home implements OnInit, OnDestroy {
 
     private tableStateSub!: Subscription;
     private timerSub!: Subscription;
+    private assetSub?: Subscription;
 
     /** CLO ID from localStorage selection – passed to every API call */
     private activeCloId: string | undefined;
@@ -144,6 +146,9 @@ export class Home implements OnInit, OnDestroy {
         { oracleKey: 'PRICE_DIFF',   col: { field: 'priceDiff',   header: 'Price Diff',    width: '120px', editable: false } },
         { oracleKey: 'CONFIDENCE',   col: { field: 'confidence',  header: 'Confidence',    width: '100px', editable: false } },
         { oracleKey: 'DIFF_STATUS',  col: { field: 'diffStatus',  header: 'Diff Status',   width: '120px', editable: false } },
+        { oracleKey: 'PROCESSING_TYPE', col: { field: 'processingType', header: 'Processing Type', width: '150px', editable: false } },
+        { oracleKey: 'PARENT_MESSAGE_ID', col: { field: 'parentMessageId', header: 'Parent Message ID', width: '170px', editable: false } },
+        { oracleKey: 'CHILDREN_COUNT', col: { field: 'childrenCount', header: 'Children Count', width: '130px', editable: false } },
     ];
 
     /** Computed MID column (BID+ASK)/2 — shown only when both BID and ASK are visible */
@@ -151,6 +156,7 @@ export class Home implements OnInit, OnDestroy {
 
     constructor(
         private apiService: ApiService,
+        private assetStateService: AssetStateService,
         private messageService: MessageService,
         private router: Router,
         private tableStateService: TableStateService,
@@ -165,11 +171,13 @@ export class Home implements OnInit, OnDestroy {
         // applyColumnVisibility() calls loadDataFromBackend() once columns are resolved.
         this.applyColumnVisibility();
 
-        // If no CLO selection exists, load data immediately with default columns
-        const raw = localStorage.getItem('user_clo_selection');
-        if (!raw) {
-            this.loadDataFromBackend();
-        }
+        // React to topbar sub-asset changes while staying on /home.
+        this.assetSub = this.assetStateService.asset$.subscribe((asset) => {
+            const nextCloId = asset?.value;
+            if (nextCloId && nextCloId !== this.activeCloId) {
+                this.applyColumnVisibility(nextCloId);
+            }
+        });
 
         // Set initial active menu item to Dashboard
         this.menuActiveService.setActiveMenuItem('Dashboard');
@@ -193,6 +201,7 @@ export class Home implements OnInit, OnDestroy {
     ngOnDestroy() {
         this.tableStateSub?.unsubscribe();
         this.timerSub?.unsubscribe();
+        this.assetSub?.unsubscribe();
     }
 
     /**
@@ -200,15 +209,16 @@ export class Home implements OnInit, OnDestroy {
      * so any admin changes to the CLO mapping are immediately reflected without re-login.
      * Falls back to localStorage visibleColumns if the API call fails.
      */
-    private applyColumnVisibility(): void {
+    private applyColumnVisibility(cloIdOverride?: string): void {
         try {
-            const raw = localStorage.getItem('user_clo_selection');
-            if (!raw) return;
+            const { cloId, fallbackVisibleColumns } = this.resolveActiveCloContext();
+            this.activeCloId = cloIdOverride || cloId;
 
-            const selection: UserCLOSelection = JSON.parse(raw);
-            this.activeCloId = selection.cloId || undefined;
-
-            if (!this.activeCloId) return;
+            // If no active CLO can be resolved, load with default columns.
+            if (!this.activeCloId) {
+                this.loadDataFromBackend();
+                return;
+            }
 
             // Fetch FRESH visible columns from backend — avoids stale localStorage snapshot
             this.apiService.getUserColumns(this.activeCloId).subscribe({
@@ -216,32 +226,101 @@ export class Home implements OnInit, OnDestroy {
                     const visible = new Set<string>(response.visible_columns || []);
                     if (visible.size > 0) {
                         this._buildTableColumns(visible);
-                        // Reload data so column filtering is applied
-                        this.loadDataFromBackend();
                     }
+                    // Always reload data after visibility resolution
+                    this.loadDataFromBackend();
                 },
                 error: () => {
                     // Fallback: use the snapshot stored at login time
-                    const visible = new Set<string>(selection.visibleColumns || []);
-                    if (visible.size > 0) this._buildTableColumns(visible);
+                    const visible = new Set<string>(fallbackVisibleColumns || []);
+                    if (visible.size > 0) {
+                        this._buildTableColumns(visible);
+                    }
+                    this.loadDataFromBackend();
                 }
             });
         } catch (e) {
             console.warn('Could not apply CLO column visibility:', e);
+            this.loadDataFromBackend();
         }
+    }
+
+    /**
+     * Resolve active CLO context from both storage patterns used in the app:
+     * 1) user_clo_selection (CLO selector flow)
+     * 2) selectedAssetState (sub-asset flow used by login)
+     */
+    private resolveActiveCloContext(): { cloId?: string; fallbackVisibleColumns: string[] } {
+        let cloId: string | undefined;
+        let fallbackVisibleColumns: string[] = [];
+
+        // Preferred source: current runtime selection used by topbar/sub-asset flow.
+        try {
+            const rawAsset = localStorage.getItem('selectedAssetState');
+            if (rawAsset) {
+                const parsed = JSON.parse(rawAsset);
+                cloId = parsed?.asset?.value || cloId;
+            }
+        } catch {
+            // Ignore malformed selectedAssetState
+        }
+
+        try {
+            const rawUser = localStorage.getItem('user_clo_selection');
+            if (rawUser) {
+                const selection: UserCLOSelection = JSON.parse(rawUser);
+                // Fallback source for selector flow (when selectedAssetState is absent).
+                if (!cloId) {
+                    cloId = selection?.cloId || cloId;
+                }
+                // Only use fallback visible columns when they correspond to the resolved CLO.
+                if (selection?.cloId && selection?.cloId === cloId) {
+                    fallbackVisibleColumns = selection?.visibleColumns || fallbackVisibleColumns;
+                }
+            }
+        } catch {
+            // Ignore malformed user_clo_selection
+        }
+
+        return { cloId, fallbackVisibleColumns };
     }
 
     /** Build tableColumns from a set of visible oracle column keys */
     private _buildTableColumns(visible: Set<string>): void {
-        // Expose oracle keys so filter-dialog can filter its column dropdown
-        this.activeVisibleOracleColumns = Array.from(visible);
+        // Normalize keys to tolerate backend/localStorage/rules differences:
+        // e.g. MESSAGE_ID, Message ID, MessageID, PriceLevel, CoveragePrice, Date1.
+        const aliasMap: { [k: string]: string } = {
+            MESSAGEID: 'MESSAGE_ID',
+            DATE1: 'DATE_1',
+            PRICELEVEL: 'PRICE_LEVEL',
+            COVERAGEPRICE: 'COV_PRICE',
+            COVPRICE: 'COV_PRICE',
+            PERCENTDIFF: 'PERCENT_DIFF',
+            PRICEDIFF: 'PRICE_DIFF',
+            DIFFSTATUS: 'DIFF_STATUS',
+            PROCESSINGTYPE: 'PROCESSING_TYPE',
+            PARENTMESSAGEID: 'PARENT_MESSAGE_ID',
+            CHILDRENCOUNT: 'CHILDREN_COUNT'
+        };
+
+        const normalize = (k: string) => {
+            const raw = String(k || '').trim();
+            const underscore = raw.toUpperCase().replace(/\s+/g, '_');
+            const compact = underscore.replace(/_/g, '');
+            return aliasMap[underscore] || aliasMap[compact] || underscore;
+        };
+
+        const visibleNorm = new Set<string>(Array.from(visible).map(normalize));
+
+        // Expose normalized oracle keys so filter-dialog can filter its column dropdown
+        this.activeVisibleOracleColumns = Array.from(visibleNorm);
 
         const columns: TableColumn[] = [];
         let hasBid = false;
         let hasAsk = false;
 
         for (const { oracleKey, col } of this.ALL_TABLE_COLUMNS) {
-            if (visible.has(oracleKey)) {
+            if (visibleNorm.has(oracleKey)) {
                 columns.push({ ...col });
                 if (oracleKey === 'BID') hasBid = true;
                 if (oracleKey === 'ASK') hasAsk = true;
@@ -288,6 +367,8 @@ export class Home implements OnInit, OnDestroy {
             priceDiff: color.price_diff,
             confidence: color.confidence,
             diffStatus: color.diff_status,
+            processingType: (color as any).processing_type || '',
+            parentMessageId: color.parent_message_id || '',
             isParent: color.is_parent,
             parentRow: color.parent_message_id,
             childrenCount: color.children_count || 0
@@ -357,70 +438,60 @@ export class Home implements OnInit, OnDestroy {
     // ==================== MESSAGE ID LOOKUP ====================
 
     onMessageIdLookup(event: { row: TableRow; value: any }) {
-        const messageId = Number(event.value);
-        if (isNaN(messageId) || !event.value) {
-            return;
-        }
+        const rawValue = String(event.value || '').trim();
+        if (!rawValue) return;
 
         const table = this.isTableExpanded ? this.expandedTable : this.mainTable;
-
-        this.apiService.getColorByMessageId(messageId).subscribe({
+        // Unified lookup keeps row-edit search flexible for both Message ID and CUSIP.
+        this.apiService.securitySearch(rawValue, 'any', 10).subscribe({
             next: (response) => {
-                if (response.colors && response.colors.length > 0) {
-                    const color = response.colors[0];
+                if (response.results && response.results.length > 0) {
+                    const record = response.results[0];
                     const rowData: Partial<TableRow> = {
-                        messageId: String(color.message_id),
-                        ticker: color.ticker,
-                        sector: color.sector,
-                        cusip: color.cusip,
-                        bias: color.bias,
-                        date: color.date ? new Date(color.date).toLocaleDateString() : '',
-                        date1: color.date_1 ? new Date(color.date_1).toLocaleDateString() : '',
-                        bid: color.bid,
-                        mid: (color.bid + color.ask) / 2,
-                        ask: color.ask,
-                        px: color.px,
-                        priceLevel: color.price_level,
-                        source: color.source,
-                        rank: color.rank,
-                        covPrice: color.cov_price,
-                        percentDiff: color.percent_diff,
-                        priceDiff: color.price_diff,
-                        confidence: color.confidence,
-                        diffStatus: color.diff_status,
-                        isParent: color.is_parent,
-                        parentRow: color.parent_message_id,
-                        childrenCount: color.children_count || 0
+                        messageId: String(record.MESSAGE_ID || rawValue),
+                        ticker: record.TICKER || '',
+                        sector: record.SECTOR || '',
+                        cusip: record.CUSIP || '',
+                        bias: record.BIAS || '',
+                        date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
+                        date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
+                        bid: record.BID || 0,
+                        mid: ((Number(record.BID) || 0) + (Number(record.ASK) || 0)) / 2,
+                        ask: record.ASK || 0,
+                        px: record.PX || 0,
+                        priceLevel: record.PRICE_LEVEL || 0,
+                        source: record.SOURCE || '',
+                        rank: record.RANK || 5,
+                        covPrice: record.COV_PRICE || 0,
+                        percentDiff: record.PERCENT_DIFF || 0,
+                        priceDiff: record.PRICE_DIFF || 0,
+                        confidence: record.CONFIDENCE || 0,
+                        diffStatus: record.DIFF_STATUS || '',
+                        isParent: record.IS_PARENT ?? true,
+                        parentRow: record.PARENT_MESSAGE_ID || undefined,
+                        childrenCount: record.CHILDREN_COUNT || 0
                     };
-
-                    if (table) {
-                        table.updateRowData(event.row._rowId!, rowData);
-                    }
+                    if (table) table.updateRowData(event.row._rowId!, rowData);
                 } else {
-                    // Not found - fill cells with ERROR
-                    const errorData: Partial<TableRow> = {
-                        messageId: String(event.value),
-                        ticker: 'ERROR',
-                        cusip: 'ERROR',
-                        bias: 'ERROR',
-                        date: 'ERROR',
-                        bid: 'ERROR',
-                        mid: 'ERROR',
-                        ask: 'ERROR',
-                        px: 'ERROR',
-                        source: 'ERROR'
+                    const notFoundData: Partial<TableRow> = {
+                        messageId: rawValue,
+                        ticker: 'NOT FOUND',
+                        cusip: '',
+                        bias: '',
+                        date: '',
+                        bid: 0,
+                        mid: 0,
+                        ask: 0,
+                        px: 0,
+                        source: ''
                     };
-
-                    if (table) {
-                        table.updateRowData(event.row._rowId!, errorData);
-                    }
+                    if (table) table.updateRowData(event.row._rowId!, notFoundData);
                 }
             },
             error: (error) => {
-                console.error('Error fetching message ID:', error);
-                // Network/server error - fill cells with ERROR
+                console.error('Error during security lookup:', error);
                 const errorData: Partial<TableRow> = {
-                    messageId: String(event.value),
+                    messageId: rawValue,
                     ticker: 'ERROR',
                     cusip: 'ERROR',
                     bias: 'ERROR',
@@ -431,11 +502,8 @@ export class Home implements OnInit, OnDestroy {
                     px: 'ERROR',
                     source: 'ERROR'
                 };
-
                 const tbl = this.isTableExpanded ? this.expandedTable : this.mainTable;
-                if (tbl) {
-                    tbl.updateRowData(event.row._rowId!, errorData);
-                }
+                if (tbl) tbl.updateRowData(event.row._rowId!, errorData);
             }
         });
     }
@@ -1318,6 +1386,38 @@ export class Home implements OnInit, OnDestroy {
         this.hasImportResults = false;
         this.importPreviewFile = null;
         this.loadDataFromBackend();
+    }
+
+    clearForSearch() {
+        this.searchQuery = '';
+        this.hasImportResults = false;
+        this.importPreviewFile = null;
+        this.activeFilters = [];
+
+        const emptyRow: TableRow = {
+            _rowId: `row_new_${Date.now()}`,
+            _selected: false,
+            rowNumber: '1',
+            messageId: '',
+            ticker: '',
+            cusip: '',
+            bias: '',
+            date: '',
+            bid: '',
+            mid: '',
+            ask: '',
+            px: '',
+            source: '',
+            isParent: true,
+            childrenCount: 0
+        };
+        this.tableData = [emptyRow];
+
+        this.messageService.add({
+            severity: 'info',
+            summary: 'Table Cleared',
+            detail: 'Enter a Message ID or CUSIP in the row to fetch data'
+        });
     }
 
     onCancelImport() {

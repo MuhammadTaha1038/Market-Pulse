@@ -41,6 +41,7 @@ class ImportResponse(BaseModel):
     success: bool
     session_id: Optional[str] = None
     filename: Optional[str] = None
+    data_source: Optional[str] = None
     rows_imported: Optional[int] = None
     rows_valid: Optional[int] = None
     parsing_errors: Optional[List[str]] = None

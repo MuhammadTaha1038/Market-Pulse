@@ -61,6 +61,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     pageSize: 20
   };
   @Input() primaryField: string = 'messageId';
+  @Input() lookupFields: string[] = ['messageId'];
   @Input() isExpanded: boolean = false;
   @Input() showExpandButton: boolean = false; // Only show on home page
 
@@ -353,10 +354,10 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
       return;
     }
 
-    const isPrimaryField = field === this.primaryField;
+    const isLookupField = this.isLookupField(field);
 
-    // In non-editable mode, only allow editing the primary field
-    if (!this.config.editable && !isPrimaryField) return;
+    // In non-editable mode, only allow editing configured lookup fields
+    if (!this.config.editable && !isLookupField) return;
 
     // In editable mode, respect per-column editable flag
     if (this.config.editable) {
@@ -376,8 +377,8 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     const oldValue = row[field];
     const newValue = this.tempEditValue;
 
-    // In non-editable mode, primary field triggers a lookup instead of local save
-    if (!this.config.editable && field === this.primaryField) {
+    // In non-editable mode, lookup fields trigger backend lookup instead of local save
+    if (!this.config.editable && this.isLookupField(field)) {
       if (newValue && newValue !== oldValue) {
         // row is a direct reference to _processedData entry, so this updates both
         row[field] = newValue;
@@ -778,9 +779,14 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     return row.isParent === true;
   }
 
+  isLookupField(field: string): boolean {
+    const fields = this.lookupFields?.length ? this.lookupFields : [this.primaryField];
+    return fields.includes(field);
+  }
+
   canEditCell(column: TableColumn): boolean {
     if (this.config.editable && column.editable !== false) return true;
-    if (!this.config.editable && column.field === this.primaryField) return true;
+    if (!this.config.editable && this.isLookupField(column.field)) return true;
     return false;
   }
 

@@ -48,9 +48,8 @@
                         <div class="border-t border-gray-200 -mx-5"></div>
 
                         <!-- CONTENT -->
-                        <div class="px-5 pt-4 pb-5 h-[240px] overflow-hidden">
-                            <!-- Scroll must stay INSIDE this card -->
-                            <div class="relative h-full w-full overflow-x-auto">
+                        <div class="px-5 pt-4 pb-5 h-[300px] overflow-hidden">
+                            <div class="relative h-full w-full overflow-hidden">
                                 <stacked-chart></stacked-chart>
                             </div>
                         </div>
@@ -140,7 +139,7 @@
                     <input
                         pInputText
                         type="text"
-                        placeholder="Search Message ID"
+                        placeholder="Search Message ID or CUSIP"
                         [(ngModel)]="searchQuery"
                         class="search-message-input w-full !rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-800 !border !border-gray-300 hover:!bg-gray-100 placeholder:!text-[14px] placeholder:tracking-normal"
                     />
@@ -149,6 +148,13 @@
 
                 <!-- Add New Button -->
                 <button pButton icon="pi pi-plus" label="Add New" (click)="mainTable.addNewRow()" class="!text-gray-700 !rounded-full !px-5 !py-2.5 !bg-gray-50 !border !border-gray-300 hover:!bg-gray-50 text-sm font-normal"></button>
+
+                <!-- Clear Button -->
+                <button pButton icon="pi pi-times-circle" label="Clear" (click)="clearForSearch()"
+                    class="!text-red-700 !rounded-full !px-5 !py-2.5 !bg-red-50 !border !border-red-200 hover:!bg-red-100 text-sm font-normal"
+                    pTooltip="Clear all rows — then type a Message ID or CUSIP to fetch a single row"
+                    tooltipPosition="bottom">
+                </button>
 
                 <!-- Filters & Import -->
                 <div class="flex flex-wrap gap-3">
@@ -213,6 +219,7 @@
                 [config]="tableConfig"
                 [showExpandButton]="true"
                 primaryField="messageId"
+                [lookupFields]="['messageId', 'cusip']"
                 (dataChanged)="onTableDataChanged($event)"
                 (rowsSelected)="onTableRowsSelected($event)"
                 (primaryFieldLookup)="onMessageIdLookup($event)"
@@ -249,6 +256,13 @@
 
                     <!-- Add New Button -->
                     <button pButton icon="pi pi-plus" label="Add New" (click)="expandedTable.addNewRow()" class="!bg-white !text-gray-700 !rounded-full !px-5 !py-2.5 !border !border-gray-300 hover:!bg-gray-50 text-sm font-medium"></button>
+
+                    <!-- Clear Button -->
+                    <button pButton icon="pi pi-times-circle" label="Clear" (click)="clearForSearch()"
+                        class="!text-red-700 !rounded-full !px-5 !py-2.5 !bg-red-50 !border !border-red-200 hover:!bg-red-100 text-sm font-medium"
+                        pTooltip="Clear all rows — then type a Message ID or CUSIP to fetch a single row"
+                        tooltipPosition="bottom">
+                    </button>
 
                     <!-- Filters & Import -->
                     <div class="flex flex-wrap gap-3">
@@ -315,6 +329,7 @@
                 [isExpanded]="true"
                 [showExpandButton]="true"
                 primaryField="messageId"
+                [lookupFields]="['messageId', 'cusip']"
                 (dataChanged)="onTableDataChanged($event)"
                 (rowsSelected)="onTableRowsSelected($event)"
                 (primaryFieldLookup)="onMessageIdLookup($event)"
@@ -328,7 +343,7 @@
     <p-dialog header="Import IDs for Security Search" [(visible)]="showImportDialog" [modal]="true" [style]="{'width': '500px'}" [closable]="true" [showHeader]="true">
         <div class="p-4">
             <p class="text-sm text-gray-600 mb-6 font-medium">Upload an Excel file containing <strong>Message IDs</strong> and/or <strong>CUSIPs</strong>. The system will search the processed output and return a downloadable Excel with all matching rows.</p>
-            <p class="text-xs text-blue-600 mb-4 font-medium bg-blue-50 rounded-lg px-3 py-2">Required columns: <code>Message ID</code> and/or <code>CUSIP</code></p>
+            <p class="text-xs text-blue-600 mb-4 font-medium bg-blue-50 rounded-lg px-3 py-2">Upload any Excel file with a column of IDs. Values with exactly <strong>9 characters</strong> are treated as <code>CUSIPs</code>; longer values are treated as <code>Message IDs</code>. Column names are ignored.</p>
 
             <!-- Drop Zone -->
             <div *ngIf="!selectedFile || isUploading" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50">

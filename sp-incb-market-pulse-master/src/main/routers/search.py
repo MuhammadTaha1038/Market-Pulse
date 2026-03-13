@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import logging
 import io
 import pandas as pd
+import numpy as np
 from services.output_service import get_output_service
 from services.column_config_service import get_column_config
 
@@ -405,7 +406,7 @@ async def security_search(request: SecuritySearchRequest):
         if request.limit:
             matched = matched.head(request.limit)
 
-        results = matched.where(pd.notnull(matched), None).to_dict("records")
+        results = _to_json_safe_records(matched)
         logger.info(f"Security search returned {len(results)} records for query='{query}'")
 
         return SecuritySearchResponse(
@@ -447,40 +448,81 @@ _IDENTIFIER_MAP: dict = {
 }
 
 
+def _clean_id(val: str) -> str:
+    """
+    Normalise a raw cell string to a plain identifier string:
+    - Scientific notation  → integer string  ('1.76787808852868e+16' → '17678780885286800')
+    - Whole-number floats  → integer string  ('17678780885286800.0'  → '17678780885286800')
+    - Everything else      → returned unchanged
+    Precision is limited to float64 (~15-16 sig. digits), which matches how
+    Excel stores large integers internally.
+    """
+    val = val.strip()
+    if not val:
+        return val
+    lower = val.lower()
+    if 'e+' in lower or 'e-' in lower or '.' in val:
+        try:
+            f = float(val)
+            if f == int(f):
+                return str(int(f))
+        except (ValueError, OverflowError):
+            pass
+    return val
+
+
+def _to_json_safe_records(df: pd.DataFrame, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Convert dataframe rows into JSON-safe records by replacing NaN/Inf with None.
+    """
+    view = df.head(limit) if limit else df
+    safe = view.copy()
+    safe = safe.replace([np.inf, -np.inf], np.nan)
+    safe = safe.astype(object).where(pd.notnull(safe), None)
+    return safe.to_dict("records")
+
+
 def _detect_identifier_columns(ids_df: pd.DataFrame) -> dict:
     """
-    Auto-detect identifier columns from an uploaded DataFrame.
-    Returns dict: {output_column -> set_of_values} for each detected identifier.
+    Auto-detect identifier type from ALL cell values — including the column-name
+    row, which contains data when the uploaded file has no header row.
+    Classification is by character length after float normalisation:
+      CUSIP      = exactly 9 characters
+      Message ID = more than 9 characters
+    Column naming in the uploaded file is irrelevant.
+    Returns dict: {output_column -> set_of_cleaned_strings}
     """
-    ids_df.columns = [str(c).strip().upper().replace(" ", "_") for c in ids_df.columns]
-    detected: dict[str, set] = {}
+    cusip_values: set[str] = set()
+    message_id_values: set[str] = set()
+    SKIP = {"NAN", "NONE", "NULL", "N/A", "NA", ""}
+
+    def classify(raw) -> None:
+        val = _clean_id(str(raw).strip())
+        if not val or val.upper() in SKIP:
+            return
+        if len(val) == 9:
+            cusip_values.add(val.upper())   # CUSIPs are case-insensitive
+        elif len(val) > 9:
+            message_id_values.add(val)
 
     for col in ids_df.columns:
-        output_col = _IDENTIFIER_MAP.get(col)
-        if not output_col:
-            # fuzzy: if any known keyword is a substring of the column name, map it
-            if any(k in col for k in ("MESSAGE", "MSG", "BOND", "SECURITY_ID")):
-                output_col = "MESSAGE_ID"
-            elif "CUSIP" in col:
-                output_col = "CUSIP"
-            elif "ISIN" in col:
-                output_col = "ISIN"
-            elif "TICKER" in col or "SYMBOL" in col:
-                output_col = "TICKER"
+        # The column name may itself be data when the file has no header row
+        # (pandas treats row 1 as column names by default).
+        classify(col)
+        for raw in ids_df[col].dropna():
+            classify(raw)
 
-        if output_col:
-            values = {str(v).strip() for v in ids_df[col].dropna().unique() if str(v).strip()}
-            if values:
-                if output_col not in detected:
-                    detected[output_col] = set()
-                detected[output_col].update(values)
-
+    detected: dict[str, set] = {}
+    if cusip_values:
+        detected["CUSIP"] = cusip_values
+    if message_id_values:
+        detected["MESSAGE_ID"] = message_id_values
     return detected
 
 
 async def _run_ids_search(contents_io: io.BytesIO):
     """Read IDs from Excel BytesIO, search processed output. Returns (matched_df, detected_col_names)."""
-    ids_df = pd.read_excel(contents_io)
+    ids_df = pd.read_excel(contents_io, dtype=object)
     detected = _detect_identifier_columns(ids_df)
 
     detected_col_names = list(detected.keys())
@@ -488,8 +530,9 @@ async def _run_ids_search(contents_io: io.BytesIO):
         raise HTTPException(
             status_code=400,
             detail=(
-                "No identifier columns detected in the uploaded file. "
-                "Expected columns like: MESSAGE_ID, CUSIP, ISIN, TICKER, etc."
+                "No identifiable values found in the uploaded file. "
+                "Values with exactly 9 characters are treated as CUSIPs; "
+                "values with more than 9 characters are treated as Message IDs."
             )
         )
 
@@ -503,18 +546,24 @@ async def _run_ids_search(contents_io: io.BytesIO):
     for output_col, values in detected.items():
         if output_col not in df.columns:
             continue
-        if output_col == "CUSIP" or output_col == "ISIN" or output_col == "TICKER":
+        if output_col == "CUSIP":
             # Case-insensitive string match
             upper_vals = {v.upper() for v in values}
             rows = df[df[output_col].astype(str).str.upper().isin(upper_vals)]
         else:
-            # Try numeric first (MESSAGE_ID), fall back to string
+            # MESSAGE_ID: use float comparison so that Excel-stored float64 values
+            # (which may have lost ~1-2 ULP precision vs. the stored int64) still match.
             try:
-                numeric_vals = {int(v) for v in values if v.isdigit() or (v.replace(".", "", 1).isdigit())}
-                str_vals = values
+                float_vals = set()
+                for v in values:
+                    try:
+                        float_vals.add(float(v))
+                    except (ValueError, OverflowError):
+                        pass
+                output_as_float = pd.to_numeric(df[output_col], errors='coerce')
                 rows = df[
-                    df[output_col].isin(numeric_vals) |
-                    df[output_col].astype(str).isin(str_vals)
+                    output_as_float.isin(float_vals) |
+                    df[output_col].astype(str).isin(values)
                 ]
             except Exception:
                 rows = df[df[output_col].astype(str).isin(values)]
@@ -526,7 +575,7 @@ async def _run_ids_search(contents_io: io.BytesIO):
 
 async def _run_ids_search_with_summary(contents_io: io.BytesIO):
     """Same as _run_ids_search but also returns a search summary dict."""
-    ids_df = pd.read_excel(contents_io)
+    ids_df = pd.read_excel(contents_io, dtype=object)
     detected = _detect_identifier_columns(ids_df)
 
     detected_col_names = list(detected.keys())
@@ -534,8 +583,9 @@ async def _run_ids_search_with_summary(contents_io: io.BytesIO):
         raise HTTPException(
             status_code=400,
             detail=(
-                "No identifier columns detected in the uploaded file. "
-                "Expected columns like: MESSAGE_ID, CUSIP, ISIN, TICKER, etc."
+                "No identifiable values found in the uploaded file. "
+                "Values with exactly 9 characters are treated as CUSIPs; "
+                "values with more than 9 characters are treated as Message IDs."
             )
         )
 
@@ -556,11 +606,16 @@ async def _run_ids_search_with_summary(contents_io: io.BytesIO):
             rows = df[df[output_col].astype(str).str.upper().isin(upper_vals)]
         else:
             try:
-                numeric_vals = {int(v) for v in values if str(v).strip().isdigit()}
-                str_vals = values
+                float_vals = set()
+                for v in values:
+                    try:
+                        float_vals.add(float(v))
+                    except (ValueError, OverflowError):
+                        pass
+                output_as_float = pd.to_numeric(df[output_col], errors='coerce')
                 rows = df[
-                    df[output_col].isin(numeric_vals) |
-                    df[output_col].astype(str).isin(str_vals)
+                    output_as_float.isin(float_vals) |
+                    df[output_col].astype(str).isin(values)
                 ]
             except Exception:
                 rows = df[df[output_col].astype(str).isin(values)]
@@ -640,7 +695,7 @@ async def preview_imported_ids(file: UploadFile = File(...)):
         matched, detected_cols, summary = await _run_ids_search_with_summary(io.BytesIO(contents))
 
         total = len(matched)
-        results = matched.head(1000).where(pd.notnull(matched.head(1000)), None).to_dict("records")
+        results = _to_json_safe_records(matched, limit=1000)
 
         logger.info(f"Import-IDs preview: {total} matches, detected: {detected_cols}")
         return {

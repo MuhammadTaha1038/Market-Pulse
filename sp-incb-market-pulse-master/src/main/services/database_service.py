@@ -89,29 +89,71 @@ class DatabaseService:
             df = df[df['SECTOR'].isin(asset_classes)]
             logger.info(f"Filtered to {len(df)} records for sectors: {asset_classes}")
         
+        # Validate required columns are present and log any missing ones up-front.
+        # Oracle custom queries MUST alias output columns to these exact names.
+        REQUIRED_COLS = [
+            'MESSAGE_ID', 'TICKER', 'SECTOR', 'CUSIP', 'DATE',
+            'PRICE_LEVEL', 'BID', 'ASK', 'PX', 'SOURCE', 'BIAS', 'RANK',
+            'COV_PRICE', 'PERCENT_DIFF', 'PRICE_DIFF', 'CONFIDENCE', 'DATE_1', 'DIFF_STATUS'
+        ]
+        actual_cols = set(df.columns.tolist())
+        missing = [c for c in REQUIRED_COLS if c not in actual_cols]
+        if missing:
+            logger.warning(
+                f"⚠️ Data source is missing required column(s): {missing}. "
+                "Rows that reference missing columns will be skipped. "
+                "If using Oracle, ensure your custom query aliases output columns to the "
+                "standard names: MESSAGE_ID, TICKER, SECTOR, CUSIP, DATE, PRICE_LEVEL, "
+                "BID, ASK, PX, SOURCE, BIAS, RANK, COV_PRICE, PERCENT_DIFF, PRICE_DIFF, "
+                "CONFIDENCE, DATE_1, DIFF_STATUS."
+            )
+
+        def _safe_float(val, default=0.0):
+            try:
+                f = float(val)
+                import math
+                return default if math.isnan(f) else f
+            except Exception:
+                return default
+
+        def _safe_int(val, default=0):
+            try:
+                return int(float(val)) if val is not None else default
+            except Exception:
+                return default
+
+        def _safe_date(val):
+            try:
+                return pd.to_datetime(val)
+            except Exception:
+                return pd.Timestamp.now()
+
+        def _get(row, col, default=''):
+            return row[col] if col in actual_cols else default
+
         # Convert to ColorRaw objects
         colors = []
         for _, row in df.iterrows():
             try:
                 color = ColorRaw(
-                    message_id=int(row['MESSAGE_ID']),
-                    ticker=str(row['TICKER']),
-                    sector=str(row['SECTOR']),
-                    cusip=str(row['CUSIP']),
-                    date=pd.to_datetime(row['DATE']),
-                    price_level=float(row['PRICE_LEVEL']),
-                    bid=float(row['BID']),
-                    ask=float(row['ASK']),
-                    px=float(row['PX']),
-                    source=str(row['SOURCE']),
-                    bias=str(row['BIAS']),
-                    rank=int(row['RANK']),
-                    cov_price=float(row['COV_PRICE']),
-                    percent_diff=float(row['PERCENT_DIFF']),
-                    price_diff=float(row['PRICE_DIFF']),
-                    confidence=int(row['CONFIDENCE']),
-                    date_1=pd.to_datetime(row['DATE_1']),
-                    diff_status=str(row['DIFF_STATUS'])
+                    message_id=_safe_int(_get(row, 'MESSAGE_ID', 0)),
+                    ticker=str(_get(row, 'TICKER')),
+                    sector=str(_get(row, 'SECTOR')),
+                    cusip=str(_get(row, 'CUSIP')),
+                    date=_safe_date(_get(row, 'DATE', pd.Timestamp.now())),
+                    price_level=_safe_float(_get(row, 'PRICE_LEVEL', 0.0)),
+                    bid=_safe_float(_get(row, 'BID', 0.0)),
+                    ask=_safe_float(_get(row, 'ASK', 0.0)),
+                    px=_safe_float(_get(row, 'PX', 0.0)),
+                    source=str(_get(row, 'SOURCE')),
+                    bias=str(_get(row, 'BIAS')),
+                    rank=_safe_int(_get(row, 'RANK', 1)),
+                    cov_price=_safe_float(_get(row, 'COV_PRICE', 0.0)),
+                    percent_diff=_safe_float(_get(row, 'PERCENT_DIFF', 0.0)),
+                    price_diff=_safe_float(_get(row, 'PRICE_DIFF', 0.0)),
+                    confidence=_safe_int(_get(row, 'CONFIDENCE', 5)),
+                    date_1=_safe_date(_get(row, 'DATE_1', pd.Timestamp.now())),
+                    diff_status=str(_get(row, 'DIFF_STATUS'))
                 )
                 colors.append(color)
             except Exception as e:
@@ -135,29 +177,52 @@ class DatabaseService:
         df_filtered = df[df['CUSIP'].isin(cusip_list)]
         
         logger.info(f"Found {len(df_filtered)} colors for {len(cusip_list)} CUSIPs")
-        
+
+        actual_cols = set(df_filtered.columns.tolist())
+
+        def _sf(val, d=0.0):
+            try:
+                import math; f = float(val); return d if math.isnan(f) else f
+            except Exception:
+                return d
+
+        def _si(val, d=0):
+            try:
+                return int(float(val)) if val is not None else d
+            except Exception:
+                return d
+
+        def _sd(val):
+            try:
+                return pd.to_datetime(val)
+            except Exception:
+                return pd.Timestamp.now()
+
+        def _get(row, col, default=''):
+            return row[col] if col in actual_cols else default
+
         colors = []
         for _, row in df_filtered.iterrows():
             try:
                 color = ColorRaw(
-                    message_id=int(row['MESSAGE_ID']),
-                    ticker=str(row['TICKER']),
-                    sector=str(row['SECTOR']),
-                    cusip=str(row['CUSIP']),
-                    date=pd.to_datetime(row['DATE']),
-                    price_level=float(row['PRICE_LEVEL']),
-                    bid=float(row['BID']),
-                    ask=float(row['ASK']),
-                    px=float(row['PX']),
-                    source=str(row['SOURCE']),
-                    bias=str(row['BIAS']),
-                    rank=int(row['RANK']),
-                    cov_price=float(row['COV_PRICE']),
-                    percent_diff=float(row['PERCENT_DIFF']),
-                    price_diff=float(row['PRICE_DIFF']),
-                    confidence=int(row['CONFIDENCE']),
-                    date_1=pd.to_datetime(row['DATE_1']),
-                    diff_status=str(row['DIFF_STATUS'])
+                    message_id=_si(_get(row, 'MESSAGE_ID', 0)),
+                    ticker=str(_get(row, 'TICKER')),
+                    sector=str(_get(row, 'SECTOR')),
+                    cusip=str(_get(row, 'CUSIP')),
+                    date=_sd(_get(row, 'DATE', pd.Timestamp.now())),
+                    price_level=_sf(_get(row, 'PRICE_LEVEL', 0.0)),
+                    bid=_sf(_get(row, 'BID', 0.0)),
+                    ask=_sf(_get(row, 'ASK', 0.0)),
+                    px=_sf(_get(row, 'PX', 0.0)),
+                    source=str(_get(row, 'SOURCE')),
+                    bias=str(_get(row, 'BIAS')),
+                    rank=_si(_get(row, 'RANK', 1)),
+                    cov_price=_sf(_get(row, 'COV_PRICE', 0.0)),
+                    percent_diff=_sf(_get(row, 'PERCENT_DIFF', 0.0)),
+                    price_diff=_sf(_get(row, 'PRICE_DIFF', 0.0)),
+                    confidence=_si(_get(row, 'CONFIDENCE', 5)),
+                    date_1=_sd(_get(row, 'DATE_1', pd.Timestamp.now())),
+                    diff_status=str(_get(row, 'DIFF_STATUS'))
                 )
                 colors.append(color)
             except Exception as e:
@@ -180,29 +245,52 @@ class DatabaseService:
         df_filtered = df[df['MESSAGE_ID'].isin(message_ids)]
         
         logger.info(f"Found {len(df_filtered)} colors for {len(message_ids)} message IDs")
-        
+
+        actual_cols = set(df_filtered.columns.tolist())
+
+        def _sf(val, d=0.0):
+            try:
+                import math; f = float(val); return d if math.isnan(f) else f
+            except Exception:
+                return d
+
+        def _si(val, d=0):
+            try:
+                return int(float(val)) if val is not None else d
+            except Exception:
+                return d
+
+        def _sd(val):
+            try:
+                return pd.to_datetime(val)
+            except Exception:
+                return pd.Timestamp.now()
+
+        def _get(row, col, default=''):
+            return row[col] if col in actual_cols else default
+
         colors = []
         for _, row in df_filtered.iterrows():
             try:
                 color = ColorRaw(
-                    message_id=int(row['MESSAGE_ID']),
-                    ticker=str(row['TICKER']),
-                    sector=str(row['SECTOR']),
-                    cusip=str(row['CUSIP']),
-                    date=pd.to_datetime(row['DATE']),
-                    price_level=float(row['PRICE_LEVEL']),
-                    bid=float(row['BID']),
-                    ask=float(row['ASK']),
-                    px=float(row['PX']),
-                    source=str(row['SOURCE']),
-                    bias=str(row['BIAS']),
-                    rank=int(row['RANK']),
-                    cov_price=float(row['COV_PRICE']),
-                    percent_diff=float(row['PERCENT_DIFF']),
-                    price_diff=float(row['PRICE_DIFF']),
-                    confidence=int(row['CONFIDENCE']),
-                    date_1=pd.to_datetime(row['DATE_1']),
-                    diff_status=str(row['DIFF_STATUS'])
+                    message_id=_si(_get(row, 'MESSAGE_ID', 0)),
+                    ticker=str(_get(row, 'TICKER')),
+                    sector=str(_get(row, 'SECTOR')),
+                    cusip=str(_get(row, 'CUSIP')),
+                    date=_sd(_get(row, 'DATE', pd.Timestamp.now())),
+                    price_level=_sf(_get(row, 'PRICE_LEVEL', 0.0)),
+                    bid=_sf(_get(row, 'BID', 0.0)),
+                    ask=_sf(_get(row, 'ASK', 0.0)),
+                    px=_sf(_get(row, 'PX', 0.0)),
+                    source=str(_get(row, 'SOURCE')),
+                    bias=str(_get(row, 'BIAS')),
+                    rank=_si(_get(row, 'RANK', 1)),
+                    cov_price=_sf(_get(row, 'COV_PRICE', 0.0)),
+                    percent_diff=_sf(_get(row, 'PERCENT_DIFF', 0.0)),
+                    price_diff=_sf(_get(row, 'PRICE_DIFF', 0.0)),
+                    confidence=_si(_get(row, 'CONFIDENCE', 5)),
+                    date_1=_sd(_get(row, 'DATE_1', pd.Timestamp.now())),
+                    diff_status=str(_get(row, 'DIFF_STATUS'))
                 )
                 colors.append(color)
             except Exception as e:

@@ -21,6 +21,6 @@
     </div>
 
     <!-- Chart Display -->
-    <div *ngIf="!isLoading && !hasError" class="chart-container overflow-x-auto overflow-y-hidden">
-        <div echarts [options]="options" [style.width.px]="chartWidth" [style.height.px]="300"></div>
+    <div *ngIf="!isLoading && !hasError" class="chart-container overflow-hidden">
+        <div echarts [options]="options" [autoResize]="true" style="width:100%;height:300px;"></div>
     </div>

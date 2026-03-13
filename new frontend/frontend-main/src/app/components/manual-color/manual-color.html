@@ -104,12 +104,12 @@
     <!-- QUERY LOADING INDICATOR -->
     <div *ngIf="isLoadingQuery" class="flex flex-col items-center justify-center py-12 gap-3">
         <p-progressSpinner [style]="{width: '48px', height: '48px'}" strokeWidth="4"></p-progressSpinner>
-        <p class="text-sm text-gray-500">Loading Oracle query data&hellip;</p>
+        <p class="text-sm text-gray-500">Loading data from configured source&hellip;</p>
     </div>
 
     <!-- DATA SOURCE BADGE -->
     <div *ngIf="!isLoadingQuery && dataSource" class="flex items-center gap-2 px-1 mb-2">
-        <span *ngIf="dataSource === 'query'"
+        <span *ngIf="dataSource === 'oracle'"
               class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
             <i class="pi pi-database text-xs"></i> Oracle Query
         </span>

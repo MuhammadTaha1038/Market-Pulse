@@ -93,7 +93,7 @@
                     <td
                         *ngFor="let column of columns"
                         [class.editable-cell]="canEditCell(column)"
-                        [class.primary-field-cell]="!config.editable && column.field === primaryField"
+                        [class.primary-field-cell]="!config.editable && isLookupField(column.field)"
                         [class.child-data-cell]="isChildRow(row)"
                         (mousedown)="$event.stopPropagation(); $event.preventDefault()"
                         (click)="$event.stopPropagation(); canEditCell(column) && startEdit(row, column.field)"
@@ -101,7 +101,7 @@
                         <!-- Normal Display -->
                         <div *ngIf="!isEditing(row, column.field)" class="cell-content">
                             <span>{{ row[column.field] }}</span>
-                            <i *ngIf="!config.editable && column.field === primaryField" class="pi pi-pencil primary-field-icon"></i>
+                            <i *ngIf="!config.editable && isLookupField(column.field)" class="pi pi-pencil primary-field-icon"></i>
                         </div>
 
                         <!-- Edit Mode -->
@@ -115,7 +115,7 @@
                             (keydown)="onKeyDown($event, row, column.field)"
                             (click)="$event.stopPropagation()"
                             (mousedown)="$event.stopPropagation()"
-                            [placeholder]="!config.editable && column.field === primaryField ? 'Enter Message ID...' : ''"
+                            [placeholder]="!config.editable && isLookupField(column.field) ? 'Enter Message ID or CUSIP...' : ''"
                         />
                     </td>
 

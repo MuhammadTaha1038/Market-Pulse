@@ -11,6 +11,7 @@ import { ApiService } from '../../services/api.service';
 import { NextRunService } from '../../services/next-run.service';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 @Component({
   selector: 'app-color-selection',
@@ -191,6 +192,72 @@ export class ColorSelection implements OnInit, OnDestroy {
 
   goToHelpPage(): void {
     this.router.navigate(['/temp']);
+  }
+
+  // ── Sample File Download ──────────────────────────────────────────────────
+
+  downloadSampleFile(event: Event): void {
+    event.stopPropagation();
+
+    // Resolve active CLO — prefer selectedAssetState (topbar flow), fall back to user_clo_selection
+    let cloId: string | undefined;
+    let cloName = 'sample';
+
+    try {
+      const rawAsset = localStorage.getItem('selectedAssetState');
+      if (rawAsset) {
+        const parsed = JSON.parse(rawAsset);
+        cloId   = parsed?.asset?.value;
+        cloName = parsed?.asset?.name || cloName;
+      }
+    } catch {}
+
+    if (!cloId) {
+      try {
+        const rawUser = localStorage.getItem('user_clo_selection');
+        if (rawUser) {
+          const selection = JSON.parse(rawUser);
+          cloId   = selection?.cloId;
+          cloName = selection?.cloName || cloName;
+        }
+      } catch {}
+    }
+
+    if (!cloId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'No Sub-Asset Selected',
+        detail: 'Please select a sub-asset first to download the sample file.'
+      });
+      return;
+    }
+
+    this.apiService.getUserColumns(cloId).subscribe({
+      next: (response: any) => {
+        const columns: string[] = response.visible_columns || [];
+        if (!columns.length) {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'No Columns',
+            detail: 'No visible columns found for the current sub-asset.'
+          });
+          return;
+        }
+        // Build workbook: single header row with column names
+        const ws = XLSX.utils.aoa_to_sheet([columns]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data');
+        const safeName = cloName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        XLSX.writeFile(wb, `${safeName}_sample.xlsx`);
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Download Failed',
+          detail: 'Could not fetch column configuration. Please try again.'
+        });
+      }
+    });
   }
 
   ngOnDestroy() {

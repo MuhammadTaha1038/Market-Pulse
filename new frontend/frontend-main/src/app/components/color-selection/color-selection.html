@@ -225,9 +225,9 @@
             <!-- Description -->
             <p class="text-sm text-gray-500 leading-relaxed max-w-md">
                 Manual colors bulk upload via excel,
-                <a href="assets/sample-files/color-import-sample.xlsx" download
-                   class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700"
-                   (click)="$event.stopPropagation()"> Click here </a>
+                <button type="button"
+                   class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700 bg-transparent border-none p-0 cursor-pointer"
+                   (click)="downloadSampleFile($event)"> Click here </button>
                 to download sample file
             </p>
         </div>
