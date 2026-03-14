@@ -67,11 +67,70 @@ def get_buffered_files() -> List[Dict]:
     """Get list of buffered files waiting to be processed"""
     try:
         buffer_data = storage.load("manual_uploads_buffer")
-        if buffer_data is None:
-            return []
-        return buffer_data.get("files", [])
+        files = [] if buffer_data is None else (buffer_data.get("files", []) or [])
     except FileNotFoundError:
-        return []
+        files = []
+
+    history = get_upload_history()
+    history_status_by_id = {
+        int(h.get("id")): str(h.get("status", "")).lower()
+        for h in history
+        if h.get("id") is not None and str(h.get("id")).isdigit()
+    }
+
+    # Self-heal: if buffer files exist on disk but queue JSON is stale/empty,
+    # rebuild pending entries so manual-color fetch can include them.
+    known_ids = {
+        int(entry.get("id"))
+        for entry in files
+        if entry.get("id") is not None and str(entry.get("id")).isdigit()
+    }
+    recovered_entries: List[Dict] = []
+
+    try:
+        for p in Path(BUFFER_DIR).glob("*.xlsx"):
+            name = p.name
+            parts = name.split("_", 2)
+            if len(parts) < 3 or not parts[0].isdigit():
+                continue
+
+            upload_id = int(parts[0])
+            if upload_id in known_ids:
+                continue
+
+            hist_status = history_status_by_id.get(upload_id, "")
+            if hist_status in ("success", "failed"):
+                # Skip and clean up stale files that were already finalized.
+                if hist_status == "success":
+                    try:
+                        p.unlink(missing_ok=True)
+                        logger.info(f"🗑️ Removed stale processed buffer file: {p.name} (ID: {upload_id})")
+                    except Exception as e:
+                        logger.warning(f"Could not remove stale processed buffer file {p.name}: {e}")
+                continue
+
+            recovered_entries.append({
+                "id": upload_id,
+                "filename": parts[2],
+                "file_path": str(p),
+                "uploaded_by": "unknown",
+                "upload_time": datetime.fromtimestamp(p.stat().st_mtime).isoformat(),
+                "status": "pending",
+                "processed_time": None,
+                "recovered": True,
+            })
+
+        if recovered_entries:
+            files.extend(sorted(recovered_entries, key=lambda x: x["id"]))
+            save_buffered_files(files)
+            logger.warning(
+                f"Recovered {len(recovered_entries)} orphaned buffer file(s) into queue: "
+                f"{[e['id'] for e in recovered_entries]}"
+            )
+    except Exception as e:
+        logger.warning(f"Could not scan buffer directory for orphaned files: {e}")
+
+    return files
 
 
 def save_buffered_files(files: List[Dict]):
@@ -99,11 +158,31 @@ def add_to_buffer(file_path: str, filename: str, uploaded_by: str, upload_id: in
     return buffer_entry
 
 
-def mark_buffer_processed(upload_id: int, success: bool, error: str = None):
+def mark_buffer_processed(upload_id: int, success: bool, error: str = None, file_path: Optional[str] = None):
     """Mark buffered file as processed and remove from buffer"""
     buffered = get_buffered_files()
-    updated_buffer = [f for f in buffered if f["id"] != upload_id]
+    removed_entries = [f for f in buffered if f.get("id") == upload_id]
+    updated_buffer = [f for f in buffered if f.get("id") != upload_id]
     save_buffered_files(updated_buffer)
+
+    # Delete physical buffered file so it cannot be recovered again as orphan.
+    candidate_paths: List[str] = []
+    if file_path:
+        candidate_paths.append(file_path)
+    candidate_paths.extend(
+        [str(entry.get("file_path")) for entry in removed_entries if entry.get("file_path")]
+    )
+
+    for path_str in candidate_paths:
+        try:
+            p = Path(path_str)
+            if p.exists():
+                p.unlink()
+                logger.info(f"🗑️ Deleted buffered file: {p.name} (ID: {upload_id})")
+                break
+        except Exception as e:
+            logger.warning(f"Could not delete buffered file for ID {upload_id}: {e}")
+
     logger.info(f"✅ Removed from buffer: ID {upload_id}")
 
 
@@ -391,7 +470,7 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
             save_upload_history(history)
             
             # Remove from buffer
-            mark_buffer_processed(upload_id, False, error_msg)
+            mark_buffer_processed(upload_id, False, error_msg, file_path=file_path)
             
             return {
                 "success": False,
@@ -428,7 +507,7 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
         save_upload_history(history)
         
         # Remove from buffer
-        mark_buffer_processed(upload_id, True)
+        mark_buffer_processed(upload_id, True, file_path=file_path)
         
         logger.info(f"✅ Buffered file processed successfully in {duration:.2f}s")
         
@@ -455,7 +534,7 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
         save_upload_history(history)
         
         # Remove from buffer
-        mark_buffer_processed(upload_id, False, error_msg)
+        mark_buffer_processed(upload_id, False, error_msg, file_path=file_path)
         
         return {
             "success": False,

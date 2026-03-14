@@ -107,6 +107,22 @@ export interface UploadResponse {
     colors: ColorRaw[];
 }
 
+export interface ManualUploadHistoryItem {
+    id: number;
+    filename: string;
+    uploaded_by: string;
+    upload_time: string;
+    status: string;
+    rows_uploaded: number;
+    rows_processed?: number;
+    error?: string;
+}
+
+export interface ManualUploadHistoryResponse {
+    uploads: ManualUploadHistoryItem[];
+    count: number;
+}
+
 export interface ProcessResponse {
     success: boolean;
     input_count: number;
@@ -836,6 +852,24 @@ export class ApiService {
             session_id: sessionId,
             user_id: userId
         });
+    }
+
+    /**
+     * Upload an Excel file into backend manual-upload buffer queue.
+     */
+    uploadManualBufferedFile(file: File, uploadedBy: string = 'admin'): Observable<any> {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('uploaded_by', uploadedBy);
+        return this.http.post<any>(`${this.baseUrl}/api/manual-upload/upload`, formData);
+    }
+
+    /**
+     * Read backend manual-upload history to determine pending queue state.
+     */
+    getManualUploadHistory(limit: number = 50): Observable<ManualUploadHistoryResponse> {
+        const params = new HttpParams().set('limit', limit.toString());
+        return this.http.get<ManualUploadHistoryResponse>(`${this.baseUrl}/api/manual-upload/history`, { params });
     }
 
     // ==================== SEARCH / FILTER ENDPOINTS ====================

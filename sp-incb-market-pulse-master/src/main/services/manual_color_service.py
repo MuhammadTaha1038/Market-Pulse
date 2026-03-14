@@ -24,6 +24,7 @@ from services.ranking_engine import RankingEngine
 from services.output_service import get_output_service
 from services.column_config_service import get_column_config
 from rules_service import apply_rules
+from manual_upload_service import get_buffered_files
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,107 @@ def import_manual_colors(
         }
 
 
+def _load_buffered_manual_colors() -> Tuple[List[ColorRaw], List[str], List[int]]:
+    """
+    Read pending files from manual upload buffer and parse them into ColorRaw rows.
+
+    Returns:
+        (buffered_colors, warnings, consumed_buffer_ids)
+    """
+    buffered_colors: List[ColorRaw] = []
+    warnings: List[str] = []
+    consumed_buffer_ids: List[int] = []
+
+    try:
+        from manual_upload_service import get_buffered_files, parse_excel_to_colors
+
+        buffered_files = get_buffered_files()
+        if not buffered_files:
+            return buffered_colors, warnings, consumed_buffer_ids
+
+        for entry in buffered_files:
+            file_path = entry.get("file_path")
+            filename = entry.get("filename") or os.path.basename(str(file_path or "buffer_file"))
+
+            if not file_path or not os.path.exists(file_path):
+                msg = f"Buffered file missing: {filename}"
+                logger.warning(msg)
+                warnings.append(msg)
+                continue
+
+            try:
+                df = pd.read_excel(file_path)
+                parsed_colors, parsing_errors = parse_excel_to_colors(df)
+
+                buffered_colors.extend(parsed_colors)
+                if parsed_colors and isinstance(entry.get("id"), int):
+                    consumed_buffer_ids.append(entry["id"])
+                if parsing_errors:
+                    msg = f"{filename}: {len(parsing_errors)} row(s) could not be parsed"
+                    logger.warning(msg)
+                    warnings.append(msg)
+
+                logger.info(f"📎 Loaded {len(parsed_colors)} buffered rows from {filename}")
+            except Exception as file_err:
+                msg = f"Failed reading buffered file {filename}: {file_err}"
+                logger.warning(msg)
+                warnings.append(msg)
+
+    except Exception as e:
+        msg = f"Unable to read manual upload buffer: {e}"
+        logger.warning(msg)
+        warnings.append(msg)
+
+    return buffered_colors, warnings, consumed_buffer_ids
+
+
+def _clear_consumed_buffer_entries(upload_ids: List[int]) -> int:
+    """Remove consumed upload IDs from buffer and mark upload history as processed by manual save."""
+    if not upload_ids:
+        return 0
+
+    try:
+        from manual_upload_service import (
+            get_buffered_files,
+            save_buffered_files,
+            get_upload_history,
+            save_upload_history,
+        )
+
+        id_set = set(upload_ids)
+        buffered_files = get_buffered_files()
+
+        removed_entries = [entry for entry in buffered_files if entry.get("id") in id_set]
+        remaining_entries = [entry for entry in buffered_files if entry.get("id") not in id_set]
+
+        # Remove the actual buffered files from disk so they are not re-consumed.
+        for entry in removed_entries:
+            try:
+                path = entry.get("file_path")
+                if path and os.path.exists(path):
+                    os.remove(path)
+            except Exception as file_err:
+                logger.warning(f"Failed removing buffered file for ID {entry.get('id')}: {file_err}")
+
+        save_buffered_files(remaining_entries)
+
+        history = get_upload_history()
+        now_iso = datetime.now().isoformat()
+        for h in history:
+            if h.get("id") in id_set:
+                h["status"] = "success"
+                h["processing_time"] = now_iso
+                h["rows_processed"] = h.get("rows_uploaded", 0)
+                h["message"] = "Processed via Manual Color save (included in combined session)"
+        save_upload_history(history)
+
+        logger.info(f"🧹 Cleared {len(removed_entries)} consumed buffered upload(s): {sorted(id_set)}")
+        return len(removed_entries)
+    except Exception as e:
+        logger.warning(f"Could not clear consumed buffered uploads: {e}")
+        return 0
+
+
 def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
     """
     Fetch data for a CLO using the configured data source (Excel or Oracle),
@@ -285,20 +387,43 @@ def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
 
         # DatabaseService respects DATA_SOURCE env var automatically
         db = DatabaseService(clo_id=clo_id)
-        raw_colors = db.fetch_all_colors()
+        source_colors = db.fetch_all_colors()
+
+        logger.info(f"✅ Fetched {len(source_colors)} source rows for CLO '{clo_id}'")
+
+        # Append pending manual uploads so manual review runs on combined input.
+        pending_buffer_entries = get_buffered_files()
+        pending_buffer_ids = [int(entry.get("id")) for entry in pending_buffer_entries if entry.get("id") is not None]
+        buffered_colors, buffer_warnings, consumed_buffer_ids = _load_buffered_manual_colors()
+        if buffered_colors:
+            logger.info(
+                f"📎 Appending {len(buffered_colors)} buffered rows to source data "
+                f"({len(source_colors)} + {len(buffered_colors)})"
+            )
+
+        raw_colors = source_colors + buffered_colors
 
         if not raw_colors:
             return {
                 "success": False,
                 "error": (
-                    f"No data returned for CLO '{clo_id}'. "
+                    f"No data returned for CLO '{clo_id}' and no buffered manual uploads found. "
                     f"Data source is '{data_src}'. "
                     "If using Excel, check that the input file exists and has data. "
                     "If using Oracle, ensure the CLO has a saved query in the admin panel."
                 ),
             }
 
-        logger.info(f"✅ Fetched {len(raw_colors)} rows for CLO '{clo_id}'")
+        logger.info(
+            f"✅ Combined rows for manual session: {len(raw_colors)} "
+            f"(source={len(source_colors)}, buffered={len(buffered_colors)})"
+        )
+        logger.info(
+            f"📦 Buffer state before session save: pending_files={len(pending_buffer_entries)} "
+            f"pending_ids={pending_buffer_ids} consumed_ids={consumed_buffer_ids}"
+        )
+        if consumed_buffer_ids:
+            logger.info(f"📌 Buffered upload IDs included in this session: {consumed_buffer_ids}")
 
         # Apply sorting (RankingEngine, no rules) — same as the automated cron run
         sorted_colors = ranking_engine.run_colors(raw_colors)
@@ -339,9 +464,10 @@ def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
             original_filename=f"datasource_{clo_id}",
             sorted_data=sorted_data_dict,
             filtered_data=sorted_data_dict.copy(),
+            consumed_buffer_upload_ids=consumed_buffer_ids,
             rows_imported=len(raw_colors),
             rows_valid=len(raw_colors),
-            parsing_errors=[],
+            parsing_errors=buffer_warnings,
             status="preview",
         )
 
@@ -355,13 +481,18 @@ def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
             "data_source": str(data_src).lower(),
             "rows_imported": len(raw_colors),
             "rows_valid": len(raw_colors),
-            "parsing_errors": [],
+            "parsing_errors": buffer_warnings,
             "sorted_preview": sorted_data_dict,
             "statistics": {
                 "total_rows": len(sorted_colors),
                 "parent_rows": sum(1 for c in sorted_colors if c.is_parent),
                 "child_rows": sum(1 for c in sorted_colors if not c.is_parent),
                 "unique_cusips": len(set(c.cusip for c in sorted_colors)),
+                "source_rows": len(source_colors),
+                "buffered_rows_appended": len(buffered_colors),
+                "buffer_pending_files": len(pending_buffer_entries),
+                "buffer_pending_ids": pending_buffer_ids,
+                "buffered_upload_ids": consumed_buffer_ids,
             },
             "duration_seconds": duration,
         }
@@ -601,13 +732,39 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
             colors=processed_colors,
             processing_type="MANUAL"
         )
+
+        # Clear consumed buffered uploads after successful save.
+        # This prevents those buffer files from being re-processed in cron later.
+        buffer_cleared_count = 0
+        dest_mode = str(getattr(output_service, "_dest_type", os.getenv("OUTPUT_DESTINATION", "local"))).lower()
+        consumed_ids = session.data.get("consumed_buffer_upload_ids", []) or []
+        pending_buffer_entries = get_buffered_files()
+        pending_buffer_ids = [int(entry.get("id")) for entry in pending_buffer_entries if entry.get("id") is not None]
+
+        # Fallback: query-based sessions include all pending uploads in principle.
+        # If consumed IDs are unexpectedly empty but pending uploads exist, clear those pending IDs.
+        if not consumed_ids and pending_buffer_ids and str(session.data.get("original_filename", "")).startswith("datasource_"):
+            consumed_ids = pending_buffer_ids.copy()
+            logger.warning(
+                "⚠️ consumed_buffer_upload_ids missing for datasource session; "
+                f"falling back to pending IDs for clear: {consumed_ids}"
+            )
+
+        if consumed_ids:
+            buffer_cleared_count = _clear_consumed_buffer_entries(consumed_ids)
+        logger.info(
+            f"🧹 Buffer clear after manual save | mode={dest_mode} "
+            f"| consumed_ids={consumed_ids} | pending_ids={pending_buffer_ids} "
+            f"| cleared={buffer_cleared_count}"
+        )
         
         # Update session status
         session.update(
             status="saved",
             output_file=output_service.output_file_path,
             saved_at=datetime.now().isoformat(),
-            rows_saved=rows_saved
+            rows_saved=rows_saved,
+            buffer_cleared_count=buffer_cleared_count
         )
         
         duration = (datetime.now() - start_time).total_seconds()
@@ -622,7 +779,10 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
             "duration_seconds": duration,
             "metadata": {
                 "applied_rules_count": len(session.data.get("applied_rules", [])),
-                "deleted_rows_count": len(session.data.get("deleted_rows", []))
+                "deleted_rows_count": len(session.data.get("deleted_rows", [])),
+                "consumed_buffer_upload_ids": consumed_ids,
+                "pending_buffer_upload_ids": pending_buffer_ids,
+                "buffer_cleared_count": buffer_cleared_count,
             }
         }
         

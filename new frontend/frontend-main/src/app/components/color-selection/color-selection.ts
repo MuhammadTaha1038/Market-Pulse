@@ -25,6 +25,7 @@ import * as XLSX from 'xlsx';
 export class ColorSelection implements OnInit, OnDestroy {
   nextRunTimer = '--:--:--';
   private timerSub!: Subscription;
+  private bufferPollHandle: any = null;
 
   // ── Buffer state ─────────────────────────────────────────────────────────
   fileBuffered = false;
@@ -51,7 +52,7 @@ export class ColorSelection implements OnInit, OnDestroy {
       this.nextRunTimer = val;
     });
 
-    // Restore buffer state persisted across navigation
+    // Fast local restore, then reconcile with backend queue state.
     const saved = localStorage.getItem('color_buffer_file');
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -59,6 +60,9 @@ export class ColorSelection implements OnInit, OnDestroy {
       this.bufferFileName = parsed.name;
       this.bufferFileSize = parsed.size;
     }
+
+    this.refreshBufferStateFromServer();
+    this.bufferPollHandle = setInterval(() => this.refreshBufferStateFromServer(), 15000);
   }
 
   goToPresetSettings() {
@@ -100,7 +104,8 @@ export class ColorSelection implements OnInit, OnDestroy {
           next: () => {
             this.processingAutomation = false;
             this.automationStatusService.endRun();
-            this.clearBuffer();
+            this.clearBufferLocalOnly();
+            setTimeout(() => this.refreshBufferStateFromServer(), 2500);
             this.messageService.add({
               severity: 'success',
               summary: 'Automation Triggered',
@@ -161,20 +166,43 @@ export class ColorSelection implements OnInit, OnDestroy {
     }
 
     this.bufferedFile = file;
-    this.bufferFileName = file.name;
-    this.bufferFileSize = this.formatFileSize(file.size);
-    this.fileBuffered = true;
+    this.bufferUploading = true;
+    this.apiService.uploadManualBufferedFile(file, 'admin').subscribe({
+      next: (res: any) => {
+        this.bufferUploading = false;
+        if (!res?.success) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Upload Failed',
+            detail: res?.error || 'Could not queue file in backend buffer.'
+          });
+          return;
+        }
 
-    // Persist across navigation
-    localStorage.setItem('color_buffer_file', JSON.stringify({
-      name: file.name,
-      size: this.bufferFileSize
-    }));
+        this.fileBuffered = true;
+        this.bufferFileName = res?.filename || file.name;
+        this.bufferFileSize = this.formatFileSize(file.size);
+        localStorage.setItem('color_buffer_file', JSON.stringify({
+          name: this.bufferFileName,
+          size: this.bufferFileSize
+        }));
 
-    this.messageService.add({
-      severity: 'success',
-      summary: 'File Queued',
-      detail: `"${file.name}" is saved in buffer. Click Run Automation to process it.`
+        this.messageService.add({
+          severity: 'success',
+          summary: 'File Queued',
+          detail: `"${this.bufferFileName}" is saved in backend buffer. Click Run Automation to process it.`
+        });
+
+        this.refreshBufferStateFromServer();
+      },
+      error: (err) => {
+        this.bufferUploading = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Upload Failed',
+          detail: err?.error?.detail || 'Could not queue file in backend buffer.'
+        });
+      }
     });
 
     // Reset input so same file can be re-selected
@@ -182,11 +210,44 @@ export class ColorSelection implements OnInit, OnDestroy {
   }
 
   clearBuffer() {
+    this.clearBufferLocalOnly();
+    this.refreshBufferStateFromServer();
+  }
+
+  private clearBufferLocalOnly() {
     this.bufferedFile = null;
     this.fileBuffered = false;
     this.bufferFileName = '';
     this.bufferFileSize = '';
+    this.bufferUploading = false;
     localStorage.removeItem('color_buffer_file');
+  }
+
+  private refreshBufferStateFromServer(): void {
+    this.apiService.getManualUploadHistory(50).subscribe({
+      next: (res: any) => {
+        const uploads = res?.uploads || [];
+        const pending = uploads.find((u: any) => String(u?.status || '').toLowerCase() === 'pending');
+
+        if (!pending) {
+          this.clearBufferLocalOnly();
+          return;
+        }
+
+        this.fileBuffered = true;
+        this.bufferFileName = pending?.filename || this.bufferFileName || 'Queued file';
+        if (!this.bufferFileSize) {
+          this.bufferFileSize = 'Queued';
+        }
+        localStorage.setItem('color_buffer_file', JSON.stringify({
+          name: this.bufferFileName,
+          size: this.bufferFileSize
+        }));
+      },
+      error: () => {
+        // Keep existing local state if backend history call fails.
+      }
+    });
   }
 
   private formatFileSize(bytes: number): string {
@@ -269,5 +330,9 @@ export class ColorSelection implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.timerSub?.unsubscribe();
+    if (this.bufferPollHandle) {
+      clearInterval(this.bufferPollHandle);
+      this.bufferPollHandle = null;
+    }
   }
 }
