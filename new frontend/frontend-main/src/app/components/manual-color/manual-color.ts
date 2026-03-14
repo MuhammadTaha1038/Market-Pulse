@@ -93,6 +93,7 @@ export class ManualColor implements OnInit {
 
   // Table data
   tableData: TableRow[] = [];
+  originalTableData: TableRow[] = []; // unfiltered snapshot used by client-side filters
   
   // Table configuration
   // Populated dynamically from CLO visible-column config after init; falls back to getDefaultColumns()
@@ -120,6 +121,48 @@ export class ManualColor implements OnInit {
     this.loadPresets();
     this.loadQueryData();
     this.loadCloColumns();
+    this.loadBufferBanner();
+  }
+
+  // ==================== BUFFER BANNER ====================
+
+  hasPendingBuffer = false;
+  pendingBufferFile = '';
+  pendingBufferCount = 0;
+
+  loadBufferBanner(): void {
+    this.apiService.getManualUploadHistory(50).subscribe({
+      next: (res: any) => {
+        const pending = (res.uploads || []).filter((u: any) => u.status === 'pending');
+        if (pending.length > 0) {
+          this.hasPendingBuffer = true;
+          this.pendingBufferFile = pending.map((u: any) => u.filename).join(', ');
+          this.pendingBufferCount = pending.length;
+        } else {
+          this.hasPendingBuffer = false;
+          this.pendingBufferFile = '';
+          this.pendingBufferCount = 0;
+        }
+      },
+      error: () => {
+        // Non-critical; banner just won't show
+      }
+    });
+  }
+
+  dismissBufferBanner(): void {
+    this.apiService.clearManualBuffer().subscribe({
+      next: () => {
+        this.hasPendingBuffer = false;
+        this.pendingBufferFile = '';
+        this.pendingBufferCount = 0;
+        localStorage.removeItem('color_buffer_file');
+        this.messageService.add({ severity: 'info', summary: 'Buffer Cleared', detail: 'Queued file(s) removed from buffer.' });
+      },
+      error: () => {
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not clear buffer.' });
+      }
+    });
   }
 
   /** Resolve the active CLO from topbar (selectedAssetState) or CLO-selector (user_clo_selection). */
@@ -296,6 +339,7 @@ export class ManualColor implements OnInit {
       parentRow: row.parent_message_id,
       childrenCount: row.children_count ?? 0
     }));
+    this.originalTableData = [...this.tableData];
   }
 
   private normalizeDataSource(source: any): 'oracle' | 'excel' {
@@ -609,6 +653,15 @@ export class ManualColor implements OnInit {
       return;
     }
 
+    if (!this.currentSessionId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'No Session',
+        detail: 'Load data first before applying rules'
+      });
+      return;
+    }
+
     if (this.tableData.length === 0) {
       this.messageService.add({
         severity: 'warn',
@@ -620,32 +673,67 @@ export class ManualColor implements OnInit {
 
     this.saveUndoState();
     this.runningRules = true;
+    const ruleIds = Array.from(this.selectedRuleIds);
 
-    const selectedRules = this.availableRules.filter(r => this.selectedRuleIds.has(r.id));
-    const originalCount = this.tableData.length;
-
-    // Apply rules - remove rows that match any selected rule (exclusion rules)
-    const filteredData = this.tableData.filter(row => {
-      for (const rule of selectedRules) {
-        if (this.evaluateRule(row, rule)) {
-          return false; // Exclude this row
+    this.apiService.applyManualColorRules(this.currentSessionId, ruleIds).subscribe({
+      next: (response: any) => {
+        if (!response?.success) {
+          this.runningRules = false;
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Apply Failed',
+            detail: response?.error || 'Failed to apply rules'
+          });
+          return;
         }
+
+        const updatedPreview = response.updated_preview || [];
+        this.tableData = updatedPreview.map((row: any) => ({
+          _rowId: `row_${row.row_id ?? row.message_id}`,
+          _selected: false,
+          rowNumber: String(row.message_id),
+          messageId: row.message_id,
+          ticker: row.ticker,
+          sector: row.sector,
+          cusip: row.cusip,
+          bias: row.bias,
+          date: row.date ? new Date(row.date).toLocaleDateString() : '',
+          priceLevel: row.price_level,
+          bid: row.bid,
+          mid: ((row.bid ?? 0) + (row.ask ?? 0)) / 2,
+          ask: row.ask,
+          px: row.px,
+          source: row.source,
+          rank: row.rank,
+          covPrice: row.cov_price,
+          percentDiff: row.percent_diff,
+          priceDiff: row.price_diff,
+          confidence: row.confidence,
+          date1: row.date_1 ? new Date(row.date_1).toLocaleDateString() : '',
+          diffStatus: row.diff_status,
+          isParent: row.is_parent,
+          parentRow: row.parent_message_id,
+          childrenCount: row.children_count ?? 0
+        }));
+        this.originalTableData = [...this.tableData];
+
+        this.runningRules = false;
+        this.showRunRulesDialog = false;
+
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Rules Applied',
+          detail: `${response.rules_applied || ruleIds.length} rule(s) applied. ${response.excluded_count || 0} row(s) excluded, ${response.remaining_rows || this.tableData.length} remaining.`
+        });
+      },
+      error: (error) => {
+        this.runningRules = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Apply Failed',
+          detail: error?.error?.detail || 'Failed to apply rules'
+        });
       }
-      return true; // Keep this row
-    });
-
-    const excludedCount = originalCount - filteredData.length;
-    this.tableData = filteredData;
-    this.runningRules = false;
-    this.showRunRulesDialog = false;
-
-    // Save snapshot after rules applied
-    this.apiService.createBackup('Rules run - ' + new Date().toISOString()).subscribe();
-
-    this.messageService.add({
-      severity: 'success',
-      summary: 'Rules Applied',
-      detail: `${selectedRules.length} rule(s) applied. ${excludedCount} row(s) excluded, ${filteredData.length} remaining. Data saved.`
     });
   }
 
@@ -1018,57 +1106,61 @@ export class ManualColor implements OnInit {
     this.activeFilters = allConditions;
 
     if (allConditions.length === 0) {
+      this.tableData = [...this.originalTableData];
       return;
     }
 
-    // Build SearchFilter array for the backend
-    const searchFilters: SearchFilter[] = allConditions.map(c => ({
-      field: c.column,
-      operator: c.operator,
-      value: c.values,
-      value2: c.values2 || undefined
-    }));
+    // Apply filters client-side on the current session data (originalTableData)
+    const filtered = this.originalTableData.filter(row => {
+      return allConditions.every(condition => {
+        // Convert oracle column name (e.g. PRICE_LEVEL) to tableRow key (e.g. priceLevel)
+        const fieldKey = condition.column.toLowerCase().replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+        const rawValue = (row as any)[fieldKey];
+        const rowVal = rawValue !== undefined && rawValue !== null ? String(rawValue) : '';
+        const filterVal = String(condition.values ?? '');
+        const op = (condition.operator ?? '').toLowerCase();
 
-    console.log('📡 Calling backend search with filters:', searchFilters);
+        switch (op) {
+          case 'equals': case 'eq': case 'equal_to': {
+            const n1 = parseFloat(rowVal), n2 = parseFloat(filterVal);
+            if (!isNaN(n1) && !isNaN(n2)) return n1 === n2;
+            return rowVal.toLowerCase() === filterVal.toLowerCase();
+          }
+          case 'ne': case 'not_equal_to': {
+            const n1 = parseFloat(rowVal), n2 = parseFloat(filterVal);
+            if (!isNaN(n1) && !isNaN(n2)) return n1 !== n2;
+            return rowVal.toLowerCase() !== filterVal.toLowerCase();
+          }
+          case 'contains':
+            return rowVal.toLowerCase().includes(filterVal.toLowerCase());
+          case 'starts_with':
+            return rowVal.toLowerCase().startsWith(filterVal.toLowerCase());
+          case 'gt': case 'greater_than':
+            return parseFloat(rowVal) > parseFloat(filterVal);
+          case 'lt': case 'less_than':
+            return parseFloat(rowVal) < parseFloat(filterVal);
+          case 'gte': case 'greater_than_equal_to':
+            return parseFloat(rowVal) >= parseFloat(filterVal);
+          case 'lte': case 'less_than_equal_to':
+            return parseFloat(rowVal) <= parseFloat(filterVal);
+          case 'between': {
+            const filterVal2 = String(condition.values2 ?? '');
+            const v = parseFloat(rowVal);
+            return v >= parseFloat(filterVal) && v <= parseFloat(filterVal2);
+          }
+          default:
+            return true;
+        }
+      });
+    });
 
-    this.apiService.searchColors(searchFilters, 0, 500).subscribe({
-      next: (response) => {
-        console.log('✅ Search results:', response.total_count, 'records');
+    console.log(`🔍 Client-side filter: ${filtered.length} of ${this.originalTableData.length} rows match`);
+    this.tableData = filtered;
 
-        this.tableData = response.results.map((record: any, index: number) => ({
-          _rowId: `row_${record.MESSAGE_ID || index}`,
-          _selected: false,
-          rowNumber: String(index + 1),
-          messageId: String(record.MESSAGE_ID || ''),
-          ticker: record.TICKER || '',
-          cusip: record.CUSIP || '',
-          bias: record.BIAS || '',
-          date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
-          bid: record.BID || 0,
-          mid: ((record.BID || 0) + (record.ASK || 0)) / 2,
-          ask: record.ASK || 0,
-          px: record.PX || 0,
-          source: record.SOURCE || '',
-          rank: record.RANK || 5,
-          isParent: record.IS_PARENT ?? true,
-          parentRow: record.PARENT_MESSAGE_ID || undefined,
-          childrenCount: record.CHILDREN_COUNT || 0
-        }));
-
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Filters Applied',
-          detail: `Found ${response.total_count} matching record(s)`
-        });
-      },
-      error: (error) => {
-        console.error('❌ Search error:', error);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Filter Error',
-          detail: 'Failed to apply filters'
-        });
-      }
+    this.messageService.add({
+      severity: filtered.length > 0 ? 'success' : 'info',
+      summary: 'Filters Applied',
+      detail: `Found ${filtered.length} matching record(s)`
     });
   }
 
@@ -1076,11 +1168,14 @@ export class ManualColor implements OnInit {
     this.activeFilters.splice(index, 1);
     if (this.activeFilters.length > 0) {
       this.onFiltersApplied({ conditions: this.activeFilters, subgroups: [] });
+    } else {
+      this.tableData = [...this.originalTableData];
     }
   }
 
   removeAllActiveFilters() {
     this.activeFilters = [];
+    this.tableData = [...this.originalTableData];
     this.messageService.add({
       severity: 'info',
       summary: 'Filters Cleared',

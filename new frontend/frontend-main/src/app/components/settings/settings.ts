@@ -51,6 +51,9 @@ interface RestoreData {
     date: string;
     time: string;
     process: string;
+    canRemove?: boolean;
+    deletedBy?: string;
+    deletedAt?: string;
 }
 
 @Component({
@@ -325,7 +328,7 @@ export class Settings implements OnInit {
     loadRestoreData() {
         this.loadingRestoreData = true;
         // Primary source: cron execution logs (always populated on runs)
-        this.apiService.getCronExecutionLogs(4).subscribe({
+        this.apiService.getCronExecutionLogs(6).subscribe({
             next: (res) => {
                 if (res.logs && res.logs.length > 0) {
                     this.restoreData = res.logs.map(log => ({
@@ -333,7 +336,12 @@ export class Settings implements OnInit {
                         details: log.job_name,
                         date: new Date(log.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                         time: new Date(log.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                        process: (log.triggered_by === 'manual' || log.triggered_by === 'manual_override') ? 'Manual' : 'Automated'
+                        process: (log.job_name === 'Manual Cleaning')
+                            ? 'Manual Cleaning'
+                            : ((log.triggered_by === 'manual' || log.triggered_by === 'manual_override') ? 'Manual' : 'Automated'),
+                        canRemove: !log.output_deleted,
+                        deletedBy: log.output_deleted_by,
+                        deletedAt: log.output_deleted_at
                     }));
                     this.loadingRestoreData = false;
                 } else {
@@ -346,14 +354,15 @@ export class Settings implements OnInit {
     }
 
     private loadRestoreDataFromBackups() {
-        this.apiService.getBackupHistory(4).subscribe({
+        this.apiService.getBackupHistory(6).subscribe({
             next: (res) => {
                 this.restoreData = res.backups.map((backup: any) => ({
                     id: backup.id,
                     details: backup.description || `Backup #${backup.id}`,
                     date: new Date(backup.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                     time: new Date(backup.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                    process: backup.backup_type === 'auto' ? 'Automated' : 'Manual'
+                    process: backup.backup_type === 'auto' ? 'Automated' : 'Manual',
+                    canRemove: false
                 }));
                 this.loadingRestoreData = false;
             },
@@ -614,23 +623,50 @@ export class Settings implements OnInit {
     bufferFileSize = '';
 
     loadBufferState(): void {
-        const saved = localStorage.getItem('color_buffer_file');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                this.fileBuffered = true;
-                this.bufferFileName = parsed.name;
-                this.bufferFileSize = parsed.size;
-            } catch {}
-        }
+        // Always read actual state from backend to stay in sync across pages
+        this.apiService.getManualUploadHistory(50).subscribe({
+            next: (res) => {
+                const pending = res.uploads.filter(u => u.status === 'pending');
+                if (pending.length > 0) {
+                    this.fileBuffered = true;
+                    this.bufferFileName = pending.map(u => u.filename).join(', ');
+                    this.bufferFileSize = `${pending.length} file(s) queued`;
+                    localStorage.setItem('color_buffer_file', JSON.stringify({ name: this.bufferFileName, size: this.bufferFileSize }));
+                } else {
+                    this.fileBuffered = false;
+                    this.bufferFileName = '';
+                    this.bufferFileSize = '';
+                    localStorage.removeItem('color_buffer_file');
+                }
+            },
+            error: () => {
+                // Fallback to localStorage on network error
+                const saved = localStorage.getItem('color_buffer_file');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        this.fileBuffered = true;
+                        this.bufferFileName = parsed.name;
+                        this.bufferFileSize = parsed.size;
+                    } catch {}
+                }
+            }
+        });
     }
 
     clearBuffer(): void {
-        this.fileBuffered = false;
-        this.bufferFileName = '';
-        this.bufferFileSize = '';
-        localStorage.removeItem('color_buffer_file');
-        this.messageService.add({ severity: 'info', summary: 'Buffer Cleared', detail: 'File removed from buffer.' });
+        this.apiService.clearManualBuffer().subscribe({
+            next: () => {
+                this.fileBuffered = false;
+                this.bufferFileName = '';
+                this.bufferFileSize = '';
+                localStorage.removeItem('color_buffer_file');
+                this.messageService.add({ severity: 'info', summary: 'Buffer Cleared', detail: 'File removed from buffer.' });
+            },
+            error: () => {
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not clear buffer. Try again.' });
+            }
+        });
     }
 
     private formatFileSize(bytes: number): string {
@@ -641,25 +677,44 @@ export class Settings implements OnInit {
         return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
     }
 
+    bufferUploading = false;
+
     onFileSelected(event: Event): void {
         const input = event.target as HTMLInputElement;
         if (!input.files || input.files.length === 0) return;
         const file = input.files[0];
+        input.value = '';
 
         if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
             this.messageService.add({ severity: 'error', summary: 'Invalid File', detail: 'Only .xlsx and .xls files are supported.' });
-            input.value = '';
             return;
         }
 
-        this.bufferFileName = file.name;
-        this.bufferFileSize = this.formatFileSize(file.size);
-        this.fileBuffered = true;
+        // Prevent duplicate: if the same file is already queued, warn and stop
+        if (this.fileBuffered && this.bufferFileName.includes(file.name)) {
+            this.messageService.add({ severity: 'warn', summary: 'Already Queued', detail: `"${file.name}" is already in the buffer.` });
+            return;
+        }
 
-        localStorage.setItem('color_buffer_file', JSON.stringify({ name: file.name, size: this.bufferFileSize }));
-
-        this.messageService.add({ severity: 'success', summary: 'File Queued', detail: `"${file.name}" saved in buffer. Run Automation to process it.` });
-        input.value = '';
+        this.bufferUploading = true;
+        this.apiService.uploadManualBufferedFile(file).subscribe({
+            next: (res) => {
+                this.bufferUploading = false;
+                if (res.success !== false) {
+                    this.bufferFileName = file.name;
+                    this.bufferFileSize = this.formatFileSize(file.size);
+                    this.fileBuffered = true;
+                    localStorage.setItem('color_buffer_file', JSON.stringify({ name: file.name, size: this.bufferFileSize }));
+                    this.messageService.add({ severity: 'success', summary: 'File Queued', detail: `"${file.name}" uploaded to buffer. Run Manual Color or Automation to process it.` });
+                } else {
+                    this.messageService.add({ severity: 'error', summary: 'Upload Failed', detail: res.error || 'Could not upload file.' });
+                }
+            },
+            error: (err) => {
+                this.bufferUploading = false;
+                this.messageService.add({ severity: 'error', summary: 'Upload Failed', detail: err?.error?.detail || 'Could not upload file to buffer.' });
+            }
+        });
     }
 
     // ==================== CRON JOBS CRUD ====================
@@ -1041,14 +1096,26 @@ export class Settings implements OnInit {
     }
 
     removeData(item: RestoreData): void {
+        if (item.canRemove === false) {
+            const by = item.deletedBy ? ` by ${item.deletedBy}` : '';
+            this.messageService.add({ severity: 'info', summary: 'Already Removed', detail: `Output already removed${by}.` });
+            return;
+        }
+
         if (item.id) {
+            const deletedBy = this.resolveActorName();
             this.messageService.add({ severity: 'warn', summary: 'Removing...', detail: `Removing output data for run #${item.id}` });
-            this.apiService.deleteRunOutput(item.id).subscribe({
+            this.apiService.deleteRunOutput(item.id, deletedBy).subscribe({
                 next: (res) => {
                     const detail = res.deleted > 0
                         ? `${res.deleted} row(s) removed for run #${item.id}`
                         : res.message;
                     this.messageService.add({ severity: 'success', summary: 'Removed', detail });
+
+                    item.canRemove = false;
+                    item.deletedBy = res.output_deleted_by || deletedBy;
+                    item.deletedAt = res.output_deleted_at || new Date().toISOString();
+
                     this.loadRestoreData();
                     this.loadAllLogs();
                 },
@@ -1059,6 +1126,30 @@ export class Settings implements OnInit {
         } else {
             this.messageService.add({ severity: 'warn', summary: 'Warning', detail: 'No run ID available for this entry' });
         }
+    }
+
+    private resolveActorName(): string {
+        // SSO-ready placeholder: this method can be replaced with a real MSAL account binding.
+        const fromStorage =
+            localStorage.getItem('sso_user_name') ||
+            localStorage.getItem('sso_user_email') ||
+            localStorage.getItem('user_email') ||
+            localStorage.getItem('user_name');
+
+        if (fromStorage && fromStorage.trim()) {
+            return fromStorage.trim();
+        }
+
+        const win = window as any;
+        const msalAccount = win?.msalAccount || win?.msalActiveAccount;
+        if (msalAccount?.username) {
+            return String(msalAccount.username);
+        }
+        if (msalAccount?.name) {
+            return String(msalAccount.name);
+        }
+
+        return 'unknown_user';
     }
 
     // ==================== LOGS & REVERT ====================

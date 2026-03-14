@@ -291,13 +291,19 @@
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 hover:border-gray-400 transition-colors cursor-pointer" (click)="fileInput.click()" *ngIf="!fileBuffered">
                 <input #fileInput type="file" accept=".xlsx,.xls" hidden (change)="onFileSelected($event)" />
                 <div class="flex flex-col items-center pointer-events-none">
-                    <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
-                    <p class="text-sm font-medium text-gray-700 mb-1">Import Colors</p>
-                    <p class="text-sm text-gray-500 leading-relaxed max-w-md">
-                        Manual colors bulk upload via excel,
-                        <a href="assets/sample-files/color-import-sample.xlsx" download class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700 pointer-events-auto" (click)="$event.stopPropagation()"> Click here </a>
-                        to download sample file
-                    </p>
+                    <ng-container *ngIf="bufferUploading; else uploadIdle">
+                        <i class="pi pi-spin pi-spinner text-3xl text-gray-500 mb-3"></i>
+                        <p class="text-sm font-medium text-gray-600">Uploading to buffer&hellip;</p>
+                    </ng-container>
+                    <ng-template #uploadIdle>
+                        <i class="pi pi-download text-3xl text-gray-400 mb-3"></i>
+                        <p class="text-sm font-medium text-gray-700 mb-1">Import Colors</p>
+                        <p class="text-sm text-gray-500 leading-relaxed max-w-md">
+                            Manual colors bulk upload via excel,
+                            <a href="assets/sample-files/color-import-sample.xlsx" download class="!underline font-bold underline-offset-4 decoration-gray-300 hover:text-gray-700 pointer-events-auto" (click)="$event.stopPropagation()"> Click here </a>
+                            to download sample file
+                        </p>
+                    </ng-template>
                 </div>
             </div>
 
@@ -324,10 +330,6 @@
                     </div>
                     <p class="text-sm font-semibold text-gray-800 truncate">{{ bufferFileName }}</p>
                     <p class="text-xs text-gray-500 mt-0.5">Will be processed in the next automation cycle.</p>
-                </div>
-                <!-- Shimmer bar -->
-                <div class="absolute bottom-0 left-0 right-0 h-1 rounded-b-xl overflow-hidden bg-gray-200">
-                    <div class="h-full bg-gray-700" style="width:60%; animation: slideShimmer 2s ease-in-out infinite;"></div>
                 </div>
                 <!-- Clear button -->
                 <button type="button"
@@ -678,9 +680,15 @@
                                         <i class="pi pi-envelope"></i>
                                         Send Email
                                     </button>
-                                    <button (click)="removeData(item)" class="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors" title="Remove Data">
+                                    <button
+                                        (click)="removeData(item)"
+                                        [disabled]="item.canRemove === false"
+                                        [title]="item.canRemove === false ? ('Already removed' + (item.deletedBy ? (' by ' + item.deletedBy) : '')) : 'Remove Data'"
+                                        [class]="item.canRemove === false
+                                            ? 'text-sm text-gray-400 cursor-not-allowed flex items-center gap-1 transition-colors'
+                                            : 'text-sm text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors'">
                                         <i class="pi pi-trash"></i>
-                                        Remove Data
+                                        {{ item.canRemove === false ? 'Removed' : 'Remove Data' }}
                                     </button>
                                 </div>
                             </td>

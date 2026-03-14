@@ -210,8 +210,23 @@ export class ColorSelection implements OnInit, OnDestroy {
   }
 
   clearBuffer() {
-    this.clearBufferLocalOnly();
-    this.refreshBufferStateFromServer();
+    this.apiService.clearManualBuffer().subscribe({
+      next: () => {
+        this.clearBufferLocalOnly();
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Buffer Cleared',
+          detail: 'Queued file(s) removed from backend buffer.'
+        });
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Clear Failed',
+          detail: err?.error?.detail || 'Could not clear backend buffer.'
+        });
+      }
+    });
   }
 
   private clearBufferLocalOnly() {

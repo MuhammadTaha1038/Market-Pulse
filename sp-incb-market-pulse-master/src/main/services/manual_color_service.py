@@ -25,6 +25,7 @@ from services.output_service import get_output_service
 from services.column_config_service import get_column_config
 from rules_service import apply_rules
 from manual_upload_service import get_buffered_files
+import logging_service
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +277,20 @@ def _load_buffered_manual_colors() -> Tuple[List[ColorRaw], List[str], List[int]
         if not buffered_files:
             return buffered_colors, warnings, consumed_buffer_ids
 
+        # Deduplicate by upload id — keep only the first occurrence so a stale
+        # duplicate registry entry (e.g. from the self-heal recovery) never
+        # causes the same physical file to be read more than once.
+        seen_ids: set = set()
+        deduped: list = []
+        for _e in buffered_files:
+            _eid = _e.get("id")
+            if _eid is not None and _eid in seen_ids:
+                logger.warning(f"⚠️ Skipping duplicate buffer entry id={_eid} (file: {_e.get('filename')})")
+                continue
+            seen_ids.add(_eid)
+            deduped.append(_e)
+        buffered_files = deduped
+
         for entry in buffered_files:
             file_path = entry.get("file_path")
             filename = entry.get("filename") or os.path.basename(str(file_path or "buffer_file"))
@@ -357,6 +372,31 @@ def _clear_consumed_buffer_entries(upload_ids: List[int]) -> int:
     except Exception as e:
         logger.warning(f"Could not clear consumed buffered uploads: {e}")
         return 0
+
+
+def _get_next_execution_log_id() -> int:
+    """Return the next ID for cron-style execution logs stored under cron_logs."""
+    try:
+        logs_data = storage.load("cron_logs")
+        logs = (logs_data or {}).get("logs", [])
+        if not logs:
+            return 1
+        return max(int(log.get("id", 0)) for log in logs) + 1
+    except Exception:
+        return 1
+
+
+def _save_manual_execution_log(log_entry: Dict):
+    """Persist a manual execution entry into cron_logs for Restore section visibility."""
+    logs_data = storage.load("cron_logs") or {"logs": []}
+    logs = logs_data.get("logs", [])
+
+    if not log_entry.get("id"):
+        log_entry["id"] = _get_next_execution_log_id()
+
+    logs.insert(0, log_entry)
+    logs = logs[:100]
+    storage.save("cron_logs", {"logs": logs})
 
 
 def fetch_from_clo_query(clo_id: str, user_id: int = 1) -> Dict:
@@ -727,10 +767,15 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
         
         logger.info(f"📦 Converted {len(processed_colors)} rows to ColorProcessed objects")
         
+        # Reserve a run ID and use it for both output rows and restore history.
+        # This makes manual saves removable via the same run-based restore flow.
+        manual_run_id = _get_next_execution_log_id()
+
         # Save to output file using output service
         rows_saved = output_service.append_processed_colors(
             colors=processed_colors,
-            processing_type="MANUAL"
+            processing_type="MANUAL",
+            run_id=manual_run_id
         )
 
         # Clear consumed buffered uploads after successful save.
@@ -757,6 +802,49 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
             f"| consumed_ids={consumed_ids} | pending_ids={pending_buffer_ids} "
             f"| cleared={buffer_cleared_count}"
         )
+
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+
+        # Add a cron-style execution entry so Email & Restore table can list it.
+        _save_manual_execution_log({
+            "id": manual_run_id,
+            "job_id": 0,
+            "job_name": "Manual Cleaning",
+            "triggered_by": "manual",
+            "start_time": start_time.isoformat(),
+            "status": "success",
+            "end_time": end_time.isoformat(),
+            "duration_seconds": duration,
+            "original_count": int(session.data.get("rows_imported", len(final_data)) or len(final_data)),
+            "excluded_count": max(
+                int(session.data.get("rows_imported", len(final_data)) or len(final_data)) - int(rows_saved),
+                0,
+            ),
+            "processed_count": int(rows_saved),
+            "rules_applied": len(session.data.get("applied_rules", [])),
+            "manual_files_processed": int(buffer_cleared_count),
+            "manual_files_failed": 0,
+        })
+
+        # Also add a unified restore log entry with an explicit indicator.
+        logging_service.add_log(
+            module='restore',
+            action='manual_cleaning',
+            description=(
+                f"Manual cleaning saved as run #{manual_run_id} "
+                f"({rows_saved} row(s) saved)"
+            ),
+            performed_by=f"user_{user_id}",
+            entity_id=manual_run_id,
+            can_revert=False,
+            metadata={
+                "run_id": manual_run_id,
+                "processing_type": "MANUAL",
+                "session_id": session_id,
+                "buffer_cleared_count": buffer_cleared_count,
+            }
+        )
         
         # Update session status
         session.update(
@@ -764,10 +852,10 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
             output_file=output_service.output_file_path,
             saved_at=datetime.now().isoformat(),
             rows_saved=rows_saved,
+            run_id=manual_run_id,
             buffer_cleared_count=buffer_cleared_count
         )
-        
-        duration = (datetime.now() - start_time).total_seconds()
+
         
         logger.info(f"✅ Manual colors saved successfully in {duration:.2f}s")
         
@@ -775,6 +863,7 @@ def save_manual_colors(session_id: str, user_id: int = 1) -> Dict:
             "success": True,
             "session_id": session_id,
             "rows_saved": rows_saved,
+            "run_id": manual_run_id,
             "output_file": output_service.output_file_path,
             "duration_seconds": duration,
             "metadata": {

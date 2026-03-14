@@ -18,6 +18,8 @@ export interface TableRow {
   [key: string]: any;
   _selected?: boolean;
   _rowId?: string;
+  _parentResolvedRowId?: string | null;
+  _hasChildren?: boolean;
   isParent?: boolean;
   parentRow?: string | number;
   childrenCount?: number;
@@ -81,6 +83,11 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
   tempEditValue: any = '';
   private _needsFocus = false;
 
+  /** Cached hierarchy indexes to avoid O(n^2) rescans during render/expand */
+  private childrenByParentId = new Map<string, TableRow[]>();
+  private parentByChildRowId = new Map<string, string | null>();
+  private parentCandidatesByMessageId = new Map<string, TableRow[]>();
+
   /** Track which parent rows are expanded (by _rowId) */
   expandedRows = new Set<string>();
 
@@ -135,7 +142,80 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
       };
     });
 
+    this.rebuildHierarchyIndexes();
+
     this.updateDisplayData();
+  }
+
+  /**
+   * Build parent/child indexes once per data mutation so row expansion uses O(n)
+   * rendering instead of repeated O(n^2) scans.
+   */
+  private rebuildHierarchyIndexes() {
+    this.childrenByParentId.clear();
+    this.parentByChildRowId.clear();
+    this.parentCandidatesByMessageId.clear();
+
+    const parentByRowId = new Map<string, TableRow>();
+
+    for (const row of this._processedData) {
+      row._hasChildren = false;
+      row._parentResolvedRowId = null;
+
+      if (row.isParent === true && row._rowId) {
+        parentByRowId.set(row._rowId, row);
+        const messageId = String(row['messageId'] ?? '');
+        if (messageId) {
+          const bucket = this.parentCandidatesByMessageId.get(messageId) || [];
+          bucket.push(row);
+          this.parentCandidatesByMessageId.set(messageId, bucket);
+        }
+      }
+    }
+
+    for (const row of this._processedData) {
+      if (row.isParent === true || !row._rowId) continue;
+
+      const parentRowId = this.resolveParentRowId(row, parentByRowId);
+      row._parentResolvedRowId = parentRowId;
+      this.parentByChildRowId.set(row._rowId, parentRowId);
+
+      if (!parentRowId) continue;
+
+      const children = this.childrenByParentId.get(parentRowId) || [];
+      children.push(row);
+      this.childrenByParentId.set(parentRowId, children);
+
+      const parent = parentByRowId.get(parentRowId);
+      if (parent) parent._hasChildren = true;
+    }
+  }
+
+  private resolveParentRowId(childRow: TableRow, parentByRowId: Map<string, TableRow>): string | null {
+    if (childRow.parentRow === undefined || childRow.parentRow === null) return null;
+
+    const parentRef = String(childRow.parentRow);
+
+    // Direct _rowId match (e.g. parentRow = "row_123")
+    if (parentByRowId.has(parentRef)) return parentRef;
+
+    // parentRow is raw message_id, _rowId is "row_{message_id}"
+    const syntheticRef = `row_${parentRef}`;
+    if (parentByRowId.has(syntheticRef)) return syntheticRef;
+
+    const candidateParents = this.parentCandidatesByMessageId.get(parentRef) || [];
+    if (candidateParents.length === 0) return null;
+
+    // If duplicate message IDs exist, prefer same CUSIP parent.
+    const childCusip = String(childRow['cusip'] ?? '').trim().toUpperCase();
+    if (childCusip) {
+      const sameCusipParent = candidateParents.find(
+        p => String(p['cusip'] ?? '').trim().toUpperCase() === childCusip
+      );
+      if (sameCusipParent?._rowId) return sameCusipParent._rowId;
+    }
+
+    return candidateParents[0]?._rowId || null;
   }
 
   // ==================== DISPLAY DATA ====================
@@ -146,6 +226,8 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
    * Works in both editable and non-editable modes.
    */
   private updateDisplayData() {
+    this.rebuildHierarchyIndexes();
+
     let visibleRows: TableRow[] = [];
 
     // Always show parent-only with expand/collapse
@@ -154,10 +236,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
         visibleRows.push(row);
         // If this parent is expanded, add its children
         if (this.expandedRows.has(row._rowId!)) {
-          const children = this._processedData.filter(
-            r => !r.isParent && r.parentRow !== undefined && r.parentRow !== null &&
-                 this.getParentRowId(r) === row._rowId
-          );
+          const children = this.childrenByParentId.get(row._rowId!) || [];
           visibleRows.push(...children);
         }
       }
@@ -209,38 +288,19 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
 
   /** Find the _rowId of the parent for a child row using parentRow field */
   private getParentRowId(childRow: TableRow): string | null {
-    if (childRow.parentRow === undefined || childRow.parentRow === null) return null;
+    if (!childRow._rowId) return null;
+    if (this.parentByChildRowId.has(childRow._rowId)) {
+      return this.parentByChildRowId.get(childRow._rowId) ?? null;
+    }
 
-    const parentRef = String(childRow.parentRow);
-    const childCusip = String(childRow['cusip'] ?? '').trim().toUpperCase();
-    const candidateParents: TableRow[] = [];
-
-    // Match parentRow value against parent's _rowId or messageId
+    // Safety fallback for stale/mutated rows
+    const parentByRowId = new Map<string, TableRow>();
     for (const row of this._processedData) {
-      if (row.isParent !== true) continue;
-      // Direct _rowId match (e.g. parentRow = "row_123")
-      if (row._rowId === parentRef) return row._rowId!;
-      // parentRow is the raw message_id, _rowId is "row_{message_id}"
-      if (row._rowId === `row_${parentRef}`) return row._rowId!;
-      // Match against messageId field
-      if (String(row['messageId'] ?? '') === parentRef) {
-        candidateParents.push(row);
+      if (row.isParent === true && row._rowId) {
+        parentByRowId.set(row._rowId, row);
       }
     }
-
-    // If duplicate message IDs exist, prefer parent from the same CUSIP.
-    if (candidateParents.length > 0) {
-      if (childCusip) {
-        const sameCusipParent = candidateParents.find(
-          p => String(p['cusip'] ?? '').trim().toUpperCase() === childCusip
-        );
-        if (sameCusipParent?._rowId) return sameCusipParent._rowId;
-      }
-      // Fallback to first candidate when CUSIP is unavailable.
-      if (candidateParents[0]?._rowId) return candidateParents[0]._rowId;
-    }
-
-    return null;
+    return this.resolveParentRowId(childRow, parentByRowId);
   }
 
   // ==================== EXPAND / COLLAPSE ====================
@@ -263,11 +323,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     if (row.isParent !== true) return false;
     // Use childrenCount if available, otherwise check actual data
     if ((row.childrenCount ?? 0) > 0) return true;
-    // Fallback: check if any row in _processedData references this as parent
-    return this._processedData.some(
-      r => !r.isParent && r.parentRow !== undefined && r.parentRow !== null &&
-           this.getParentRowId(r) === row._rowId
-    );
+    return !!row._hasChildren;
   }
 
   // ==================== SELECTION ====================

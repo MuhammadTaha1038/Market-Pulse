@@ -151,6 +151,9 @@ def add_to_buffer(file_path: str, filename: str, uploaded_by: str, upload_id: in
     }
     
     buffered = get_buffered_files()
+    # Deduplicate: remove any auto-recovered entry that the self-heal scan may have
+    # added for this same upload_id before we get a chance to register it here.
+    buffered = [f for f in buffered if f.get("id") != upload_id]
     buffered.append(buffer_entry)
     save_buffered_files(buffered)
     

@@ -16,7 +16,10 @@ from manual_upload_service import (
     process_manual_upload,
     get_upload_history,
     get_upload_by_id,
-    delete_upload_history
+    delete_upload_history,
+    get_buffered_files,
+    save_buffered_files,
+    save_upload_history,
 )
 from services.column_config_service import get_column_config
 
@@ -183,6 +186,55 @@ async def delete_upload(upload_id: int):
         raise
     except Exception as e:
         logger.error(f"Error deleting upload {upload_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/buffer", response_model=dict)
+async def clear_all_buffer():
+    """
+    Remove ALL pending files from the manual upload buffer queue.
+    Called when the user clicks the X / 'Remove from buffer' button.
+    Deletes the physical files from disk and marks history entries as 'cancelled'.
+    """
+    try:
+        from pathlib import Path
+        buffered_files = get_buffered_files()
+        cleared_ids = []
+
+        for entry in buffered_files:
+            upload_id = entry.get("id")
+            file_path = entry.get("file_path")
+            if file_path:
+                try:
+                    p = Path(file_path)
+                    if p.exists():
+                        p.unlink()
+                        logger.info(f"🗑️ Deleted buffer file: {p.name} (ID: {upload_id})")
+                except Exception as fe:
+                    logger.warning(f"Could not delete buffer file for ID {upload_id}: {fe}")
+            cleared_ids.append(upload_id)
+
+        # Empty the buffer queue JSON
+        save_buffered_files([])
+
+        # Mark corresponding history entries as cancelled so they don't re-appear
+        if cleared_ids:
+            id_set = set(cleared_ids)
+            history = get_upload_history()
+            for h in history:
+                if h.get("id") in id_set and h.get("status") == "pending":
+                    h["status"] = "cancelled"
+            save_upload_history(history)
+
+        logger.info(f"🗑️ Cleared buffer: {len(cleared_ids)} pending upload(s) removed")
+        return {
+            "success": True,
+            "cleared_count": len(cleared_ids),
+            "cleared_ids": cleared_ids,
+            "message": f"Cleared {len(cleared_ids)} pending upload(s) from buffer"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing buffer: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

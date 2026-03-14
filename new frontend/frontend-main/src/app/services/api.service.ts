@@ -300,6 +300,9 @@ export interface CronExecutionLog {
     excluded_count?: number;
     processed_count?: number;
     rules_applied?: number;
+    output_deleted?: boolean;
+    output_deleted_at?: string;
+    output_deleted_by?: string;
     error?: string;
 }
 
@@ -865,6 +868,14 @@ export class ApiService {
     }
 
     /**
+     * Clear ALL pending buffer entries from the backend queue.
+     * Called when the user clicks the X button on the Queued banner.
+     */
+    clearManualBuffer(): Observable<any> {
+        return this.http.delete<any>(`${this.baseUrl}/api/manual-upload/buffer`);
+    }
+
+    /**
      * Read backend manual-upload history to determine pending queue state.
      */
     getManualUploadHistory(limit: number = 50): Observable<ManualUploadHistoryResponse> {
@@ -1163,9 +1174,14 @@ export class ApiService {
         return this.http.delete<{ message: string }>(`${this.baseUrl}/api/backup/history/${backupId}`);
     }
 
-    deleteRunOutput(runId: number): Observable<{ message: string; deleted: number; log_id: number }> {
-        return this.http.delete<{ message: string; deleted: number; log_id: number }>(
-            `${this.baseUrl}/api/cron/logs/${runId}/output`
+    deleteRunOutput(
+        runId: number,
+        deletedBy: string = 'unknown_user'
+    ): Observable<{ message: string; deleted: number; log_id: number; output_deleted?: boolean; output_deleted_by?: string; output_deleted_at?: string }> {
+        const params = new HttpParams().set('deleted_by', deletedBy);
+        return this.http.delete<{ message: string; deleted: number; log_id: number; output_deleted?: boolean; output_deleted_by?: string; output_deleted_at?: string }>(
+            `${this.baseUrl}/api/cron/logs/${runId}/output`,
+            { params }
         );
     }
 

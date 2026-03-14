@@ -76,7 +76,7 @@
                 </tr>
 
                 <!-- Data Rows -->
-                <tr *ngFor="let row of displayData; trackBy: trackByRowId" [class.selected-row]="isRowSelected(row)" [class.parent-row]="isParentRow(row)" [class.child-row]="isChildRow(row)" (mousedown)="$event.preventDefault()">
+                <tr *ngFor="let row of displayData; let rowIndex = index; trackBy: trackByRowId" [class.selected-row]="isRowSelected(row)" [class.parent-row]="isParentRow(row)" [class.child-row]="isChildRow(row)" (mousedown)="$event.preventDefault()">
                     <!-- Select Button -->
                     <td *ngIf="config.showSelectButton" class="select-column" [class.child-select-cell]="isChildRow(row)">
                         <button class="select-btn" [class.selected]="isRowSelected(row)" (mousedown)="$event.stopPropagation(); $event.preventDefault()" (click)="$event.stopPropagation(); toggleRowSelection(row)">
@@ -86,7 +86,7 @@
 
                     <!-- Row Number Cell -->
                     <td *ngIf="config.showRowNumbers" class="row-number-column" (mousedown)="$event.stopPropagation(); $event.preventDefault()">
-                        <div class="row-number">{{ getDisplayRowNumber(row) }}</div>
+                        <div class="row-number">{{ rowIndex + 1 }}</div>
                     </td>
 
                     <!-- Data Cells -->
@@ -123,7 +123,7 @@
                     <td class="expand-column">
                         <!-- Parent row with children: show chevron -->
                         <button
-                            *ngIf="isParentRow(row) && hasChildren(row)"
+                            *ngIf="isParentRow(row) && ((row.childrenCount ?? 0) > 0 || row._hasChildren)"
                             class="row-expand-btn"
                             (mousedown)="$event.stopPropagation(); $event.preventDefault()"
                             (click)="$event.stopPropagation(); toggleRowExpand(row)"
