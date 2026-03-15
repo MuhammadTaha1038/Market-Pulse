@@ -1,6 +1,198 @@
 {
   "logs": [
     {
+      "log_id": 28,
+      "module": "restore",
+      "action": "manual_cleaning",
+      "description": "Manual cleaning saved as run #24 (2511 row(s) saved)",
+      "performed_by": "user_1",
+      "performed_at": "2026-03-15T01:47:15.172704",
+      "entity_id": 24,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 24,
+        "processing_type": "MANUAL",
+        "session_id": "manual_color_1_20260315_014618",
+        "buffer_cleared_count": 1
+      }
+    },
+    {
+      "log_id": 27,
+      "module": "restore",
+      "action": "manual_cleaning",
+      "description": "Manual cleaning saved as run #23 (3622 row(s) saved)",
+      "performed_by": "user_1",
+      "performed_at": "2026-03-15T01:22:06.935374",
+      "entity_id": 23,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 23,
+        "processing_type": "MANUAL",
+        "session_id": "manual_color_1_20260315_012123",
+        "buffer_cleared_count": 1
+      }
+    },
+    {
+      "log_id": 26,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #22 (4 row(s) deleted) by unknown_user",
+      "performed_by": "unknown_user",
+      "performed_at": "2026-03-14T19:10:14.425327",
+      "entity_id": 22,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 22,
+        "deleted_count": 4,
+        "deleted_by": "unknown_user"
+      }
+    },
+    {
+      "log_id": 25,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #21 (7194 row(s) deleted)",
+      "performed_by": "admin",
+      "performed_at": "2026-03-14T18:31:22.807726",
+      "entity_id": 21,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 21,
+        "deleted_count": 7194
+      }
+    },
+    {
+      "log_id": 24,
+      "module": "restore",
+      "action": "manual_cleaning",
+      "description": "Manual cleaning saved as run #21 (7194 row(s) saved)",
+      "performed_by": "user_1",
+      "performed_at": "2026-03-14T18:29:39.938695",
+      "entity_id": 21,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 21,
+        "processing_type": "MANUAL",
+        "session_id": "manual_color_1_20260314_182726",
+        "buffer_cleared_count": 2
+      }
+    },
+    {
+      "log_id": 23,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #20 (0 row(s) deleted)",
+      "performed_by": "admin",
+      "performed_at": "2026-03-14T16:14:57.683371",
+      "entity_id": 20,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 20,
+        "deleted_count": 0
+      }
+    },
+    {
+      "log_id": 22,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #18 (50 row(s) deleted)",
+      "performed_by": "admin",
+      "performed_at": "2026-03-14T01:52:16.039486",
+      "entity_id": 18,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 18,
+        "deleted_count": 50
+      }
+    },
+    {
+      "log_id": 21,
+      "module": "rules",
+      "action": "update",
+      "description": "Updated rule: testing1 (fields: name, conditions, is_active)",
+      "performed_by": "admin",
+      "performed_at": "2026-03-14T01:11:34.274749",
+      "entity_id": 1,
+      "entity_name": "testing1",
+      "can_revert": true,
+      "revert_data": {
+        "action": "restore",
+        "rule_data": {
+          "id": 1,
+          "name": "testing1",
+          "is_active": true,
+          "conditions": [
+            {
+              "type": "where",
+              "column": "PX",
+              "operator": "gt",
+              "value": "100"
+            }
+          ],
+          "created_at": "2026-03-14T00:48:07.373091",
+          "updated_at": "2026-03-14T00:48:07.373103"
+        }
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "updated_fields": [
+          "name",
+          "conditions",
+          "is_active"
+        ]
+      }
+    },
+    {
+      "log_id": 20,
+      "module": "rules",
+      "action": "create",
+      "description": "Created rule: testing1",
+      "performed_by": "admin",
+      "performed_at": "2026-03-14T00:48:07.394933",
+      "entity_id": 1,
+      "entity_name": "testing1",
+      "can_revert": true,
+      "revert_data": {
+        "action": "delete",
+        "rule_id": 1
+      },
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "conditions_count": 1,
+        "is_active": true
+      }
+    },
+    {
       "log_id": 19,
       "module": "rules",
       "action": "delete",
@@ -526,5 +718,5 @@
       }
     }
   ],
-  "next_id": 20
+  "next_id": 29
 }

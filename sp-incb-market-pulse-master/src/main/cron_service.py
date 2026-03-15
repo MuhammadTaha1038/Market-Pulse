@@ -96,6 +96,15 @@ def get_execution_logs() -> List[Dict]:
         return []
 
 
+def get_execution_log_by_id(log_id: int) -> Optional[Dict]:
+    """Get a single execution log by its ID."""
+    logs = get_execution_logs()
+    for log in logs:
+        if int(log.get("id", 0)) == int(log_id):
+            return log
+    return None
+
+
 def _get_next_log_id() -> int:
     """Compute the next auto-incremented log ID without saving."""
     logs = get_execution_logs()
@@ -118,6 +127,54 @@ def save_execution_log(log_entry: Dict):
     logs = logs[:100]
 
     storage.save("cron_logs", {"logs": logs})
+
+
+def mark_run_output_deleted(run_id: int, deleted_by: str = "unknown_user") -> Dict:
+    """
+    Mark a run's output as deleted in cron_logs for UI disable-state and audit.
+
+    Returns:
+        Dict with state details and whether this call changed state.
+    """
+    logs_data = storage.load("cron_logs") or {"logs": []}
+    logs = logs_data.get("logs", [])
+
+    target = None
+    for entry in logs:
+        if int(entry.get("id", 0)) == int(run_id):
+            target = entry
+            break
+
+    if not target:
+        return {
+            "found": False,
+            "already_deleted": False,
+            "run_id": run_id,
+        }
+
+    if target.get("output_deleted", False):
+        return {
+            "found": True,
+            "already_deleted": True,
+            "run_id": run_id,
+            "output_deleted": True,
+            "output_deleted_by": target.get("output_deleted_by"),
+            "output_deleted_at": target.get("output_deleted_at"),
+        }
+
+    target["output_deleted"] = True
+    target["output_deleted_by"] = deleted_by or "unknown_user"
+    target["output_deleted_at"] = datetime.now().isoformat()
+    storage.save("cron_logs", {"logs": logs})
+
+    return {
+        "found": True,
+        "already_deleted": False,
+        "run_id": run_id,
+        "output_deleted": True,
+        "output_deleted_by": target.get("output_deleted_by"),
+        "output_deleted_at": target.get("output_deleted_at"),
+    }
 
 
 def run_automation_task(job_id: int, job_name: str, triggered_by: str = "scheduled"):

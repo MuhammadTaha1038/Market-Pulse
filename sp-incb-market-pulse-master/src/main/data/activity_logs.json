@@ -1,0 +1,13 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-02-26T01:30:22.657337",
+      "action": "backup_deleted",
+      "details": "Backup 2 deleted",
+      "user": "admin",
+      "metadata": {
+        "backup_id": 2
+      }
+    }
+  ]
+}

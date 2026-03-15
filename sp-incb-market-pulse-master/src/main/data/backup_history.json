@@ -1,6 +1,42 @@
 {
   "backups": [
     {
+      "id": 5,
+      "backup_type": "manual",
+      "created_at": "2026-03-14T16:15:42.770294",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Automation run - 2026-03-14T11:15:42.763Z"
+    },
+    {
+      "id": 4,
+      "backup_type": "manual",
+      "created_at": "2026-03-14T02:52:21.848313",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Automation run - 2026-03-13T21:52:21.841Z"
+    },
+    {
+      "id": 3,
+      "backup_type": "manual",
+      "created_at": "2026-03-14T00:48:56.718360",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Rules run - 2026-03-13T19:48:56.625Z"
+    },
+    {
+      "id": 2,
+      "backup_type": "manual",
+      "created_at": "2026-03-14T00:48:24.875178",
+      "created_by": "admin",
+      "status": "failed",
+      "error": "Output file does not exist",
+      "description": "Rules run - 2026-03-13T19:48:24.762Z"
+    },
+    {
       "id": 1,
       "backup_type": "manual",
       "created_at": "2026-01-26T16:53:50.255438",

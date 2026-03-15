@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-10T21:28:41.314281",
+  "last_updated": "2026-03-13T19:56:32.346731",
   "mappings": [
     {
       "clo_id": "EURO_ABS",
@@ -47,16 +47,16 @@
         "BIAS",
         "RANK",
         "CONFIDENCE",
-        "DATE_1"
+        "DATE_1",
+        "COV_PRICE",
+        "PERCENT_DIFF"
       ],
       "hidden_columns": [
-        "COV_PRICE",
-        "PERCENT_DIFF",
         "PRICE_DIFF",
         "DIFF_STATUS"
       ],
       "updated_by": "admin",
-      "updated_at": "2026-03-10T21:28:41.314269"
+      "updated_at": "2026-03-13T17:46:59.940245"
     },
     {
       "clo_id": "EURO_ABS_AUTO_LOAN",
@@ -72,20 +72,20 @@
         "SOURCE",
         "BIAS",
         "RANK",
-        "COV_PRICE",
         "PERCENT_DIFF",
         "PRICE_DIFF",
         "CONFIDENCE",
         "DATE_1",
         "DIFF_STATUS",
-        "MESSAGE_ID"
+        "MESSAGE_ID",
+        "COV_PRICE"
       ],
       "hidden_columns": [
         "BID",
         "ASK"
       ],
       "updated_by": "admin",
-      "updated_at": "2026-02-02T23:11:59.275282"
+      "updated_at": "2026-03-13T19:56:32.346712"
     },
     {
       "clo_id": "EURO_ABS_BTLRMBS",

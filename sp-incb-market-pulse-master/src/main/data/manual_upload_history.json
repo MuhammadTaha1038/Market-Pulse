@@ -1,6 +1,104 @@
 {
   "uploads": [
     {
+      "id": 16,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T01:45:50.468990",
+      "status": "success",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-15T01:47:15.164557",
+      "rows_processed": 3572
+    },
+    {
+      "id": 15,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T01:45:34.637484",
+      "status": "cancelled",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
+      "id": 14,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T01:29:17.358853",
+      "status": "cancelled",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
+      "id": 13,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T01:19:59.123639",
+      "status": "success",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-15T01:22:06.912869",
+      "rows_processed": 3572
+    },
+    {
+      "id": 12,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T00:50:28.169968",
+      "status": "cancelled",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
+      "id": 11,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T00:50:27.205136",
+      "status": "cancelled",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
+      "id": 10,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-15T00:34:50.091280",
+      "status": "cancelled",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
+      "id": 9,
+      "filename": "Color 11th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-14T18:27:19.154729",
+      "status": "success",
+      "rows_uploaded": 3572,
+      "processing_type": "MANUAL",
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T18:29:39.925680",
+      "rows_processed": 3572
+    },
+    {
+      "id": 8,
+      "filename": "Color 13th.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-14T16:15:31.340992",
+      "status": "success",
+      "rows_uploaded": 1831,
+      "processing_type": "MANUAL",
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T16:16:27.362168",
+      "rows_processed": 1831
+    },
+    {
       "id": 7,
       "filename": "Color today.xlsx",
       "uploaded_by": "admin",
@@ -8,9 +106,9 @@
       "status": "success",
       "rows_uploaded": 50,
       "processing_type": "MANUAL",
-      "message": "Processed in scheduled run",
-      "processing_time": "2026-02-02T23:16:00.639275",
-      "duration_seconds": 0.608635,
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T15:56:17.289969",
+      "duration_seconds": 4.344266,
       "rows_processed": 50,
       "rows_valid": 50
     },
@@ -22,9 +120,9 @@
       "status": "success",
       "rows_uploaded": 50,
       "processing_type": "MANUAL",
-      "message": "Processed in scheduled run",
-      "processing_time": "2026-02-02T20:36:42.716942",
-      "duration_seconds": 0.617089,
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T15:56:17.289969",
+      "duration_seconds": 3.706218,
       "rows_processed": 50,
       "rows_valid": 50
     },
@@ -36,9 +134,9 @@
       "status": "success",
       "rows_uploaded": 50,
       "processing_type": "MANUAL",
-      "message": "Processed in scheduled run",
-      "processing_time": "2026-02-02T15:54:00.175042",
-      "duration_seconds": 0.144502,
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T15:56:17.289969",
+      "duration_seconds": 4.695577,
       "rows_processed": 50,
       "rows_valid": 50
     },
@@ -50,9 +148,9 @@
       "status": "success",
       "rows_uploaded": 5213,
       "processing_type": "MANUAL",
-      "message": "Processed in scheduled run",
-      "processing_time": "2026-02-01T15:24:12.355512",
-      "duration_seconds": 132.328979,
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-14T15:56:17.289969",
+      "duration_seconds": 5.781572,
       "rows_processed": 5213,
       "rows_valid": 5213
     }

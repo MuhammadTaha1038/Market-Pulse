@@ -138,7 +138,15 @@ def evaluate_condition(row: Dict, condition: Dict) -> bool:
         'greater_than': 'greater_than',
         'less_than': 'less_than',
         'greater_or_equal': 'greater_than_equal_to',
-        'less_or_equal': 'less_than_equal_to'
+        'less_or_equal': 'less_than_equal_to',
+
+        # Frontend shorthand operators
+        'gt': 'greater_than',
+        'lt': 'less_than',
+        'gte': 'greater_than_equal_to',
+        'lte': 'less_than_equal_to',
+        'eq': 'equal_to',
+        'ne': 'not_equal_to'
     }
     
     # Map to normalized operator

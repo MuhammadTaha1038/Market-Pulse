@@ -3,7 +3,7 @@
 """
 Cron Jobs Router - APIs for managing scheduled automation jobs
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
@@ -22,7 +22,9 @@ from cron_service import (
     toggle_job,
     trigger_job_manually,
     get_execution_logs,
-    get_next_run_time
+    get_next_run_time,
+    get_execution_log_by_id,
+    mark_run_output_deleted,
 )
 from services.output_service import get_output_service
 import logging_service
@@ -74,6 +76,9 @@ class ExecutionLogResponse(BaseModel):
     excluded_count: Optional[int] = None
     processed_count: Optional[int] = None
     rules_applied: Optional[int] = None
+    output_deleted: Optional[bool] = False
+    output_deleted_at: Optional[str] = None
+    output_deleted_by: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -316,7 +321,10 @@ async def get_job_logs(job_id: int, limit: int = 20):
 
 
 @router.delete("/logs/{log_id}/output")
-async def delete_run_output(log_id: int):
+async def delete_run_output(
+    log_id: int,
+    deleted_by: str = Query("unknown_user", description="User identifier for audit trail")
+):
     """
     Delete all processed output rows that belong to a specific automation run.
 
@@ -325,8 +333,24 @@ async def delete_run_output(log_id: int):
     during processing.
     """
     try:
+        existing_log = get_execution_log_by_id(log_id)
+        if existing_log and existing_log.get("output_deleted", False):
+            return {
+                "log_id": log_id,
+                "deleted": 0,
+                "message": (
+                    f"Output already removed for run #{log_id} "
+                    f"by {existing_log.get('output_deleted_by', 'unknown_user')}"
+                ),
+                "output_deleted": True,
+                "output_deleted_by": existing_log.get("output_deleted_by"),
+                "output_deleted_at": existing_log.get("output_deleted_at"),
+            }
+
         output_service = get_output_service()
         result = output_service.delete_run_output(log_id)
+
+        deletion_state = mark_run_output_deleted(log_id, deleted_by=deleted_by)
 
         # Log to the restore module so it appears in the Restore & Email logs panel
         logging_service.add_log(
@@ -334,15 +358,25 @@ async def delete_run_output(log_id: int):
             action='delete_output',
             description=(
                 f"Removed output data for automation run #{log_id} "
-                f"({result.get('deleted', 0)} row(s) deleted)"
+                f"({result.get('deleted', 0)} row(s) deleted) by {deleted_by}"
             ),
-            performed_by='admin',
+            performed_by=deleted_by,
             entity_id=log_id,
             can_revert=False,
-            metadata={'run_id': log_id, 'deleted_count': result.get('deleted', 0)}
+            metadata={
+                'run_id': log_id,
+                'deleted_count': result.get('deleted', 0),
+                'deleted_by': deleted_by,
+            }
         )
 
-        return {"log_id": log_id, **result}
+        return {
+            "log_id": log_id,
+            **result,
+            "output_deleted": deletion_state.get("output_deleted", False),
+            "output_deleted_by": deletion_state.get("output_deleted_by"),
+            "output_deleted_at": deletion_state.get("output_deleted_at"),
+        }
     except Exception as e:
         logger.error(f"Error deleting run output for log {log_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

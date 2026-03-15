@@ -185,13 +185,13 @@ export class StackedChartComponent implements OnInit, OnDestroy {
                     );
                 }
             },
-            grid: { left: 48, right: 24, top: 32, bottom: 40, containLabel: false },
+            grid: { left: 48, right: 24, top: 32, bottom: 8, containLabel: true },
             xAxis: {
                 type: 'category',
                 data: months,
                 axisLine: { show: false },
                 axisTick: { show: false },
-                axisLabel: { color: '#6B7280', fontSize: 11, margin: 8 }
+                axisLabel: { color: '#6B7280', fontSize: 11, margin: 8, show: true }
             },
             yAxis: { type: 'value', max: 100, show: false },
             series: [...series, labelSeries]
