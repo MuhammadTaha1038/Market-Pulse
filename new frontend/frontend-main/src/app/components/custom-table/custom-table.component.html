@@ -123,7 +123,7 @@
                     <td class="expand-column">
                         <!-- Parent row with children: show chevron -->
                         <button
-                            *ngIf="isParentRow(row) && ((row.childrenCount ?? 0) > 0 || row._hasChildren)"
+                            *ngIf="isParentRow(row) && row._hasChildren"
                             class="row-expand-btn"
                             (mousedown)="$event.stopPropagation(); $event.preventDefault()"
                             (click)="$event.stopPropagation(); toggleRowExpand(row)"

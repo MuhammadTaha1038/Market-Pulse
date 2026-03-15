@@ -423,7 +423,7 @@ def process_manual_upload(
         }
 
 
-def process_buffered_file(buffer_entry: Dict) -> Dict:
+def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> Dict:
     """
     Process a single buffered file during cron run
     
@@ -435,6 +435,12 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
     5. Update history
     6. Remove from buffer
     
+    Args:
+        buffer_entry: Pending buffered upload metadata
+        run_id: Optional run identifier for the current automation execution.
+               When provided, buffered output rows are tagged with this RUN_ID
+               so run-level delete/revert can remove them with query/input rows.
+
     Returns:
         Processing result
     """
@@ -490,7 +496,11 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
         
         # Save to output file (marked as MANUAL)
         logger.info("💾 Saving to output file...")
-        output_service.append_processed_colors(processed_colors, processing_type="MANUAL")
+        output_service.append_processed_colors(
+            processed_colors,
+            processing_type="MANUAL",
+            run_id=run_id
+        )
         logger.info(f"✅ Saved {len(processed_colors)} processed colors")
         
         # Update history as success
@@ -506,6 +516,8 @@ def process_buffered_file(buffer_entry: Dict) -> Dict:
                 h["rows_processed"] = len(processed_colors)
                 h["rows_valid"] = len(colors)
                 h["message"] = f"Processed in scheduled run"
+                if run_id is not None:
+                    h["run_id"] = run_id
                 break
         save_upload_history(history)
         

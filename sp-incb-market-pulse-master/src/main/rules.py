@@ -40,7 +40,7 @@ class RuleTestRequest(BaseModel):
 
 
 @router.get("")
-async def get_all_rules():
+def get_all_rules():
     """
     Get all rules
     
@@ -58,7 +58,7 @@ async def get_all_rules():
 
 
 @router.get("/active")
-async def get_active_rules():
+def get_active_rules():
     """
     Get only active rules
     
@@ -76,7 +76,7 @@ async def get_active_rules():
 
 
 @router.get("/logs")
-async def get_rule_logs(limit: int = 50):
+def get_rule_logs(limit: int = 50):
     """
     Get rule operation logs
     
@@ -95,7 +95,7 @@ async def get_rule_logs(limit: int = 50):
 
 
 @router.get("/{rule_id}")
-async def get_rule(rule_id: int):
+def get_rule(rule_id: int):
     """
     Get single rule by ID
     
@@ -113,7 +113,7 @@ async def get_rule(rule_id: int):
 
 
 @router.post("")
-async def create_rule(rule: RuleCreate):
+def create_rule(rule: RuleCreate):
     """
     Create new exclusion rule
     
@@ -154,7 +154,7 @@ async def create_rule(rule: RuleCreate):
 
 
 @router.put("/{rule_id}")
-async def update_rule(rule_id: int, rule: RuleUpdate):
+def update_rule(rule_id: int, rule: RuleUpdate):
     """
     Update existing rule
     
@@ -192,7 +192,7 @@ async def update_rule(rule_id: int, rule: RuleUpdate):
 
 
 @router.delete("/{rule_id}")
-async def delete_rule(rule_id: int):
+def delete_rule(rule_id: int):
     """
     Delete rule
     
@@ -212,7 +212,7 @@ async def delete_rule(rule_id: int):
 
 
 @router.post("/{rule_id}/toggle")
-async def toggle_rule(rule_id: int):
+def toggle_rule(rule_id: int):
     """
     Toggle rule active/inactive status
     
@@ -239,7 +239,7 @@ async def toggle_rule(rule_id: int):
 
 
 @router.post("/test")
-async def test_rule(request: RuleTestRequest):
+def test_rule(request: RuleTestRequest):
     """
     Test a rule against sample data without saving
     Useful for previewing what rows will be excluded
@@ -296,7 +296,7 @@ async def test_rule(request: RuleTestRequest):
 
 
 @router.get("/operators/list")
-async def list_operators():
+def list_operators():
     """
     Get list of supported operators
     
@@ -334,7 +334,7 @@ async def list_operators():
     return {"operators": operators}
 
 @router.get("/logs")
-async def get_rule_logs(limit: int = 50):
+def get_rule_logs(limit: int = 50):
     """
     Get rule operation logs
     

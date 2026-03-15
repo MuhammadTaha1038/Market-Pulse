@@ -9,10 +9,12 @@ import logging
 import os
 import sys
 import pandas as pd
+from datetime import datetime
 from models.color import ColorResponse, MonthlyStatsResponse, MonthlyStats
 from services.database_service import DatabaseService
 from services.ranking_engine import RankingEngine
 from services.output_service import get_output_service
+from storage_config import storage
 
 # Import rules service for exclusion logic
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -26,6 +28,76 @@ router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 db_service = DatabaseService()
 ranking_engine = RankingEngine()
 output_service = get_output_service()
+
+
+@router.get("/data-version")
+async def get_data_version():
+    """
+    Return a lightweight version token for processed output data.
+
+    Frontend uses this token to decide whether cached dashboard data is still
+    valid, avoiding expensive full-data fetches on every page load.
+    """
+    try:
+        dest_type = str(getattr(output_service, "_dest_type", os.getenv("OUTPUT_DESTINATION", "local"))).lower()
+        version_meta = storage.load("dashboard_output_version") or {}
+
+        max_event_ts = ""
+        max_run_id = 0
+        logs_data = storage.load("cron_logs") or {"logs": []}
+        logs = logs_data.get("logs", []) or []
+
+        for entry in logs:
+            try:
+                run_id = int(entry.get("id", 0) or 0)
+                if run_id > max_run_id:
+                    max_run_id = run_id
+            except Exception:
+                pass
+
+            for ts_key in ("output_deleted_at", "end_time", "start_time"):
+                ts_val = str(entry.get(ts_key) or "")
+                if ts_val and ts_val > max_event_ts:
+                    max_event_ts = ts_val
+
+        local_mtime = ""
+        if os.path.exists(output_service.output_file_path):
+            local_mtime = datetime.fromtimestamp(
+                os.path.getmtime(output_service.output_file_path)
+            ).isoformat()
+
+        seq = int(version_meta.get("seq", 0) or 0)
+        meta_updated_at = str(version_meta.get("updated_at") or "")
+        meta_action = str(version_meta.get("action") or "none")
+        meta_run_id = version_meta.get("run_id")
+        rows_changed = version_meta.get("rows_changed")
+
+        version_parts = [
+            f"dest:{dest_type}",
+            f"seq:{seq}",
+            f"run:{max_run_id}",
+            f"event:{max_event_ts or 'none'}",
+            f"meta:{meta_updated_at or 'none'}",
+            f"action:{meta_action}",
+            f"meta_run:{meta_run_id if meta_run_id is not None else 'none'}",
+            f"rows_changed:{rows_changed if rows_changed is not None else 'none'}",
+            f"local:{local_mtime or 'none'}",
+        ]
+        version_token = "|".join(version_parts)
+
+        return {
+            "version": version_token,
+            "latest_run_id": max_run_id,
+            "latest_event_time": max_event_ts or None,
+            "destination": dest_type,
+            "local_last_modified": local_mtime or None,
+            "version_seq": seq,
+            "version_action": meta_action,
+            "version_updated_at": meta_updated_at or None,
+        }
+    except Exception as e:
+        logger.error(f"Error generating dashboard data version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/monthly-stats", response_model=MonthlyStatsResponse)
@@ -56,10 +128,10 @@ async def get_monthly_stats(
 
 
 @router.get("/colors", response_model=ColorResponse)
-async def get_todays_colors(
+def get_todays_colors(
     # Pagination
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(10, ge=1, le=500, description="Number of records to return (default 10 for performance, max 500 for filtering)"),
+    limit: int = Query(10, ge=0, description="Number of records to return (use 0 for no limit)"),
     
     # CLO-based column filtering
     clo_id: Optional[str] = Query(None, description="CLO ID for column visibility filtering"),
@@ -92,7 +164,7 @@ async def get_todays_colors(
     - Processing Type (AUTOMATED or MANUAL)
     - Date Range (from/to)
     
-    **Performance:** Default limit=10 for fast preview. Use pagination for larger datasets.
+    **Performance:** Default limit=10 for fast preview. Set limit=0 to return all matching rows.
     
     **Oracle Ready:** Column filtering at query level for production.
     Currently reads from Excel, will migrate to Oracle SELECT with visible columns.
@@ -297,16 +369,23 @@ async def get_todays_colors(
                 logger.warning(f"Skipping invalid record: {e}")
                 continue
         
-        # Apply pagination
+        # Apply pagination (limit=0 means no limit)
         total_count = len(processed_colors)
-        paginated_colors = processed_colors[skip:skip + limit]
+        if limit and limit > 0:
+            paginated_colors = processed_colors[skip:skip + limit]
+            page = (skip // limit) + 1
+            page_size = limit
+        else:
+            paginated_colors = processed_colors[skip:]
+            page = 1
+            page_size = total_count
         
         logger.info(f"Returning {len(paginated_colors)} of {total_count} processed colors")
         
         return ColorResponse(
             total_count=total_count,
-            page=(skip // limit) + 1,
-            page_size=limit,
+            page=page,
+            page_size=page_size,
             colors=paginated_colors
         )
         

@@ -94,7 +94,7 @@ class CronScheduleExamples(BaseModel):
 # API Endpoints
 
 @router.get("/jobs", response_model=CronJobsListResponse)
-async def list_jobs():
+def list_jobs():
     """
     Get all cron jobs
     
@@ -120,7 +120,7 @@ async def list_jobs():
 
 
 @router.get("/jobs/active", response_model=CronJobsListResponse)
-async def list_active_jobs():
+def list_active_jobs():
     """Get only active cron jobs"""
     try:
         jobs = get_all_jobs()
@@ -142,7 +142,7 @@ async def list_active_jobs():
 
 
 @router.get("/jobs/{job_id}", response_model=CronJobResponse)
-async def get_job(job_id: int):
+def get_job(job_id: int):
     """Get single cron job by ID"""
     try:
         job = get_job_by_id(job_id)
@@ -165,7 +165,7 @@ async def get_job(job_id: int):
 
 
 @router.post("/jobs", response_model=dict)
-async def create_cron_job(job_data: CronJobCreate):
+def create_cron_job(job_data: CronJobCreate):
     """
     Create new cron job
     
@@ -194,7 +194,7 @@ async def create_cron_job(job_data: CronJobCreate):
 
 
 @router.put("/jobs/{job_id}", response_model=dict)
-async def update_cron_job(job_id: int, job_data: CronJobUpdate):
+def update_cron_job(job_id: int, job_data: CronJobUpdate):
     """Update existing cron job"""
     try:
         job = update_job(
@@ -216,7 +216,7 @@ async def update_cron_job(job_id: int, job_data: CronJobUpdate):
 
 
 @router.delete("/jobs/{job_id}", response_model=dict)
-async def delete_cron_job(job_id: int):
+def delete_cron_job(job_id: int):
     """Delete cron job"""
     try:
         job = get_job_by_id(job_id)
@@ -237,7 +237,7 @@ async def delete_cron_job(job_id: int):
 
 
 @router.post("/jobs/{job_id}/toggle", response_model=dict)
-async def toggle_cron_job(job_id: int):
+def toggle_cron_job(job_id: int):
     """Toggle job active/inactive status"""
     try:
         job = toggle_job(job_id)
@@ -256,7 +256,7 @@ async def toggle_cron_job(job_id: int):
 
 
 @router.post("/jobs/{job_id}/trigger", response_model=dict)
-async def trigger_job(job_id: int, override: bool = False):
+def trigger_job(job_id: int, override: bool = False):
     """
     Manually trigger a cron job execution
     
@@ -280,7 +280,7 @@ async def trigger_job(job_id: int, override: bool = False):
 
 
 @router.get("/logs", response_model=ExecutionLogsResponse)
-async def get_logs(limit: int = 50):
+def get_logs(limit: int = 50):
     """
     Get execution logs
     
@@ -302,7 +302,7 @@ async def get_logs(limit: int = 50):
 
 
 @router.get("/logs/{job_id}", response_model=ExecutionLogsResponse)
-async def get_job_logs(job_id: int, limit: int = 20):
+def get_job_logs(job_id: int, limit: int = 20):
     """Get execution logs for specific job"""
     try:
         all_logs = get_execution_logs()
@@ -321,7 +321,7 @@ async def get_job_logs(job_id: int, limit: int = 20):
 
 
 @router.delete("/logs/{log_id}/output")
-async def delete_run_output(
+def delete_run_output(
     log_id: int,
     deleted_by: str = Query("unknown_user", description="User identifier for audit trail")
 ):
@@ -382,7 +382,7 @@ async def delete_run_output(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/schedule-examples", response_model=CronScheduleExamples)
-async def get_schedule_examples():
+def get_schedule_examples():
     """
     Get common cron schedule examples
     

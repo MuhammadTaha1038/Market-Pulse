@@ -26,9 +26,11 @@ from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
 import logging
+import threading
 from models.color import ColorProcessed
 from services.output_destination_factory import get_output_destination
 from services.s3_destination import S3Destination
+from storage_config import storage
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +62,13 @@ class OutputService:
 
         self.output_file_path = str(output_file_path)
         self._dest_type = os.getenv("OUTPUT_DESTINATION", "local").lower()
+        self._preserve_history = os.getenv("OUTPUT_PRESERVE_HISTORY", "true").lower() != "false"
 
         # Destination instances (primarily used for S3 uploads)
         self.destination = get_output_destination()
         self.use_multiple_destinations = isinstance(self.destination, list)
+        self._cache_lock = threading.Lock()
+        self._cached_df: Optional[pd.DataFrame] = None
 
         # Resolve S3 destination for per-CLO uploads
         if self._dest_type == "s3":
@@ -74,7 +79,10 @@ class OutputService:
         else:
             self._s3_dest = None
 
-        logger.info(f"OutputService initialized | mode={self._dest_type} | file={self.output_file_path}")
+        logger.info(
+            f"OutputService initialized | mode={self._dest_type} | "
+            f"preserve_history={self._preserve_history} | file={self.output_file_path}"
+        )
         self._ensure_output_file()
 
     def _ensure_output_file(self):
@@ -90,6 +98,27 @@ class OutputService:
             ])
             df.to_excel(self.output_file_path, index=False, engine='openpyxl')
             logger.info(f"Created output file: {self.output_file_path}")
+
+    def _bump_output_version(self, action: str, run_id: Optional[int] = None, rows_changed: Optional[int] = None):
+        """Persist lightweight output version metadata for cheap dashboard invalidation checks."""
+        try:
+            # Invalidate in-memory read cache on any output mutation.
+            with self._cache_lock:
+                self._cached_df = None
+
+            current = storage.load("dashboard_output_version") or {}
+            seq = int(current.get("seq", 0) or 0) + 1
+            payload = {
+                "seq": seq,
+                "updated_at": datetime.now().isoformat(),
+                "action": action,
+                "run_id": run_id,
+                "rows_changed": rows_changed,
+                "destination": self._dest_type,
+            }
+            storage.save("dashboard_output_version", payload)
+        except Exception as e:
+            logger.warning(f"Could not update dashboard output version metadata: {e}")
     
     # ── public write API ─────────────────────────────────────────────────────
 
@@ -136,6 +165,12 @@ class OutputService:
         if self._dest_type in ("s3", "both"):
             self._save_per_clo_to_s3(new_df)
 
+        self._bump_output_version(
+            action="append_processed_colors",
+            run_id=run_id,
+            rows_changed=len(new_df)
+        )
+
         return len(new_df)
 
     # ── private helpers ───────────────────────────────────────────────────────
@@ -180,10 +215,11 @@ class OutputService:
 
     def _append_to_local_file(self, new_df: pd.DataFrame):
         """
-        Merge new rows into the local Excel file with duplicate prevention.
+        Merge new rows into the local Excel file.
 
-        Any existing row whose MESSAGE_ID is present in new_df is removed first
-        so the latest processed version always wins.
+        In history-preserving mode (default), rows from earlier runs are kept so
+        search can show full run history for the same CUSIP/MESSAGE_ID.
+        Legacy dedup behavior can be re-enabled with OUTPUT_PRESERVE_HISTORY=false.
         """
         try:
             existing_df = pd.read_excel(self.output_file_path, engine='openpyxl')
@@ -192,8 +228,8 @@ class OutputService:
             logger.warning(f"Could not read existing file ({e}) — starting fresh.")
             existing_df = pd.DataFrame()
 
-        # Remove stale rows for any MESSAGE_ID present in the new batch
-        if len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns:
+        # Optional legacy dedup path (kept for backward compatibility)
+        if (not self._preserve_history) and len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns:
             new_ids = set(new_df['MESSAGE_ID'].dropna())
             before = len(existing_df)
             existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
@@ -262,14 +298,14 @@ class OutputService:
           * Adding a column later: old rows show NaN for it, new rows have values.
           * No schema inconsistency or data loss across config changes.
 
-        **Per-sector strategy — download → dedup → merge → upload:**
+          **Per-sector strategy — download → merge → upload (history-preserving):**
           1. Download the existing accumulated file for this sector from S3
              (empty DF on first run — safe).
-          2. Dedup: remove existing rows where MESSAGE_ID appears in the new
-             batch (newest version always wins).
-          3. Concat: pd.concat takes the column UNION — NaN fills any gaps
+             2. Concat: pd.concat takes the column UNION — NaN fills any gaps
              caused by schema additions between runs.
-          4. Upload: overwrites the sector’s S3 object with the full merged DF.
+             3. Upload: overwrites the sector’s S3 object with the full merged DF.
+
+          Legacy dedup behavior can be re-enabled with OUTPUT_PRESERVE_HISTORY=false.
 
         S3 key pattern:
           {S3_PREFIX}{SECTOR}/Processed_Colors_{SECTOR}.{S3_FILE_FORMAT}
@@ -282,7 +318,7 @@ class OutputService:
         if 'SECTOR' not in new_df.columns or new_df['SECTOR'].isna().all():
             filename = "Processed_Colors_ALL"
             existing = self._s3_dest.load_output(filename)
-            if len(existing) > 0 and 'MESSAGE_ID' in existing.columns:
+            if (not self._preserve_history) and len(existing) > 0 and 'MESSAGE_ID' in existing.columns:
                 new_ids = set(new_df['MESSAGE_ID'].dropna())
                 existing = existing[~existing['MESSAGE_ID'].isin(new_ids)]
             merged = pd.concat([existing, new_df], ignore_index=True)
@@ -308,9 +344,9 @@ class OutputService:
                 logger.warning(f"Could not download existing S3 data for '{sector}': {e} — starting fresh")
                 existing_df = pd.DataFrame()
 
-            # Step 2: dedup — remove existing rows superseded by new batch
+            # Step 2: optional legacy dedup — remove rows superseded by new batch
             new_sector_df = new_df[new_df['SECTOR'] == sector].copy() if 'SECTOR' in new_df.columns else new_df.copy()
-            if len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns and len(new_sector_df) > 0:
+            if (not self._preserve_history) and len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns and len(new_sector_df) > 0:
                 new_ids = set(new_sector_df['MESSAGE_ID'].dropna())
                 before = len(existing_df)
                 existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
@@ -376,6 +412,7 @@ class OutputService:
         if os.path.exists(self.output_file_path):
             os.remove(self.output_file_path)
         self._ensure_output_file()
+        self._bump_output_version(action="clear_output_file", rows_changed=0)
         logger.info("Output file cleared")
 
     def delete_run_output(self, run_id: int) -> dict:
@@ -491,6 +528,12 @@ class OutputService:
                     "Run may have produced no output or used an older schema without RUN_ID."
                 )
             }
+
+        self._bump_output_version(
+            action="delete_run_output",
+            run_id=run_id,
+            rows_changed=deleted_total
+        )
         return {
             "deleted": deleted_total,
             "message": f"Deleted {deleted_total} output row(s) for RUN_ID={run_id}"
@@ -526,15 +569,27 @@ class OutputService:
             # Use abstracted reader (works with local Excel or S3)
             from services.processed_data_reader import get_processed_data_reader
             reader = get_processed_data_reader()
-            
-            # For local Excel: applying nrows is a genuine performance win (reading stops at row N).
-            # For S3: nrows does NOT prevent full file downloads — skip the optimization.
-            if self._dest_type == "local" and limit and limit < 100:
-                nrows_to_read = min(limit * 10, 2000)
-                logger.info(f"PERFORMANCE: Reading only {nrows_to_read} rows for limit={limit}")
-                df = reader.read_processed_data(nrows=nrows_to_read)
+
+            with self._cache_lock:
+                cached = self._cached_df
+
+            if cached is not None and len(cached) > 0:
+                df = cached.copy()
+                logger.info(f"Using in-memory processed-data cache: {len(df)} rows")
             else:
-                df = reader.read_processed_data()
+                # For local Excel: applying nrows is a genuine performance win (reading stops at row N).
+                # For S3: nrows does NOT prevent full file downloads — skip the optimization.
+                if self._dest_type == "local" and limit and limit < 100:
+                    nrows_to_read = min(limit * 10, 2000)
+                    logger.info(f"PERFORMANCE: Reading only {nrows_to_read} rows for limit={limit}")
+                    df = reader.read_processed_data(nrows=nrows_to_read)
+                else:
+                    df = reader.read_processed_data()
+
+                # Cache only full reads, not nrows-limited samples.
+                if not (self._dest_type == "local" and limit and limit < 100):
+                    with self._cache_lock:
+                        self._cached_df = df.copy()
             
             if len(df) == 0:
                 logger.warning("Processed data is empty")

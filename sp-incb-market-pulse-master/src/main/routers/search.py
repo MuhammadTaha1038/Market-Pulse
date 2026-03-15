@@ -27,6 +27,7 @@ class SearchFilter(BaseModel):
     operator: str = "equals"  # equals, contains, starts_with, gt, lt, gte, lte, between
     value: Any
     value2: Optional[Any] = None  # For 'between' operator
+    logical_operator: str = "AND"  # AND or OR (applies from second condition onward)
 
 
 class SearchRequest(BaseModel):
@@ -37,6 +38,7 @@ class SearchRequest(BaseModel):
     sort_by: Optional[str] = None
     sort_order: str = "desc"  # asc or desc
     clo_id: Optional[str] = None  # CLO ID for column filtering
+    include_related_hierarchy: bool = True
 
 
 class SearchResponse(BaseModel):
@@ -50,7 +52,7 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/generic", response_model=SearchResponse)
-async def generic_search(request: SearchRequest):
+def generic_search(request: SearchRequest):
     """
     **Generic Column-Driven Search API**
     
@@ -110,7 +112,10 @@ async def generic_search(request: SearchRequest):
                     detail=f"Invalid field '{filter_item.field}'. Available fields: {', '.join(available_columns)}"
                 )
         
-        logger.info(f"Generic search: {len(request.filters)} filters, limit={request.limit}, clo_id={request.clo_id}")
+        logger.info(
+            f"Generic search: {len(request.filters)} filters, "
+            f"limit={request.limit}, clo_id={request.clo_id}"
+        )
         
         # Read ALL records so filtering + skip/limit pagination works correctly.
         # output_service handles local vs S3 efficiently internally.
@@ -126,29 +131,100 @@ async def generic_search(request: SearchRequest):
                 available_fields=available_columns
             )
         
-        # Apply filters
-        filtered_records = all_records
-        for filter_item in request.filters:
-            filtered_records = _apply_filter(filtered_records, filter_item)
-            logger.info(f"After filter {filter_item.field} {filter_item.operator} {filter_item.value}: {len(filtered_records)} records")
+        # Apply filters with AND/OR support
+        if request.filters:
+            combined_ids = None
+            all_ids = {id(r) for r in all_records}
+
+            for idx, filter_item in enumerate(request.filters):
+                matched_records = _apply_filter(all_records, filter_item)
+                matched_ids = {id(r) for r in matched_records}
+
+                if idx == 0 or combined_ids is None:
+                    combined_ids = matched_ids
+                else:
+                    op = str(filter_item.logical_operator or "AND").upper()
+                    if op == "OR":
+                        combined_ids = combined_ids.union(matched_ids)
+                    else:
+                        combined_ids = combined_ids.intersection(matched_ids)
+
+                logger.info(
+                    f"After filter {filter_item.field} {filter_item.operator} "
+                    f"{filter_item.value} [{filter_item.logical_operator}]: "
+                    f"{len(combined_ids or all_ids)} records"
+                )
+
+            filtered_records = [r for r in all_records if id(r) in (combined_ids or all_ids)]
+        else:
+            filtered_records = all_records
+
+        # If searching by CUSIP / MESSAGE_ID, include related hierarchy rows so
+        # table can display parent-child context (across historical runs too).
+        filter_fields_upper = {str(f.field or '').upper() for f in request.filters}
+        should_expand_hierarchy = request.include_related_hierarchy and (
+            "CUSIP" in filter_fields_upper or "MESSAGE_ID" in filter_fields_upper
+        )
+        if should_expand_hierarchy and len(filtered_records) > 0:
+            base_df = pd.DataFrame(filtered_records)
+            all_df = pd.DataFrame(all_records)
+            if "MESSAGE_ID" in all_df.columns and "PARENT_MESSAGE_ID" in all_df.columns:
+                base_message_ids = {
+                    str(v) for v in base_df.get("MESSAGE_ID", pd.Series(dtype=object)).dropna().tolist()
+                }
+                base_parent_ids = {
+                    str(v) for v in base_df.get("PARENT_MESSAGE_ID", pd.Series(dtype=object)).dropna().tolist()
+                }
+
+                parents = all_df[all_df["MESSAGE_ID"].astype(str).isin(base_parent_ids)]
+                children = all_df[all_df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)]
+                expanded_df = pd.concat([base_df, parents, children], ignore_index=True).drop_duplicates()
+                filtered_records = expanded_df.to_dict('records')
         
         # Sort results
         if request.sort_by and request.sort_by in available_columns:
-            import pandas as pd
             df = pd.DataFrame(filtered_records)
             ascending = request.sort_order.lower() == "asc"
             df = df.sort_values(by=request.sort_by, ascending=ascending)
             filtered_records = df.to_dict('records')
+        else:
+            # Default deterministic order: newest processed rows first
+            df = pd.DataFrame(filtered_records)
+            sort_cols = []
+            ascending = []
+            if "PROCESSED_AT" in df.columns:
+                sort_cols.append("PROCESSED_AT")
+                ascending.append(False)
+            if "RUN_ID" in df.columns:
+                sort_cols.append("RUN_ID")
+                ascending.append(False)
+            if "DATE" in df.columns:
+                sort_cols.append("DATE")
+                ascending.append(False)
+            if sort_cols:
+                df = df.sort_values(by=sort_cols, ascending=ascending, kind='mergesort')
+                filtered_records = df.to_dict('records')
         
-        # Pagination
+        # Pagination (limit <= 0 means no limit)
         total_count = len(filtered_records)
-        paginated_records = filtered_records[request.skip:request.skip + request.limit]
+        if request.limit and request.limit > 0:
+            paginated_records = filtered_records[request.skip:request.skip + request.limit]
+            page_size = request.limit
+            page = (request.skip // request.limit) + 1
+        else:
+            paginated_records = filtered_records[request.skip:]
+            page_size = total_count
+            page = 1
         
         # Filter columns in results if CLO filtering is active
         if visible_columns:
+            system_columns = {
+                "IS_PARENT", "PARENT_MESSAGE_ID", "CHILDREN_COUNT",
+                "MESSAGE_ID", "CUSIP", "DATE", "DATE_1", "RUN_ID", "PROCESSED_AT"
+            }
             filtered_paginated = []
             for record in paginated_records:
-                filtered_record = {k: v for k, v in record.items() if k in visible_columns}
+                filtered_record = {k: v for k, v in record.items() if k in visible_columns or k in system_columns}
                 filtered_paginated.append(filtered_record)
             paginated_records = filtered_paginated
             logger.info(f"Filtered results to {len(visible_columns)} visible columns")
@@ -158,8 +234,8 @@ async def generic_search(request: SearchRequest):
         return SearchResponse(
             total_count=total_count,
             returned_count=len(paginated_records),
-            page=(request.skip // request.limit) + 1,
-            page_size=request.limit,
+            page=page,
+            page_size=page_size,
             results=paginated_records,
             available_fields=available_columns
         )
@@ -244,6 +320,7 @@ async def get_searchable_fields(clo_id: Optional[str] = Query(None, description=
 def _apply_filter(records: List[Dict], filter_item: SearchFilter) -> List[Dict]:
     """Apply a single filter to records"""
     filtered = []
+    op = str(filter_item.operator or "").strip().lower().replace(" ", "_")
     
     for record in records:
         field_value = record.get(filter_item.field)
@@ -254,35 +331,43 @@ def _apply_filter(records: List[Dict], filter_item: SearchFilter) -> List[Dict]:
         
         try:
             # Apply operator
-            if filter_item.operator == "equals":
+            if op == "equals":
                 if str(field_value).upper() == str(filter_item.value).upper():
                     filtered.append(record)
+
+            elif op in ("not_equals", "not_equal_to"):
+                if str(field_value).upper() != str(filter_item.value).upper():
+                    filtered.append(record)
             
-            elif filter_item.operator == "contains":
+            elif op == "contains":
                 if str(filter_item.value).upper() in str(field_value).upper():
                     filtered.append(record)
             
-            elif filter_item.operator == "starts_with":
+            elif op == "starts_with":
                 if str(field_value).upper().startswith(str(filter_item.value).upper()):
                     filtered.append(record)
+
+            elif op in ("ends_with", "endswith"):
+                if str(field_value).upper().endswith(str(filter_item.value).upper()):
+                    filtered.append(record)
             
-            elif filter_item.operator == "gt":
+            elif op == "gt":
                 if float(field_value) > float(filter_item.value):
                     filtered.append(record)
             
-            elif filter_item.operator == "lt":
+            elif op == "lt":
                 if float(field_value) < float(filter_item.value):
                     filtered.append(record)
             
-            elif filter_item.operator == "gte":
+            elif op == "gte":
                 if float(field_value) >= float(filter_item.value):
                     filtered.append(record)
             
-            elif filter_item.operator == "lte":
+            elif op == "lte":
                 if float(field_value) <= float(filter_item.value):
                     filtered.append(record)
             
-            elif filter_item.operator == "between":
+            elif op == "between":
                 if filter_item.value2 is None:
                     continue
                 val = float(field_value)
@@ -298,7 +383,7 @@ def _apply_filter(records: List[Dict], filter_item: SearchFilter) -> List[Dict]:
 
 # Convenience GET endpoint for simple searches
 @router.get("/simple", response_model=SearchResponse)
-async def simple_search(
+def simple_search(
     field: str = Query(..., description="Field name from column_config.json"),
     value: str = Query(..., description="Value to search for"),
     operator: str = Query("equals", description="Search operator (equals, contains, etc.)"),
@@ -324,7 +409,7 @@ async def simple_search(
         skip=skip,
         limit=limit
     )
-    return await generic_search(search_request)
+    return generic_search(search_request)
 
 
 # ===========================================================
@@ -335,7 +420,8 @@ class SecuritySearchRequest(BaseModel):
     """Request for security search by identifier"""
     query: str
     search_type: str = "any"   # "message_id", "cusip", or "any"
-    limit: int = 500
+    limit: Optional[int] = None
+    include_related_hierarchy: bool = True
 
 
 class SecuritySearchResponse(BaseModel):
@@ -347,7 +433,7 @@ class SecuritySearchResponse(BaseModel):
 
 
 @router.post("/security", response_model=SecuritySearchResponse)
-async def security_search(request: SecuritySearchRequest):
+def security_search(request: SecuritySearchRequest):
     """
     **Security Search**
 
@@ -403,7 +489,41 @@ async def security_search(request: SecuritySearchRequest):
 
         matched = matched.drop_duplicates()
 
-        if request.limit:
+        # Include related hierarchy rows so users see complete parent/child context
+        # for the matched CUSIP / message IDs across historical runs.
+        if request.include_related_hierarchy and len(matched) > 0:
+            if "MESSAGE_ID" in df.columns and "PARENT_MESSAGE_ID" in df.columns:
+                base_message_ids = {
+                    str(v) for v in matched["MESSAGE_ID"].dropna().tolist()
+                }
+                base_parent_ids = {
+                    str(v) for v in matched["PARENT_MESSAGE_ID"].dropna().tolist()
+                }
+
+                # 1) Parent rows for matched children
+                parents = df[df["MESSAGE_ID"].astype(str).isin(base_parent_ids)]
+                # 2) Child rows for matched parents
+                children = df[df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)]
+
+                matched = pd.concat([matched, parents, children]).drop_duplicates()
+
+        # Stable ordering: newest processed run first, then latest business DATE.
+        sort_cols = []
+        ascending = []
+        if "PROCESSED_AT" in matched.columns:
+            sort_cols.append("PROCESSED_AT")
+            ascending.append(False)
+        if "RUN_ID" in matched.columns:
+            sort_cols.append("RUN_ID")
+            ascending.append(False)
+        if "DATE" in matched.columns:
+            sort_cols.append("DATE")
+            ascending.append(False)
+
+        if sort_cols:
+            matched = matched.sort_values(by=sort_cols, ascending=ascending, kind="mergesort")
+
+        if request.limit and request.limit > 0:
             matched = matched.head(request.limit)
 
         results = _to_json_safe_records(matched)

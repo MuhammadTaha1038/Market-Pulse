@@ -212,7 +212,7 @@ def run_automation_task(job_id: int, job_name: str, triggered_by: str = "schedul
             logger.info(f"📂 Found {len(buffered_files)} buffered manual uploads to process")
             for buffer_entry in buffered_files:
                 try:
-                    result = process_buffered_file(buffer_entry)
+                    result = process_buffered_file(buffer_entry, run_id=_run_id)
                     if result["success"]:
                         manual_files_processed += 1
                     else:

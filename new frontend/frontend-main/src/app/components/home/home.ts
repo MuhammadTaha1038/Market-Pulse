@@ -18,6 +18,7 @@ import { AssetStateService } from '../../services/asset-state.service';
 import { TableStateService } from './table-state.service';
 import { NextRunService } from '../../services/next-run.service';
 import { MenuActiveService } from '../../layout/service/menu-active.service';
+import { DashboardCacheService } from '../../services/dashboard-cache.service';
 import { Subscription } from 'rxjs';
 import { StackedChartComponent } from '../stacked-chart/stacked-chart.component';
 
@@ -104,6 +105,7 @@ export class Home implements OnInit, OnDestroy {
     private tableStateSub!: Subscription;
     private timerSub!: Subscription;
     private assetSub?: Subscription;
+    private versionChangedSub?: Subscription;
 
     /** CLO ID from localStorage selection – passed to every API call */
     private activeCloId: string | undefined;
@@ -163,7 +165,8 @@ export class Home implements OnInit, OnDestroy {
         private router: Router,
         private tableStateService: TableStateService,
         private nextRunService: NextRunService,
-        private menuActiveService: MenuActiveService
+        private menuActiveService: MenuActiveService,
+        private dashboardCache: DashboardCacheService
     ) {}
 
     ngOnInit() {
@@ -183,6 +186,10 @@ export class Home implements OnInit, OnDestroy {
 
         // Set initial active menu item to Dashboard
         this.menuActiveService.setActiveMenuItem('Dashboard');
+
+        this.versionChangedSub = this.dashboardCache.versionChanged$.subscribe(() => {
+            this.loadDataFromBackend(true);
+        });
 
         this.tableStateSub = this.tableStateService.isTableExpanded$.subscribe((expanded) => {
             // Update active menu item based on table expansion state
@@ -204,6 +211,7 @@ export class Home implements OnInit, OnDestroy {
         this.tableStateSub?.unsubscribe();
         this.timerSub?.unsubscribe();
         this.assetSub?.unsubscribe();
+        this.versionChangedSub?.unsubscribe();
     }
 
     /**
@@ -398,30 +406,60 @@ export class Home implements OnInit, OnDestroy {
      * Load color data from backend API
      * Maps the backend response to table format
      */
-    private loadDataFromBackend() {
-        console.log('📡 Fetching colors from backend API...');
+    private loadDataFromBackend(forceRefresh: boolean = false) {
+        const latestCachedRows = this.dashboardCache.getLatestHomeRows(this.activeCloId);
+        const latestCachedVersion = this.dashboardCache.getLatestHomeVersion(this.activeCloId);
 
-        this.apiService.getColors(0, 100, undefined, this.activeCloId).subscribe({
-            next: (response) => {
-                console.log('✅ Colors received from backend:', response.colors.length);
+        if (!forceRefresh && latestCachedRows && latestCachedRows.length > 0) {
+            this.tableData = latestCachedRows;
+            console.log('⚡ Hydrated home table from latest cache:', latestCachedRows.length);
 
-                // Convert backend format to table format with parent-child relationships
-                this.tableData = response.colors.map((color: ColorProcessed, index: number) => this.colorToRow(color, index));
-
-                console.log('✅ Loaded', this.tableData.length, 'colors from backend');
-            },
-            error: (error) => {
-                console.error('❌ Error loading colors from backend:', error);
-
-                // Show empty rows so user can type message IDs
-                this.tableData = this.generateEmptyRows(20);
+            if (!this.dashboardCache.hasVersionChanged(latestCachedVersion)) {
+                return;
             }
-        });
+        }
+
+        const knownVersion = this.dashboardCache.getCurrentVersion();
+        if (knownVersion) {
+            this.fetchAndCacheHomeData(knownVersion);
+        } else {
+            this.apiService.getDashboardDataVersion().subscribe({
+                next: (versionInfo) => {
+                    const version = versionInfo?.version || 'unknown';
+                    this.dashboardCache.setKnownVersion(version);
+                    this.fetchAndCacheHomeData(version);
+                },
+                error: () => {
+                    if (!latestCachedRows || latestCachedRows.length === 0) {
+                        this.tableData = this.generateEmptyRows(20);
+                    }
+                }
+            });
+        }
 
         // Subscribe to shared next-run countdown service
         this.nextRunService.init();
         this.timerSub = this.nextRunService.timer$.subscribe((val) => {
             this.nextRunTimer = val;
+        });
+    }
+
+    private fetchAndCacheHomeData(version: string): void {
+        console.log('📡 Fetching colors from backend API...');
+        this.apiService.getColors(0, 100, undefined, this.activeCloId).subscribe({
+            next: (response) => {
+                console.log('✅ Colors received from backend:', response.colors.length);
+
+                const mappedRows = response.colors.map((color: ColorProcessed, index: number) => this.colorToRow(color, index));
+                this.tableData = mappedRows;
+                this.dashboardCache.saveHomeRows(version, mappedRows, this.activeCloId);
+
+                console.log('✅ Loaded', this.tableData.length, 'colors from backend');
+            },
+            error: (error) => {
+                console.error('❌ Error loading colors from backend:', error);
+                this.tableData = this.generateEmptyRows(20);
+            }
         });
     }
 
@@ -448,9 +486,49 @@ export class Home implements OnInit, OnDestroy {
         const searchType: 'cusip' | 'message_id' | 'any' = isCusipInput ? 'cusip' : 'message_id';
 
         const table = this.isTableExpanded ? this.expandedTable : this.mainTable;
-        this.apiService.securitySearch(rawValue, searchType, 10).subscribe({
+        this.apiService.securitySearch(rawValue, searchType).subscribe({
             next: (response) => {
                 if (response.results && response.results.length > 0) {
+                    if (isCusipInput) {
+                        // CUSIP entered in-cell should behave like full security search:
+                        // show ALL historical rows + hierarchy, not just first match.
+                        this.searchQuery = rawValue;
+                        this.tableData = response.results.map((record: any, index: number) => ({
+                            _rowId: `row_${record.MESSAGE_ID || index}_${record.RUN_ID || 'na'}_${index}`,
+                            _selected: false,
+                            rowNumber: String(index + 1),
+                            messageId: String(record.MESSAGE_ID || ''),
+                            ticker: record.TICKER || '',
+                            sector: record.SECTOR || '',
+                            cusip: record.CUSIP || rawValue,
+                            bias: record.BIAS || '',
+                            date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
+                            date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
+                            bid: record.BID || 0,
+                            mid: ((Number(record.BID) || 0) + (Number(record.ASK) || 0)) / 2,
+                            ask: record.ASK || 0,
+                            px: record.PX || 0,
+                            priceLevel: record.PRICE_LEVEL || 0,
+                            source: record.SOURCE || '',
+                            rank: record.RANK || 5,
+                            covPrice: record.COV_PRICE || 0,
+                            percentDiff: record.PERCENT_DIFF || 0,
+                            priceDiff: record.PRICE_DIFF || 0,
+                            confidence: record.CONFIDENCE || 0,
+                            diffStatus: record.DIFF_STATUS || '',
+                            isParent: record.IS_PARENT ?? true,
+                            parentRow: record.PARENT_MESSAGE_ID || undefined,
+                            childrenCount: record.CHILDREN_COUNT || 0
+                        }));
+
+                        this.messageService.add({
+                            severity: 'success',
+                            summary: 'CUSIP Search Complete',
+                            detail: `Found ${response.total_count} historical record(s) for "${rawValue}"`
+                        });
+                        return;
+                    }
+
                     const record = response.results[0];
                     const rowData: Partial<TableRow> = {
                         // When input was a CUSIP, keep messageId from record only (don't fall back to rawValue).
@@ -620,7 +698,7 @@ export class Home implements OnInit, OnDestroy {
             // Security search: search processed output by Message ID or CUSIP
             console.log('🔍 Security search:', query);
             this.isSearching = true;
-            this.apiService.securitySearch(query, 'any', 500).subscribe({
+            this.apiService.securitySearch(query, 'any').subscribe({
                 next: (response) => {
                     this.isSearching = false;
                     this.tableData = response.results.map((record: any, index: number) => ({
@@ -753,12 +831,13 @@ export class Home implements OnInit, OnDestroy {
             field: c.column,
             operator: c.operator,
             value: c.values,
-            value2: c.values2 || undefined
+            value2: c.values2 || undefined,
+            logical_operator: c.logicalOperator || 'AND'
         }));
 
         console.log('📡 Calling backend search with filters:', searchFilters);
 
-        this.apiService.searchColors(searchFilters, 0, 500).subscribe({
+        this.apiService.searchColors(searchFilters, 0, 0, undefined, undefined, this.activeCloId).subscribe({
             next: (response) => {
                 console.log('✅ Search results:', response.total_count, 'records');
 
@@ -863,7 +942,7 @@ export class Home implements OnInit, OnDestroy {
                                 summary: 'Automation Complete',
                                 detail: res.message || 'Cron job overridden and executed'
                             });
-                            this.loadDataFromBackend();
+                            this.loadDataFromBackend(true);
                             this.runningAutomation = false;
                             this.automationStatusService.endRun();
                         },

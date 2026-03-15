@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { NgxEchartsDirective } from 'ngx-echarts';
 import { CommonModule } from '@angular/common';
 import { ApiService, ColorProcessed } from '../../services/api.service';
+import { DashboardCacheService } from '../../services/dashboard-cache.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -18,22 +19,72 @@ export class StackedChartComponent implements OnInit, OnDestroy {
     isLoading = true;
     hasError = false;
     private dataSub?: Subscription;
+    private versionChangedSub?: Subscription;
 
-    constructor(private apiService: ApiService) {}
+    constructor(
+        private apiService: ApiService,
+        private dashboardCache: DashboardCacheService
+    ) {}
 
-    ngOnInit() { this.loadChartData(); }
-    ngOnDestroy() { this.dataSub?.unsubscribe(); }
-    refreshChart() { this.loadChartData(); }
+    ngOnInit() {
+        this.loadChartData();
+        this.versionChangedSub = this.dashboardCache.versionChanged$.subscribe(() => {
+            this.loadChartData(true);
+        });
+    }
+
+    ngOnDestroy() {
+        this.dataSub?.unsubscribe();
+        this.versionChangedSub?.unsubscribe();
+    }
+
+    refreshChart() { this.loadChartData(true); }
 
     // ── data loading ──────────────────────────────────────────────
 
-    private loadChartData() {
+    private loadChartData(forceRefresh: boolean = false) {
         this.isLoading = true;
         this.hasError = false;
 
-        this.dataSub = this.apiService.getColors(0, 500).subscribe({
+        const latestCachedRows = this.dashboardCache.getLatestChartRows();
+        const latestCachedVersion = this.dashboardCache.getLatestChartVersion();
+
+        if (!forceRefresh && latestCachedRows && latestCachedRows.length > 0) {
+            this.buildChart(latestCachedRows as ColorProcessed[]);
+            this.isLoading = false;
+
+            if (!this.dashboardCache.hasVersionChanged(latestCachedVersion)) {
+                return;
+            }
+        }
+
+        const knownVersion = this.dashboardCache.getCurrentVersion();
+        if (knownVersion) {
+            this.fetchAndCacheChartData(knownVersion);
+        } else {
+            this.dataSub = this.apiService.getDashboardDataVersion().subscribe({
+                next: (versionInfo) => {
+                    const version = versionInfo?.version || 'unknown';
+                    this.dashboardCache.setKnownVersion(version);
+                    this.fetchAndCacheChartData(version);
+                },
+                error: (err) => {
+                    console.warn('⚠️ Failed to fetch data version for chart:', err);
+                    if (!latestCachedRows || latestCachedRows.length === 0) {
+                        this.hasError = true;
+                        this.isLoading = false;
+                        this.useMockData();
+                    }
+                }
+            });
+        }
+    }
+
+    private fetchAndCacheChartData(version: string): void {
+        this.dataSub = this.apiService.getColors(0, 0).subscribe({
             next: (response) => {
                 this.buildChart(response.colors);
+                this.dashboardCache.saveChartRows(version, response.colors || []);
                 this.isLoading = false;
             },
             error: (err) => {

@@ -92,10 +92,10 @@ export class FilterDialogComponent implements OnInit, OnChanges {
   // Operators aligned with backend (search.py + rules_service.py)
   operatorOptions = [
     { label: 'Equal to', value: 'equals' },
-    { label: 'Not equal to', value: 'not equal to' },
+    { label: 'Not equal to', value: 'not_equals' },
     { label: 'Contains', value: 'contains' },
     { label: 'Starts with', value: 'starts_with' },
-    { label: 'Ends with', value: 'ends with' },
+    { label: 'Ends with', value: 'ends_with' },
     { label: 'Greater than', value: 'gt' },
     { label: 'Less than', value: 'lt' },
     { label: 'Greater than or equal', value: 'gte' },
@@ -105,7 +105,7 @@ export class FilterDialogComponent implements OnInit, OnChanges {
 
   private readonly NUMERIC_OPERATORS = [
     { label: 'Equal to', value: 'equals' },
-    { label: 'Not equal to', value: 'not equal to' },
+    { label: 'Not equal to', value: 'not_equals' },
     { label: 'Greater than', value: 'gt' },
     { label: 'Less than', value: 'lt' },
     { label: 'Greater than or equal', value: 'gte' },
@@ -115,10 +115,10 @@ export class FilterDialogComponent implements OnInit, OnChanges {
 
   private readonly TEXT_OPERATORS = [
     { label: 'Equal to', value: 'equals' },
-    { label: 'Not equal to', value: 'not equal to' },
+    { label: 'Not equal to', value: 'not_equals' },
     { label: 'Contains', value: 'contains' },
     { label: 'Starts with', value: 'starts_with' },
-    { label: 'Ends with', value: 'ends with' }
+    { label: 'Ends with', value: 'ends_with' }
   ];
 
   private readonly DATE_OPERATORS = [

@@ -1,6 +1,44 @@
 {
   "logs": [
     {
+      "log_id": 30,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #26 (2833 row(s) deleted) by unknown_user",
+      "performed_by": "unknown_user",
+      "performed_at": "2026-03-15T17:04:20.153461",
+      "entity_id": 26,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 26,
+        "deleted_count": 2833,
+        "deleted_by": "unknown_user"
+      }
+    },
+    {
+      "log_id": 29,
+      "module": "restore",
+      "action": "delete_output",
+      "description": "Removed output data for automation run #25 (4 row(s) deleted) by unknown_user",
+      "performed_by": "unknown_user",
+      "performed_at": "2026-03-15T16:33:11.723164",
+      "entity_id": 25,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 25,
+        "deleted_count": 4,
+        "deleted_by": "unknown_user"
+      }
+    },
+    {
       "log_id": 28,
       "module": "restore",
       "action": "manual_cleaning",
@@ -718,5 +756,5 @@
       }
     }
   ],
-  "next_id": 29
+  "next_id": 31
 }

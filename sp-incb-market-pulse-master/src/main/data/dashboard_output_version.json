@@ -1,0 +1,8 @@
+{
+  "seq": 6,
+  "updated_at": "2026-03-15T23:30:36.181344",
+  "action": "append_processed_colors",
+  "run_id": 31,
+  "rows_changed": 4,
+  "destination": "local"
+}

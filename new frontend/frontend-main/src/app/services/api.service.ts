@@ -95,6 +95,14 @@ export interface OutputStats {
     total_count: number;
 }
 
+export interface DataVersionResponse {
+    version: string;
+    latest_run_id?: number;
+    latest_event_time?: string;
+    destination?: string;
+    local_last_modified?: string;
+}
+
 // ==================== MANUAL UPLOAD RESPONSES ====================
 
 export interface UploadResponse {
@@ -377,6 +385,7 @@ export interface SearchFilter {
     operator: string;
     value: any;
     value2?: any;
+    logical_operator?: 'AND' | 'OR';
 }
 
 export interface SearchRequest {
@@ -672,6 +681,13 @@ export class ApiService {
         return this.http.get<OutputStats>(`${this.baseUrl}/api/dashboard/output-stats`);
     }
 
+    /**
+     * Lightweight token for detecting dashboard data changes.
+     */
+    getDashboardDataVersion(): Observable<DataVersionResponse> {
+        return this.http.get<DataVersionResponse>(`${this.baseUrl}/api/dashboard/data-version`);
+    }
+
     // ==================== MANUAL COLOR ENDPOINTS ====================
 
     /**
@@ -888,13 +904,21 @@ export class ApiService {
     /**
      * Generic search with multiple filters (POST /api/search/generic)
      */
-    searchColors(filters: SearchFilter[], skip: number = 0, limit: number = 500, sortBy?: string, sortOrder?: string): Observable<SearchResponse> {
+    searchColors(
+        filters: SearchFilter[],
+        skip: number = 0,
+        limit: number = 0,
+        sortBy?: string,
+        sortOrder?: string,
+        cloId?: string
+    ): Observable<SearchResponse> {
         const body: SearchRequest = {
             filters,
             skip,
             limit,
             sort_by: sortBy,
-            sort_order: sortOrder || 'desc'
+            sort_order: sortOrder || 'desc',
+            clo_id: cloId
         };
         return this.http.post<SearchResponse>(`${this.baseUrl}/api/search/generic`, body);
     }
@@ -1195,12 +1219,15 @@ export class ApiService {
      * Search processed output (local or S3) by Message ID or CUSIP string.
      * POST /api/search/security
      */
-    securitySearch(query: string, searchType: 'message_id' | 'cusip' | 'any' = 'any', limit: number = 500): Observable<{ total_count: number; results: any[]; search_query: string; search_type: string }> {
-        return this.http.post<any>(`${this.baseUrl}/api/search/security`, {
+    securitySearch(query: string, searchType: 'message_id' | 'cusip' | 'any' = 'any', limit?: number): Observable<{ total_count: number; results: any[]; search_query: string; search_type: string }> {
+        const payload: any = {
             query,
-            search_type: searchType,
-            limit
-        });
+            search_type: searchType
+        };
+        if (limit !== undefined && limit !== null) {
+            payload.limit = limit;
+        }
+        return this.http.post<any>(`${this.baseUrl}/api/search/security`, payload);
     }
 
     /**
