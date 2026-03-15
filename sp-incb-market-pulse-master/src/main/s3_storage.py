@@ -189,6 +189,24 @@ class S3Storage(StorageInterface):
             logger.error(f"Failed to upload bytes to '{s3_key}': {e}")
             raise
 
+    def download_bytes(self, s3_key: str) -> bytes:
+        """Download raw object bytes from S3 key."""
+        try:
+            response = self._s3.get_object(Bucket=self.bucket_name, Key=s3_key)
+            return response["Body"].read()
+        except Exception as e:
+            logger.error(f"Failed to download bytes from '{s3_key}': {e}")
+            raise
+
+    def delete_raw_file(self, s3_key: str):
+        """Delete raw (non-JSON) object from S3 by full key."""
+        try:
+            self._s3.delete_object(Bucket=self.bucket_name, Key=s3_key)
+            logger.info(f"Deleted raw S3 object: s3://{self.bucket_name}/{s3_key}")
+        except Exception as e:
+            logger.error(f"Failed to delete raw S3 object '{s3_key}': {e}")
+            raise
+
     @staticmethod
     def is_configured() -> bool:
         """Check if S3 is properly configured (bucket name set)."""

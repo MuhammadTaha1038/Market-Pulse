@@ -271,7 +271,11 @@ def _load_buffered_manual_colors() -> Tuple[List[ColorRaw], List[str], List[int]
     consumed_buffer_ids: List[int] = []
 
     try:
-        from manual_upload_service import get_buffered_files, parse_excel_to_colors
+        from manual_upload_service import (
+            get_buffered_files,
+            parse_excel_to_colors,
+            read_buffered_entry_dataframe,
+        )
 
         buffered_files = get_buffered_files()
         if not buffered_files:
@@ -302,7 +306,7 @@ def _load_buffered_manual_colors() -> Tuple[List[ColorRaw], List[str], List[int]
                 continue
 
             try:
-                df = pd.read_excel(file_path)
+                df = read_buffered_entry_dataframe(entry)
                 parsed_colors, parsing_errors = parse_excel_to_colors(df)
 
                 buffered_colors.extend(parsed_colors)

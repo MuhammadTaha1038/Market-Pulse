@@ -48,7 +48,7 @@
                         <div class="border-t border-gray-200 -mx-5"></div>
 
                         <!-- CONTENT -->
-                        <div class="px-5 pt-4 pb-5 h-[300px] overflow-hidden">
+                        <div class="px-5 pt-2 pb-0 h-[260px] overflow-hidden">
                             <div class="relative h-full w-full overflow-hidden">
                                 <stacked-chart></stacked-chart>
                             </div>
@@ -205,8 +205,8 @@
 
                 <div class="flex-1"></div>
 
-                <!-- Fetch / Search -->
-                <button pButton [label]="searchQuery.trim() ? 'Search' : 'Fetch Data'" [icon]="isSearching ? 'pi pi-spin pi-spinner' : (searchQuery.trim() ? 'pi pi-search' : 'pi pi-refresh')" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" [pTooltip]="searchQuery.trim() ? 'Search processed output for this Message ID or CUSIP' : 'Reload all data'"></button>
+                <!-- Search -->
+                <button pButton label="Search" [icon]="isSearching ? 'pi pi-spin pi-spinner' : 'pi pi-search'" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" pTooltip="Search by CUSIP, Message ID, or active filters"></button>
             </div>
         </div>
 
@@ -313,8 +313,8 @@
 
                     <div class="flex-1"></div>
 
-                    <!-- Fetch / Search -->
-                    <button pButton [label]="searchQuery.trim() ? 'Search' : 'Fetch Data'" [icon]="isSearching ? 'pi pi-spin pi-spinner' : (searchQuery.trim() ? 'pi pi-search' : 'pi pi-refresh')" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" [pTooltip]="searchQuery.trim() ? 'Search processed output for this Message ID or CUSIP' : 'Reload all data'"></button>
+                    <!-- Search -->
+                    <button pButton label="Search" [icon]="isSearching ? 'pi pi-spin pi-spinner' : 'pi pi-search'" (click)="fetchData()" [disabled]="isSearching" class="!bg-gray-900 !text-white !rounded-full !px-5 !py-2.5 text-sm font-medium hover:!bg-black" pTooltip="Search by CUSIP, Message ID, or active filters"></button>
                 </div>
             </div>
         </div>

@@ -68,6 +68,7 @@ export class ManualColor implements OnInit {
   currentSessionId: string | null = null;
   isLoadingQuery = false;
   dataSource: 'oracle' | 'excel' | null = null;
+  dataSourceOrigin: 'query' | 'upload' | null = null;
 
   // Undo history
   private undoStack: TableRow[][] = [];
@@ -281,6 +282,7 @@ export class ManualColor implements OnInit {
         if (response.success) {
           this.applyPreviewResponse(response);
           this.dataSource = this.normalizeDataSource(response.data_source);
+          this.dataSourceOrigin = 'query';
           this.messageService.add({
             severity: 'success',
             summary: 'Data Loaded',
@@ -417,6 +419,7 @@ export class ManualColor implements OnInit {
         if (response.success) {
           this.applyPreviewResponse(response);
           this.dataSource = 'excel';
+          this.dataSourceOrigin = 'upload';
           this.showImportDialog = false;
 
           this.messageService.add({
@@ -482,6 +485,35 @@ export class ManualColor implements OnInit {
       return 'pi-file-excel';
     }
     return 'pi-file';
+  }
+
+  get primarySourceLabel(): string {
+    if (this.dataSourceOrigin === 'upload') return 'Uploaded Internally';
+    if (this.dataSource === 'oracle') return 'Oracle Data';
+    if (this.dataSource === 'excel') return 'Excel Data';
+    return 'No Source';
+  }
+
+  get primarySourceIcon(): string {
+    if (this.dataSourceOrigin === 'upload') return 'pi pi-upload';
+    if (this.dataSource === 'oracle') return 'pi pi-database';
+    if (this.dataSource === 'excel') return 'pi pi-file-excel';
+    return 'pi pi-info-circle';
+  }
+
+  get primarySourceClasses(): string {
+    if (this.dataSourceOrigin === 'upload') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (this.dataSource === 'oracle') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (this.dataSource === 'excel') return 'bg-green-50 text-green-700 border-green-200';
+    return 'bg-gray-50 text-gray-700 border-gray-200';
+  }
+
+  get showSourceBadge(): boolean {
+    return !!this.dataSource || this.hasPendingBuffer;
+  }
+
+  get bufferBadgeLabel(): string {
+    return this.pendingBufferCount > 1 ? `Buffered Files ${this.pendingBufferCount}` : 'Buffered File';
   }
 
   // ==================== TABLE EXPANSION ====================

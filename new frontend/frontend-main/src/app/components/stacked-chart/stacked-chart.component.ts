@@ -18,6 +18,7 @@ export class StackedChartComponent implements OnInit, OnDestroy {
     options: any = {};
     isLoading = true;
     hasError = false;
+    private chartInstance: any;
     private dataSub?: Subscription;
     private versionChangedSub?: Subscription;
 
@@ -39,6 +40,13 @@ export class StackedChartComponent implements OnInit, OnDestroy {
     }
 
     refreshChart() { this.loadChartData(true); }
+
+    onChartInit(chart: any) {
+        this.chartInstance = chart;
+        if (this.options && Object.keys(this.options).length > 0) {
+            this.chartInstance.setOption(this.options, true);
+        }
+    }
 
     // ── data loading ──────────────────────────────────────────────
 
@@ -105,15 +113,16 @@ export class StackedChartComponent implements OnInit, OnDestroy {
         const monthBiasMap: Map<string, Map<string, number>> = new Map();
         for (const record of colors) {
             if (!record.date) continue;
-            const month = record.date.toString().substring(0, 7);
+            const month = this.toYearMonth(record.date);
+            if (!month) continue;
             const bias  = (record.bias || 'UNKNOWN').trim().toUpperCase();
             if (!monthBiasMap.has(month)) monthBiasMap.set(month, new Map());
             const bm = monthBiasMap.get(month)!;
             bm.set(bias, (bm.get(bias) ?? 0) + 1);
         }
 
-        // 2. Sort chronologically, keep last 12
-        const sortedMonths = [...monthBiasMap.keys()].sort().slice(-12);
+        // 2. Sort chronologically, keep last 6
+        const sortedMonths = [...monthBiasMap.keys()].sort().slice(-6);
         if (!sortedMonths.length) { this.useMockData(); return; }
 
         const monthLabels = sortedMonths.map((m) => {
@@ -152,7 +161,9 @@ export class StackedChartComponent implements OnInit, OnDestroy {
             name: bias,
             type: 'bar',
             stack: 'total',
+            barWidth: 56,
             barMaxWidth: 48,
+            barCategoryGap: '12%',
             data: monthPercentages.map((mp) => parseFloat((mp[bias] ?? 0).toFixed(2))),
             itemStyle: {
                 color: this.lightenColor('#334155', index * 30),
@@ -162,7 +173,7 @@ export class StackedChartComponent implements OnInit, OnDestroy {
             emphasis: { disabled: true }
         }));
 
-        this.options = this.buildOptions(monthLabels, sortedBiases, series, monthTotals, monthCounts);
+        this.applyChartOptions(this.buildOptions(monthLabels, sortedBiases, series, monthTotals, monthCounts));
     }
 
     // ── shared ECharts config builder ─────────────────────────────
@@ -174,8 +185,11 @@ export class StackedChartComponent implements OnInit, OnDestroy {
             name: '__total__',
             type: 'bar',
             stack: 'total',
+            barWidth: 56,
             barMaxWidth: 48,
-            data: monthTotals.map(() => 0),
+            barCategoryGap: '12%',
+            // Keep a tiny positive value so ECharts always renders this series label.
+            data: monthTotals.map(() => 0.0001),
             itemStyle: { color: 'transparent', borderColor: 'transparent' },
             emphasis: { disabled: true },
             label: {
@@ -187,6 +201,7 @@ export class StackedChartComponent implements OnInit, OnDestroy {
                 fontFamily: 'Poppins, sans-serif',
                 formatter: (params: any) => this.formatK(monthTotals[params.dataIndex])
             },
+            labelLayout: { hideOverlap: false },
             tooltip: { show: false }
         };
 
@@ -236,15 +251,16 @@ export class StackedChartComponent implements OnInit, OnDestroy {
                     );
                 }
             },
-            grid: { left: 48, right: 24, top: 32, bottom: 8, containLabel: true },
+            grid: { left: 24, right: 8, top: 36, bottom: 14, containLabel: true },
             xAxis: {
                 type: 'category',
                 data: months,
+                boundaryGap: true,
                 axisLine: { show: false },
                 axisTick: { show: false },
-                axisLabel: { color: '#6B7280', fontSize: 11, margin: 8, show: true }
+                axisLabel: { color: '#6B7280', fontSize: 11, margin: 8, show: true, hideOverlap: false }
             },
-            yAxis: { type: 'value', max: 100, show: false },
+            yAxis: { type: 'value', max: 102, show: false },
             series: [...series, labelSeries]
         };
     }
@@ -287,7 +303,7 @@ export class StackedChartComponent implements OnInit, OnDestroy {
             Object.fromEntries(Object.entries(m).map(([bias, pct]) => [bias, Math.round((pct / 100) * mockTotals[i])]))
         );
 
-        this.options    = this.buildOptions(months, biasOrder, series, mockTotals, mockCounts);
+        this.applyChartOptions(this.buildOptions(months, biasOrder, series, mockTotals, mockCounts));
     }
 
     // ── helpers ───────────────────────────────────────────────────
@@ -311,5 +327,21 @@ export class StackedChartComponent implements OnInit, OnDestroy {
         const ng = Math.round(g + (255 - g) * f);
         const nb = Math.round(b + (255 - b) * f);
         return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+    }
+
+    private toYearMonth(input: string | Date): string | null {
+        const d = input instanceof Date ? input : new Date(input);
+        if (Number.isNaN(d.getTime())) return null;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    }
+
+    private applyChartOptions(nextOptions: any): void {
+        this.options = nextOptions;
+        if (this.chartInstance) {
+            // Force full replace to avoid stale merged state dropping labels/categories.
+            this.chartInstance.setOption(nextOptions, true);
+        }
     }
 }

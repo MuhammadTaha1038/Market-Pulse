@@ -20,6 +20,7 @@ from manual_upload_service import (
     get_buffered_files,
     save_buffered_files,
     save_upload_history,
+    mark_buffer_processed,
 )
 from services.column_config_service import get_column_config
 
@@ -197,21 +198,16 @@ async def clear_all_buffer():
     Deletes the physical files from disk and marks history entries as 'cancelled'.
     """
     try:
-        from pathlib import Path
         buffered_files = get_buffered_files()
         cleared_ids = []
 
         for entry in buffered_files:
             upload_id = entry.get("id")
-            file_path = entry.get("file_path")
-            if file_path:
-                try:
-                    p = Path(file_path)
-                    if p.exists():
-                        p.unlink()
-                        logger.info(f"🗑️ Deleted buffer file: {p.name} (ID: {upload_id})")
-                except Exception as fe:
-                    logger.warning(f"Could not delete buffer file for ID {upload_id}: {fe}")
+            try:
+                # Uses central cleanup logic (local + shared storage object deletion).
+                mark_buffer_processed(upload_id, success=False, error="Cancelled by user")
+            except Exception as fe:
+                logger.warning(f"Could not clear buffer entry for ID {upload_id}: {fe}")
             cleared_ids.append(upload_id)
 
         # Empty the buffer queue JSON

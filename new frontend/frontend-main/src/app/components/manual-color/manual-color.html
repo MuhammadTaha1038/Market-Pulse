@@ -30,7 +30,22 @@
                 <button pButton label="Sorting" icon="pi pi-sort-alt" class="!rounded-full !px-5 !py-2.5 !bg-gray-50 !text-gray-700 !border !border-gray-300 hover:!bg-gray-100" (click)="showSortingDialog()"></button>
             </div>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3 flex-wrap justify-end">
+                <ng-container *ngIf="showSourceBadge">
+                    <div *ngIf="dataSource"
+                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium"
+                         [ngClass]="primarySourceClasses">
+                        <i [class]="primarySourceIcon"></i>
+                        <span>{{ primarySourceLabel }}</span>
+                    </div>
+
+                    <div *ngIf="hasPendingBuffer"
+                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700 text-sm font-medium">
+                        <i class="pi pi-inbox"></i>
+                        <span>{{ bufferBadgeLabel }}</span>
+                    </div>
+                </ng-container>
+
                 <!-- Total Count pill (matches sample) -->
                 <div class="flex items-center gap-3 px-5 py-2.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700 font-medium">
                     <span>Total Count</span>
@@ -101,51 +116,10 @@
         </div>
     </div>
 
-    <!-- BUFFERED UPLOAD BANNER -->
-    <div *ngIf="hasPendingBuffer"
-         class="relative flex items-center gap-4 rounded-xl border border-gray-300 bg-gray-50 px-5 py-4 mb-4 shadow-sm">
-        <!-- Pulsing icon -->
-        <div class="relative flex-shrink-0">
-            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                <i class="pi pi-file text-gray-700 text-lg"></i>
-            </div>
-            <span class="absolute inset-0 rounded-full bg-gray-500 opacity-20 animate-ping"></span>
-        </div>
-        <!-- File info -->
-        <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-0.5">
-                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-800 text-white animate-pulse">
-                    &#9679; Queued
-                </span>
-                <span class="text-xs text-gray-500">{{ pendingBufferCount }} file(s)</span>
-            </div>
-            <p class="text-sm font-semibold text-gray-800 truncate">{{ pendingBufferFile }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">Waiting for automation run — click <strong>Run Automation</strong> to process now.</p>
-        </div>
-        <!-- Dismiss button -->
-        <button type="button"
-            class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Remove from buffer" (click)="dismissBufferBanner()">
-            <i class="pi pi-times text-xs"></i>
-        </button>
-    </div>
-
     <!-- QUERY LOADING INDICATOR -->
     <div *ngIf="isLoadingQuery" class="flex flex-col items-center justify-center py-12 gap-3">
         <p-progressSpinner [style]="{width: '48px', height: '48px'}" strokeWidth="4"></p-progressSpinner>
         <p class="text-sm text-gray-500">Loading data from configured source&hellip;</p>
-    </div>
-
-    <!-- DATA SOURCE BADGE -->
-    <div *ngIf="!isLoadingQuery && dataSource" class="flex items-center gap-2 px-1 mb-2">
-        <span *ngIf="dataSource === 'oracle'"
-              class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-            <i class="pi pi-database text-xs"></i> Oracle Query
-        </span>
-        <span *ngIf="dataSource === 'excel'"
-              class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-            <i class="pi pi-file-excel text-xs"></i> Excel Import
-        </span>
     </div>
 
     <!-- CUSTOM TABLE - EDITABLE -->

@@ -21,6 +21,7 @@ import { MenuActiveService } from '../../layout/service/menu-active.service';
 import { DashboardCacheService } from '../../services/dashboard-cache.service';
 import { Subscription } from 'rxjs';
 import { StackedChartComponent } from '../stacked-chart/stacked-chart.component';
+import * as XLSX from 'xlsx';
 
 @Component({
     selector: 'app-home',
@@ -386,20 +387,12 @@ export class Home implements OnInit, OnDestroy {
     }
 
     /**
-     * Get filtered table data based on search query
-     * Searches by messageId or cusip fields
+     * Header search should not locally filter the currently loaded table rows.
+     * Results should change only when the user explicitly runs Search,
+     * which uses the backend search flow.
      */
     get filteredTableData(): TableRow[] {
-        if (!this.searchQuery.trim()) {
-            return this.tableData;
-        }
-
-        const searchLower = this.searchQuery.toLowerCase().trim();
-        return this.tableData.filter((row) => {
-            const messageId = String(row['messageId'] || '').toLowerCase();
-            const cusip = String(row['cusip'] || '').toLowerCase();
-            return messageId.includes(searchLower) || cusip.includes(searchLower);
-        });
+        return this.tableData;
     }
 
     /**
@@ -490,11 +483,23 @@ export class Home implements OnInit, OnDestroy {
             next: (response) => {
                 if (response.results && response.results.length > 0) {
                     if (isCusipInput) {
-                        // CUSIP entered in-cell should behave like full security search:
-                        // show ALL historical rows + hierarchy, not just first match.
-                        this.searchQuery = rawValue;
-                        this.tableData = response.results.map((record: any, index: number) => ({
-                            _rowId: `row_${record.MESSAGE_ID || index}_${record.RUN_ID || 'na'}_${index}`,
+                        // In-cell CUSIP lookup should enrich the current table without
+                        // replacing existing rows: update edited row + insert latest-run
+                        // related rows (children/hierarchy) directly below it.
+                        const latestRunId = response.results
+                            .map((r: any) => Number(r.RUN_ID))
+                            .filter((v: number) => Number.isFinite(v))
+                            .reduce((max: number, v: number) => (v > max ? v : max), Number.NEGATIVE_INFINITY);
+
+                        const latestRunRecords = Number.isFinite(latestRunId)
+                            ? response.results.filter((r: any) => Number(r.RUN_ID) === latestRunId)
+                            : response.results;
+
+                        const primaryRecord =
+                            latestRunRecords.find((r: any) => (r.IS_PARENT ?? true) === true) || latestRunRecords[0];
+
+                        const toRow = (record: any, index: number): TableRow => ({
+                            _rowId: `lookup_${event.row._rowId}_${record.MESSAGE_ID || index}_${record.RUN_ID || 'na'}_${Date.now()}_${index}`,
                             _selected: false,
                             rowNumber: String(index + 1),
                             messageId: String(record.MESSAGE_ID || ''),
@@ -518,13 +523,56 @@ export class Home implements OnInit, OnDestroy {
                             diffStatus: record.DIFF_STATUS || '',
                             isParent: record.IS_PARENT ?? true,
                             parentRow: record.PARENT_MESSAGE_ID || undefined,
-                            childrenCount: record.CHILDREN_COUNT || 0
-                        }));
+                            childrenCount: record.CHILDREN_COUNT || 0,
+                            _lookupGenerated: true,
+                            _lookupAnchorRowId: event.row._rowId
+                        });
+
+                        const primaryData: Partial<TableRow> = {
+                            messageId: String(primaryRecord.MESSAGE_ID || ''),
+                            ticker: primaryRecord.TICKER || '',
+                            sector: primaryRecord.SECTOR || '',
+                            cusip: primaryRecord.CUSIP || rawValue,
+                            bias: primaryRecord.BIAS || '',
+                            date: primaryRecord.DATE ? new Date(primaryRecord.DATE).toLocaleDateString() : '',
+                            date1: primaryRecord.DATE_1 ? new Date(primaryRecord.DATE_1).toLocaleDateString() : '',
+                            bid: primaryRecord.BID || 0,
+                            mid: ((Number(primaryRecord.BID) || 0) + (Number(primaryRecord.ASK) || 0)) / 2,
+                            ask: primaryRecord.ASK || 0,
+                            px: primaryRecord.PX || 0,
+                            priceLevel: primaryRecord.PRICE_LEVEL || 0,
+                            source: primaryRecord.SOURCE || '',
+                            rank: primaryRecord.RANK || 5,
+                            covPrice: primaryRecord.COV_PRICE || 0,
+                            percentDiff: primaryRecord.PERCENT_DIFF || 0,
+                            priceDiff: primaryRecord.PRICE_DIFF || 0,
+                            confidence: primaryRecord.CONFIDENCE || 0,
+                            diffStatus: primaryRecord.DIFF_STATUS || '',
+                            isParent: primaryRecord.IS_PARENT ?? true,
+                            parentRow: primaryRecord.PARENT_MESSAGE_ID || undefined,
+                            childrenCount: primaryRecord.CHILDREN_COUNT || 0
+                        };
+
+                        if (table) table.updateRowData(event.row._rowId!, primaryData);
+
+                        const extras = latestRunRecords
+                            .filter((r: any) => r !== primaryRecord)
+                            .map((r: any, i: number) => toRow(r, i));
+
+                        const cleanedRows = this.tableData.filter((r: any) => !(r._lookupGenerated && r._lookupAnchorRowId === event.row._rowId));
+                        const anchorIndex = cleanedRows.findIndex((r) => r._rowId === event.row._rowId);
+                        if (anchorIndex >= 0) {
+                            cleanedRows[anchorIndex] = { ...cleanedRows[anchorIndex], ...primaryData };
+                        }
+                        if (extras.length > 0 && anchorIndex >= 0) {
+                            cleanedRows.splice(anchorIndex + 1, 0, ...extras);
+                        }
+                        this.tableData = cleanedRows;
 
                         this.messageService.add({
                             severity: 'success',
                             summary: 'CUSIP Search Complete',
-                            detail: `Found ${response.total_count} historical record(s) for "${rawValue}"`
+                            detail: `Filled latest run row and added ${extras.length} related row(s) for "${rawValue}"`
                         });
                         return;
                     }
@@ -654,7 +702,46 @@ export class Home implements OnInit, OnDestroy {
 
     importSample() {
         console.log('📥 Import Sample clicked');
-        window.location.href = '/color-type';
+
+        const { cloId } = this.resolveActiveCloContext();
+        const activeCloId = this.activeCloId || cloId;
+
+        if (!activeCloId) {
+            this.messageService.add({
+                severity: 'warn',
+                summary: 'No Sub-Asset Selected',
+                detail: 'Please select a sub-asset first to download the sample file.'
+            });
+            return;
+        }
+
+        this.apiService.getUserColumns(activeCloId).subscribe({
+            next: (response: any) => {
+                const columns: string[] = response?.visible_columns || [];
+                if (!columns.length) {
+                    this.messageService.add({
+                        severity: 'warn',
+                        summary: 'No Columns',
+                        detail: 'No visible columns found for the current sub-asset.'
+                    });
+                    return;
+                }
+
+                const ws = XLSX.utils.aoa_to_sheet([columns]);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Data');
+
+                const safeName = String(activeCloId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+                XLSX.writeFile(wb, `${safeName}_sample.xlsx`);
+            },
+            error: () => {
+                this.messageService.add({
+                    severity: 'error',
+                    summary: 'Download Failed',
+                    detail: 'Could not fetch column configuration. Please try again.'
+                });
+            }
+        });
     }
 
     rulesAndPresets() {
@@ -694,8 +781,19 @@ export class Home implements OnInit, OnDestroy {
         // Clear import results state whenever user triggers a fresh search/reload
         this.hasImportResults = false;
         this.importPreviewFile = null;
-        if (query) {
-            // Security search: search processed output by Message ID or CUSIP
+
+        const hasFilters = this.activeFilters.length > 0;
+
+        if (!query && !hasFilters) {
+            // Nothing active – reload all data
+            console.log('📥 Fetching latest data...');
+            this.loadDataFromBackend();
+            this.messageService.add({ severity: 'success', summary: 'Refreshed', detail: 'Data refreshed from backend' });
+            return;
+        }
+
+        if (query && !hasFilters) {
+            // CUSIP / MessageID only – use securitySearch (preserves hierarchy & historical records)
             console.log('🔍 Security search:', query);
             this.isSearching = true;
             this.apiService.securitySearch(query, 'any').subscribe({
@@ -745,12 +843,85 @@ export class Home implements OnInit, OnDestroy {
                     });
                 }
             });
-        } else {
-            // No query – refresh all data
-            console.log('📥 Fetching latest data...');
-            this.loadDataFromBackend();
-            this.messageService.add({ severity: 'success', summary: 'Refreshed', detail: 'Data refreshed from backend' });
+            return;
         }
+
+        // Has active filters (with or without a CUSIP/ID query) – use searchColors
+        this.isSearching = true;
+        const searchFilters: SearchFilter[] = [];
+
+        // If a CUSIP / Message ID is typed, add it as an additional CUSIP filter
+        if (query) {
+            searchFilters.push({
+                field: 'CUSIP',
+                operator: 'contains',
+                value: query,
+                logical_operator: 'AND'
+            });
+        }
+
+        // Append the active filter conditions
+        for (const c of this.activeFilters) {
+            searchFilters.push({
+                field: c.column,
+                operator: c.operator,
+                value: c.values,
+                value2: c.values2 || undefined,
+                logical_operator: c.logicalOperator || 'AND'
+            });
+        }
+
+        console.log('📡 Searching with filters:', searchFilters);
+        this.apiService.searchColors(searchFilters, 0, 0, undefined, undefined, this.activeCloId).subscribe({
+            next: (response) => {
+                this.isSearching = false;
+                console.log('✅ Search results:', response.total_count, 'records');
+                this.tableData = response.results.map((record: any, index: number) => ({
+                    _rowId: `row_${record.MESSAGE_ID || index}`,
+                    _selected: false,
+                    rowNumber: String(index + 1),
+                    messageId: String(record.MESSAGE_ID || ''),
+                    ticker: record.TICKER || '',
+                    sector: record.SECTOR || '',
+                    cusip: record.CUSIP || '',
+                    bias: record.BIAS || '',
+                    date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
+                    date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
+                    bid: record.BID || 0,
+                    mid: ((Number(record.BID) || 0) + (Number(record.ASK) || 0)) / 2,
+                    ask: record.ASK || 0,
+                    px: record.PX || 0,
+                    priceLevel: record.PRICE_LEVEL || 0,
+                    source: record.SOURCE || '',
+                    rank: record.RANK || 5,
+                    covPrice: record.COV_PRICE || 0,
+                    percentDiff: record.PERCENT_DIFF || 0,
+                    priceDiff: record.PRICE_DIFF || 0,
+                    confidence: record.CONFIDENCE || 0,
+                    diffStatus: record.DIFF_STATUS || '',
+                    isParent: record.IS_PARENT ?? true,
+                    parentRow: record.PARENT_MESSAGE_ID || undefined,
+                    childrenCount: record.CHILDREN_COUNT || 0
+                }));
+                this.messageService.add({
+                    severity: response.total_count > 0 ? 'success' : 'warn',
+                    summary: response.total_count > 0 ? 'Search Complete' : 'No Results',
+                    detail: response.total_count > 0
+                        ? `Found ${response.total_count} matching record(s)`
+                        : 'No records matched the applied search and filters'
+                });
+            },
+            error: (error) => {
+                this.isSearching = false;
+                console.error('❌ Search error:', error);
+                this.messageService.add({
+                    severity: 'error',
+                    summary: 'Search Failed',
+                    detail: 'Failed to apply search. Loading all data instead.'
+                });
+                this.loadDataFromBackend();
+            }
+        });
     }
 
     exportAll() {
@@ -809,8 +980,6 @@ export class Home implements OnInit, OnDestroy {
     }
 
     onFiltersApplied(filters: { conditions: FilterCondition[]; subgroups: any[] }) {
-        console.log('✅ Filters applied:', filters);
-
         // Collect all valid conditions (main + subgroups)
         const allConditions: FilterCondition[] = [...filters.conditions];
         if (filters.subgroups) {
@@ -819,82 +988,27 @@ export class Home implements OnInit, OnDestroy {
             }
         }
 
-        this.activeFilters = allConditions;
-
-        if (allConditions.length === 0) {
-            this.loadDataFromBackend();
-            return;
+        // Accumulate: add conditions not already present (deduplicate by column+operator+values)
+        for (const newCond of allConditions) {
+            const exists = this.activeFilters.some(
+                (f) => f.column === newCond.column && f.operator === newCond.operator && f.values === newCond.values
+            );
+            if (!exists) {
+                this.activeFilters.push(newCond);
+            }
         }
 
-        // Build SearchFilter array for the backend API
-        const searchFilters: SearchFilter[] = allConditions.map((c) => ({
-            field: c.column,
-            operator: c.operator,
-            value: c.values,
-            value2: c.values2 || undefined,
-            logical_operator: c.logicalOperator || 'AND'
-        }));
-
-        console.log('📡 Calling backend search with filters:', searchFilters);
-
-        this.apiService.searchColors(searchFilters, 0, 0, undefined, undefined, this.activeCloId).subscribe({
-            next: (response) => {
-                console.log('✅ Search results:', response.total_count, 'records');
-
-                this.tableData = response.results.map((record: any, index: number) => ({
-                    _rowId: `row_${record.MESSAGE_ID || index}`,
-                    _selected: false,
-                    rowNumber: String(index + 1),
-                    messageId: String(record.MESSAGE_ID || ''),
-                    ticker: record.TICKER || '',
-                    sector: record.SECTOR || '',
-                    cusip: record.CUSIP || '',
-                    bias: record.BIAS || '',
-                    date: record.DATE ? new Date(record.DATE).toLocaleDateString() : '',
-                    date1: record.DATE_1 ? new Date(record.DATE_1).toLocaleDateString() : '',
-                    bid: record.BID || 0,
-                    mid: ((record.BID || 0) + (record.ASK || 0)) / 2,
-                    ask: record.ASK || 0,
-                    px: record.PX || 0,
-                    priceLevel: record.PRICE_LEVEL || 0,
-                    source: record.SOURCE || '',
-                    rank: record.RANK || 5,
-                    covPrice: record.COV_PRICE || 0,
-                    percentDiff: record.PERCENT_DIFF || 0,
-                    priceDiff: record.PRICE_DIFF || 0,
-                    confidence: record.CONFIDENCE || 0,
-                    diffStatus: record.DIFF_STATUS || '',
-                    isParent: record.IS_PARENT ?? true,
-                    parentRow: record.PARENT_MESSAGE_ID || undefined,
-                    childrenCount: record.CHILDREN_COUNT || 0
-                }));
-
-                this.messageService.add({
-                    severity: 'success',
-                    summary: 'Filters Applied',
-                    detail: `Found ${response.total_count} matching record(s)`
-                });
-            },
-            error: (error) => {
-                console.error('❌ Search error:', error);
-                this.messageService.add({
-                    severity: 'error',
-                    summary: 'Filter Error',
-                    detail: 'Failed to apply filters. Loading all data instead.'
-                });
-                this.loadDataFromBackend();
-            }
-        });
+        if (this.activeFilters.length > 0) {
+            this.messageService.add({
+                severity: 'info',
+                summary: 'Filters Added',
+                detail: `${this.activeFilters.length} filter(s) ready — click Search to apply.`
+            });
+        }
     }
 
     removeFilter(index: number) {
         this.activeFilters.splice(index, 1);
-        if (this.activeFilters.length === 0) {
-            this.loadDataFromBackend();
-        } else {
-            // Re-apply remaining filters
-            this.onFiltersApplied({ conditions: this.activeFilters, subgroups: [] });
-        }
     }
 
     removeAllFilters() {
@@ -902,9 +1016,8 @@ export class Home implements OnInit, OnDestroy {
         this.messageService.add({
             severity: 'info',
             summary: 'Filters Cleared',
-            detail: 'All filters removed'
+            detail: 'All filters removed — click Search to reload data.'
         });
-        this.loadDataFromBackend();
     }
 
     // ==================== RUN AUTOMATION ====================
@@ -1078,7 +1191,7 @@ export class Home implements OnInit, OnDestroy {
         }));
 
         this.activeFilters = filters;
-        this.onFiltersApplied({ conditions: filters, subgroups: [] });
+        this.fetchData();
 
         this.messageService.add({
             severity: 'success',

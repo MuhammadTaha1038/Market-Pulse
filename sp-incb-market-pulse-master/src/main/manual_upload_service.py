@@ -138,12 +138,76 @@ def save_buffered_files(files: List[Dict]):
     storage.save("manual_uploads_buffer", {"files": files})
 
 
-def add_to_buffer(file_path: str, filename: str, uploaded_by: str, upload_id: int) -> Dict:
+def _build_shared_buffer_key(safe_filename: str) -> str:
+    """Build S3 key for shared buffered upload files."""
+    return f"storage/manual_uploads_buffer/{safe_filename}"
+
+
+def _upload_buffer_to_shared_storage(file_content: bytes, safe_filename: str) -> Optional[str]:
+    """Upload buffered file bytes to shared storage (S3) when available."""
+    if not hasattr(storage, "upload_bytes"):
+        return None
+
+    try:
+        s3_key = _build_shared_buffer_key(safe_filename)
+        storage.upload_bytes(
+            file_content,
+            s3_key,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        return s3_key
+    except Exception as e:
+        logger.warning(f"Could not upload buffered file to shared storage: {e}")
+        return None
+
+
+def _delete_shared_buffer_object(entry: Dict):
+    """Delete shared buffered file object (best effort)."""
+    s3_key = entry.get("shared_file_key")
+    if not s3_key:
+        return
+
+    if not hasattr(storage, "delete_raw_file"):
+        return
+
+    try:
+        storage.delete_raw_file(s3_key)
+    except Exception as e:
+        logger.warning(f"Could not delete shared buffered object '{s3_key}': {e}")
+
+
+def read_buffered_entry_dataframe(buffer_entry: Dict) -> pd.DataFrame:
+    """
+    Read buffered upload data frame from local path, or shared S3 object as fallback.
+    """
+    file_path = str(buffer_entry.get("file_path") or "")
+    if file_path and os.path.exists(file_path):
+        return pd.read_excel(file_path)
+
+    shared_key = str(buffer_entry.get("shared_file_key") or "").strip()
+    if shared_key and hasattr(storage, "download_bytes"):
+        payload = storage.download_bytes(shared_key)
+        return pd.read_excel(pd.io.common.BytesIO(payload))
+
+    raise FileNotFoundError(
+        f"Buffered file not accessible for upload ID {buffer_entry.get('id')} "
+        f"(local='{file_path}', shared='{shared_key}')"
+    )
+
+
+def add_to_buffer(
+    file_path: str,
+    filename: str,
+    uploaded_by: str,
+    upload_id: int,
+    shared_file_key: Optional[str] = None,
+) -> Dict:
     """Add uploaded file to buffer for processing in next cron run"""
     buffer_entry = {
         "id": upload_id,
         "filename": filename,
         "file_path": file_path,
+        "shared_file_key": shared_file_key,
         "uploaded_by": uploaded_by,
         "upload_time": datetime.now().isoformat(),
         "status": "pending",
@@ -182,9 +246,12 @@ def mark_buffer_processed(upload_id: int, success: bool, error: str = None, file
             if p.exists():
                 p.unlink()
                 logger.info(f"🗑️ Deleted buffered file: {p.name} (ID: {upload_id})")
-                break
         except Exception as e:
             logger.warning(f"Could not delete buffered file for ID {upload_id}: {e}")
+
+    # Delete shared buffered object (S3) if present.
+    for entry in removed_entries:
+        _delete_shared_buffer_object(entry)
 
     logger.info(f"✅ Removed from buffer: ID {upload_id}")
 
@@ -366,9 +433,19 @@ def process_manual_upload(
             f.write(file_content)
         
         logger.info(f"💾 Saved to buffer: {safe_filename}")
+
+        shared_file_key = _upload_buffer_to_shared_storage(file_content, safe_filename)
+        if shared_file_key:
+            logger.info(f"☁️ Buffered file replicated to shared storage: {shared_file_key}")
         
         # Step 4: Add to buffer queue
-        buffer_entry = add_to_buffer(buffer_file_path, filename, uploaded_by, upload_id)
+        buffer_entry = add_to_buffer(
+            buffer_file_path,
+            filename,
+            uploaded_by,
+            upload_id,
+            shared_file_key=shared_file_key,
+        )
         
         # Step 5: Record in upload history as "pending"
         history_entry = {
@@ -446,7 +523,7 @@ def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> D
     """
     upload_id = buffer_entry["id"]
     filename = buffer_entry["filename"]
-    file_path = buffer_entry["file_path"]
+    file_path = buffer_entry.get("file_path")
     uploaded_by = buffer_entry.get("uploaded_by", "admin")
     
     start_time = datetime.now()
@@ -455,7 +532,7 @@ def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> D
         logger.info(f"🔄 Processing buffered file: {filename} (ID: {upload_id})")
         
         # Read buffered file
-        df = pd.read_excel(file_path)
+        df = read_buffered_entry_dataframe(buffer_entry)
         logger.info(f"📥 Loaded {len(df)} rows from buffered file")
         
         # Parse to ColorRaw objects
