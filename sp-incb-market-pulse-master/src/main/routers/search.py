@@ -500,10 +500,21 @@ def security_search(request: SecuritySearchRequest):
                     str(v) for v in matched["PARENT_MESSAGE_ID"].dropna().tolist()
                 }
 
-                # 1) Parent rows for matched children
-                parents = df[df["MESSAGE_ID"].astype(str).isin(base_parent_ids)]
-                # 2) Child rows for matched parents
-                children = df[df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)]
+                # Restrict hierarchy expansion to the same CUSIPs only — different
+                # securities can share a MESSAGE_ID so we must not cross-contaminate.
+                matched_cusips = set(matched["CUSIP"].dropna().astype(str).tolist()) if "CUSIP" in matched.columns else None
+
+                # 1) Parent rows for matched children (same CUSIP only)
+                parents_mask = df["MESSAGE_ID"].astype(str).isin(base_parent_ids)
+                if matched_cusips is not None and "CUSIP" in df.columns:
+                    parents_mask &= df["CUSIP"].astype(str).isin(matched_cusips)
+                parents = df[parents_mask]
+
+                # 2) Child rows for matched parents (same CUSIP only)
+                children_mask = df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)
+                if matched_cusips is not None and "CUSIP" in df.columns:
+                    children_mask &= df["CUSIP"].astype(str).isin(matched_cusips)
+                children = df[children_mask]
 
                 matched = pd.concat([matched, parents, children]).drop_duplicates()
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Ranking Engine - Core "Run Colors" Algorithm
-Implements parent-child hierarchy based on DATE > RANK > PX
+Implements parent-child hierarchy based on DATE (desc) > RANK (asc) > PX (desc)
 """
 from typing import List, Dict
 from collections import defaultdict
@@ -18,7 +18,7 @@ class RankingEngine:
     
     Algorithm:
     1. Group by CUSIP
-    2. Sort by: DATE (desc) > RANK (asc) > PX (asc)
+    2. Sort by: DATE (desc) > RANK (asc) > PX (desc)
     3. First = Parent, rest = Children
     """
     
@@ -69,13 +69,13 @@ class RankingEngine:
         Sorting hierarchy:
         1. DATE (descending) - More recent = higher priority
         2. RANK (ascending) - Lower rank = higher priority
-        3. PX (ascending) - Lower price = higher priority
+        3. PX (descending) - Higher price = higher priority
         """
         # Sort colors by priority
         sorted_colors = sorted(colors, key=lambda c: (
             -c.date.timestamp(),                         # More recent = higher priority
             c.rank,                                      # Lower rank = higher priority
-            c.px if c.px else float('inf')              # Lower price = higher priority
+            -c.px if c.px else float('-inf')            # Higher price = higher priority
         ))
         
         if len(sorted_colors) == 1:
