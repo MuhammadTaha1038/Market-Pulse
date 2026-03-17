@@ -1,6 +1,43 @@
 {
   "uploads": [
     {
+      "id": 27,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-16T03:01:33.350108",
+      "status": "success",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "Processed in scheduled run",
+      "processing_time": "2026-03-17T23:00:46.465860",
+      "duration_seconds": 45.685109,
+      "rows_processed": 50,
+      "rows_valid": 50,
+      "run_id": 33
+    },
+    {
+      "id": 26,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-16T00:35:55.874189",
+      "status": "success",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "Processed via Manual Color save (included in combined session)",
+      "processing_time": "2026-03-16T00:37:02.482317",
+      "rows_processed": 50
+    },
+    {
+      "id": 25,
+      "filename": "Color today.xlsx",
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-16T00:24:29.813491",
+      "status": "cancelled",
+      "rows_uploaded": 50,
+      "processing_type": "MANUAL",
+      "message": "File buffered and will be processed in next scheduled run"
+    },
+    {
       "id": 24,
       "filename": "Color today.xlsx",
       "uploaded_by": "admin",
