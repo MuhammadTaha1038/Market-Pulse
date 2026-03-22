@@ -86,6 +86,7 @@ class ColorProcessed(ColorRaw):
     diff_status: Optional[str] = Field(None, description="Difference status")
     
     # System fields - always included
+    run_id: Optional[int] = Field(default=None, description="Automation/manual run identifier")
     is_parent: bool = Field(default=False, description="True if this is the parent color")
     parent_message_id: Optional[int] = Field(default=None, description="Message ID of parent (for children)")
     children_count: int = Field(default=0, description="Number of children (for parents)")

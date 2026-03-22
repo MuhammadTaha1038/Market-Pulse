@@ -59,7 +59,8 @@ class RankingEngine:
         """Group colors by CUSIP identifier"""
         grouped = defaultdict(list)
         for color in colors:
-            grouped[color.cusip].append(color)
+            cusip_key = str(color.cusip).strip().upper()
+            grouped[cusip_key].append(color)
         return dict(grouped)
     
     def _process_group(self, colors: List[ColorRaw]) -> List[ColorProcessed]:

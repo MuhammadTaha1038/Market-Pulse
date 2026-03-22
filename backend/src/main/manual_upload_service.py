@@ -23,6 +23,7 @@ from services.ranking_engine import RankingEngine
 from services.output_service import get_output_service
 from services.column_config_service import get_column_config
 from services.data_source_factory import get_data_source
+from rules_service import apply_rules
 
 logger = logging.getLogger(__name__)
 
@@ -507,10 +508,11 @@ def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> D
     Steps:
     1. Read file from buffer
     2. Parse to ColorRaw objects
-    3. Apply ranking
-    4. Save to output
-    5. Update history
-    6. Remove from buffer
+    3. Apply exclusion rules
+    4. Apply ranking
+    5. Save to output
+    6. Update history
+    7. Remove from buffer
     
     Args:
         buffer_entry: Pending buffered upload metadata
@@ -565,11 +567,29 @@ def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> D
             }
         
         logger.info(f"✅ Parsed {len(colors)} valid colors")
-        
-        # Apply ranking engine
-        logger.info("📊 Applying ranking engine...")
-        processed_colors = ranking_engine.run_colors(colors)
-        logger.info(f"✅ Ranked {len(processed_colors)} colors")
+
+        # Apply exclusion rules (same behavior as cron automation path)
+        logger.info("🔍 Applying exclusion rules to buffered upload...")
+        raw_colors_dict = [color.dict() for color in colors]
+        rules_result = apply_rules(raw_colors_dict)
+        filtered_colors_dict = rules_result["filtered_data"]
+        excluded_count = rules_result["excluded_count"]
+        rules_applied = rules_result["rules_applied"]
+        logger.info(
+            f"✅ Rules applied to buffered upload: {rules_applied} active rules, "
+            f"excluded {excluded_count} rows"
+        )
+
+        filtered_colors = [ColorRaw(**color_dict) for color_dict in filtered_colors_dict]
+
+        if not filtered_colors:
+            logger.info("ℹ️ Buffered upload produced 0 rows after exclusions")
+            processed_colors = []
+        else:
+            # Apply ranking engine only to rows that survived exclusions
+            logger.info("📊 Applying ranking engine...")
+            processed_colors = ranking_engine.run_colors(filtered_colors)
+            logger.info(f"✅ Ranked {len(processed_colors)} colors")
         
         # Save to output file (marked as MANUAL)
         logger.info("💾 Saving to output file...")
@@ -592,7 +612,12 @@ def process_buffered_file(buffer_entry: Dict, run_id: Optional[int] = None) -> D
                 h["duration_seconds"] = duration
                 h["rows_processed"] = len(processed_colors)
                 h["rows_valid"] = len(colors)
-                h["message"] = f"Processed in scheduled run"
+                h["rules_applied"] = rules_applied
+                h["rows_excluded"] = excluded_count
+                h["message"] = (
+                    f"Processed in scheduled run "
+                    f"({rules_applied} rule(s), {excluded_count} row(s) excluded)"
+                )
                 if run_id is not None:
                     h["run_id"] = run_id
                 break

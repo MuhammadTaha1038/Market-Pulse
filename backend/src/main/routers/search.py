@@ -168,18 +168,18 @@ def generic_search(request: SearchRequest):
         if should_expand_hierarchy and len(filtered_records) > 0:
             base_df = pd.DataFrame(filtered_records)
             all_df = pd.DataFrame(all_records)
-            if "MESSAGE_ID" in all_df.columns and "PARENT_MESSAGE_ID" in all_df.columns:
-                base_message_ids = {
-                    str(v) for v in base_df.get("MESSAGE_ID", pd.Series(dtype=object)).dropna().tolist()
+            if "CUSIP" in all_df.columns and "CUSIP" in base_df.columns:
+                # Expand strictly by CUSIP only. MESSAGE_ID is not globally unique,
+                # so never use it alone for parent/child expansion.
+                matched_cusips = {
+                    str(v).strip().upper()
+                    for v in base_df.get("CUSIP", pd.Series(dtype=object)).dropna().tolist()
+                    if str(v).strip()
                 }
-                base_parent_ids = {
-                    str(v) for v in base_df.get("PARENT_MESSAGE_ID", pd.Series(dtype=object)).dropna().tolist()
-                }
-
-                parents = all_df[all_df["MESSAGE_ID"].astype(str).isin(base_parent_ids)]
-                children = all_df[all_df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)]
-                expanded_df = pd.concat([base_df, parents, children], ignore_index=True).drop_duplicates()
-                filtered_records = expanded_df.to_dict('records')
+                if matched_cusips:
+                    all_cusips = all_df["CUSIP"].astype(str).str.strip().str.upper()
+                    expanded_df = all_df[all_cusips.isin(matched_cusips)].drop_duplicates()
+                    filtered_records = expanded_df.to_dict('records')
         
         # Sort results
         if request.sort_by and request.sort_by in available_columns:
@@ -489,34 +489,18 @@ def security_search(request: SecuritySearchRequest):
 
         matched = matched.drop_duplicates()
 
-        # Include related hierarchy rows so users see complete parent/child context
-        # for the matched CUSIP / message IDs across historical runs.
+        # Include related hierarchy rows so users see complete parent/child context.
+        # Scope strictly by CUSIP because MESSAGE_ID can repeat across CUSIPs.
         if request.include_related_hierarchy and len(matched) > 0:
-            if "MESSAGE_ID" in df.columns and "PARENT_MESSAGE_ID" in df.columns:
-                base_message_ids = {
-                    str(v) for v in matched["MESSAGE_ID"].dropna().tolist()
+            if "CUSIP" in df.columns and "CUSIP" in matched.columns:
+                matched_cusips = {
+                    str(v).strip().upper()
+                    for v in matched["CUSIP"].dropna().tolist()
+                    if str(v).strip()
                 }
-                base_parent_ids = {
-                    str(v) for v in matched["PARENT_MESSAGE_ID"].dropna().tolist()
-                }
-
-                # Restrict hierarchy expansion to the same CUSIPs only — different
-                # securities can share a MESSAGE_ID so we must not cross-contaminate.
-                matched_cusips = set(matched["CUSIP"].dropna().astype(str).tolist()) if "CUSIP" in matched.columns else None
-
-                # 1) Parent rows for matched children (same CUSIP only)
-                parents_mask = df["MESSAGE_ID"].astype(str).isin(base_parent_ids)
-                if matched_cusips is not None and "CUSIP" in df.columns:
-                    parents_mask &= df["CUSIP"].astype(str).isin(matched_cusips)
-                parents = df[parents_mask]
-
-                # 2) Child rows for matched parents (same CUSIP only)
-                children_mask = df["PARENT_MESSAGE_ID"].astype(str).isin(base_message_ids)
-                if matched_cusips is not None and "CUSIP" in df.columns:
-                    children_mask &= df["CUSIP"].astype(str).isin(matched_cusips)
-                children = df[children_mask]
-
-                matched = pd.concat([matched, parents, children]).drop_duplicates()
+                if matched_cusips:
+                    cusip_series = df["CUSIP"].astype(str).str.strip().str.upper()
+                    matched = df[cusip_series.isin(matched_cusips)].drop_duplicates()
 
         # Stable ordering: newest processed run first, then latest business DATE.
         sort_cols = []

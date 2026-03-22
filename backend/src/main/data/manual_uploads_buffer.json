@@ -1,3 +1,14 @@
 {
-  "files": []
+  "files": [
+    {
+      "id": 36,
+      "filename": "Color 13th.xlsx",
+      "file_path": "D:\\SKILL\\watsapp project\\fast api project\\Data-main\\backend\\src\\main\\data\\manual_uploads_buffer\\36_20260323_035723_Color 13th.xlsx",
+      "shared_file_key": null,
+      "uploaded_by": "admin",
+      "upload_time": "2026-03-23T03:57:23.893315",
+      "status": "pending",
+      "processed_time": null
+    }
+  ]
 }

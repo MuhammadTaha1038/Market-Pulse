@@ -301,6 +301,7 @@ def get_todays_colors(
                 # Build color object - only include visible columns if CLO filter is active
                 # This simulates: SELECT [visible_columns] FROM table
                 color_data = {
+                    'run_id': safe_int(record.get('RUN_ID')) if not pd.isna(record.get('RUN_ID')) else None,
                     'message_id': safe_int(record.get('MESSAGE_ID'), 0),
                     'ticker': str(record.get('TICKER', '')),
                     'sector': str(record.get('SECTOR', '')),
@@ -357,6 +358,7 @@ def get_todays_colors(
                             filtered_data[model_field] = color_data[model_field]
                     
                     # Always include system fields for table functionality
+                    filtered_data['run_id'] = color_data['run_id']
                     filtered_data['is_parent'] = color_data['is_parent']
                     filtered_data['parent_message_id'] = color_data['parent_message_id']
                     filtered_data['children_count'] = color_data['children_count']

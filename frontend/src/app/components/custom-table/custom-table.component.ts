@@ -20,6 +20,7 @@ export interface TableRow {
   _rowId?: string;
   _parentResolvedRowId?: string | null;
   _hasChildren?: boolean;
+  runId?: string | number | null;
   isParent?: boolean;
   parentRow?: string | number;
   childrenCount?: number;
@@ -87,6 +88,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
   private childrenByParentId = new Map<string, TableRow[]>();
   private parentByChildRowId = new Map<string, string | null>();
   private parentCandidatesByMessageId = new Map<string, TableRow[]>();
+  private parentCandidatesByCusip = new Map<string, TableRow[]>();
 
   /** Track which parent rows are expanded (by _rowId) */
   expandedRows = new Set<string>();
@@ -120,6 +122,29 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
   }
 
   private _rowIdCounter = 0;
+
+  private getRowValue(row: TableRow, fields: string[]): any {
+    for (const field of fields) {
+      const value = row[field];
+      if (value !== undefined && value !== null) return value;
+    }
+    return null;
+  }
+
+  private getNormalizedCusip(row: TableRow): string {
+    const value = this.getRowValue(row, ['cusip', 'CUSIP', 'Cusip']);
+    return String(value ?? '').trim().toUpperCase();
+  }
+
+  private getNormalizedMessageId(row: TableRow): string {
+    const value = this.getRowValue(row, ['messageId', 'MESSAGE_ID', 'message_id', 'MessageID']);
+    return String(value ?? '').trim();
+  }
+
+  private getNormalizedRunId(row: TableRow): string {
+    const value = this.getRowValue(row, ['runId', 'RUN_ID', 'run_id', 'RunID']);
+    return String(value ?? '').trim();
+  }
 
   private initializeData() {
     // Guarantee unique _rowId for every row, even if the parent component
@@ -155,6 +180,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     this.childrenByParentId.clear();
     this.parentByChildRowId.clear();
     this.parentCandidatesByMessageId.clear();
+    this.parentCandidatesByCusip.clear();
 
     const parentByRowId = new Map<string, TableRow>();
 
@@ -164,7 +190,15 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
 
       if (row.isParent === true && row._rowId) {
         parentByRowId.set(row._rowId, row);
-        const messageId = String(row['messageId'] ?? '');
+
+        const cusip = this.getNormalizedCusip(row);
+        if (cusip) {
+          const cusipBucket = this.parentCandidatesByCusip.get(cusip) || [];
+          cusipBucket.push(row);
+          this.parentCandidatesByCusip.set(cusip, cusipBucket);
+        }
+
+        const messageId = this.getNormalizedMessageId(row);
         if (messageId) {
           const bucket = this.parentCandidatesByMessageId.get(messageId) || [];
           bucket.push(row);
@@ -176,7 +210,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     for (const row of this._processedData) {
       if (row.isParent === true || !row._rowId) continue;
 
-      const parentRowId = this.resolveParentRowId(row, parentByRowId);
+      const parentRowId = this.resolveParentRowId(row);
       row._parentResolvedRowId = parentRowId;
       this.parentByChildRowId.set(row._rowId, parentRowId);
 
@@ -191,31 +225,34 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
     }
   }
 
-  private resolveParentRowId(childRow: TableRow, parentByRowId: Map<string, TableRow>): string | null {
+  private resolveParentRowId(childRow: TableRow): string | null {
     if (childRow.parentRow === undefined || childRow.parentRow === null) return null;
 
-    const parentRef = String(childRow.parentRow);
+    const parentRef = String(childRow.parentRow).trim();
+    const childCusip = this.getNormalizedCusip(childRow);
+    const childRunId = this.getNormalizedRunId(childRow);
 
-    // Direct _rowId match (e.g. parentRow = "row_123")
-    if (parentByRowId.has(parentRef)) return parentRef;
+    // Strict safety rule: never link a child when CUSIP is missing.
+    if (!childCusip) return null;
 
-    // parentRow is raw message_id, _rowId is "row_{message_id}"
-    const syntheticRef = `row_${parentRef}`;
-    if (parentByRowId.has(syntheticRef)) return syntheticRef;
+    const sameCusipParents = this.parentCandidatesByCusip.get(childCusip) || [];
+    if (sameCusipParents.length === 0) return null;
 
-    const candidateParents = this.parentCandidatesByMessageId.get(parentRef) || [];
-    if (candidateParents.length === 0) return null;
+    // Prefer same-run parent when RUN_ID is available to avoid cross-run mixing.
+    const runScopedParents = childRunId
+      ? sameCusipParents.filter(p => this.getNormalizedRunId(p) === childRunId)
+      : sameCusipParents;
 
-    // If duplicate message IDs exist, prefer same CUSIP parent.
-    const childCusip = String(childRow['cusip'] ?? '').trim().toUpperCase();
-    if (childCusip) {
-      const sameCusipParent = candidateParents.find(
-        p => String(p['cusip'] ?? '').trim().toUpperCase() === childCusip
-      );
-      if (sameCusipParent?._rowId) return sameCusipParent._rowId;
+    const candidates = runScopedParents.length > 0 ? runScopedParents : sameCusipParents;
+
+    // Prefer exact parent_message_id match inside safe CUSIP/RUN scope.
+    if (parentRef) {
+      const byMessageId = candidates.find(p => this.getNormalizedMessageId(p) === parentRef);
+      if (byMessageId?._rowId) return byMessageId._rowId;
     }
 
-    return candidateParents[0]?._rowId || null;
+    // Fallback remains CUSIP-scoped only.
+    return candidates[0]?._rowId || null;
   }
 
   // ==================== DISPLAY DATA ====================
@@ -300,7 +337,7 @@ export class CustomTableComponent implements OnChanges, AfterViewChecked {
         parentByRowId.set(row._rowId, row);
       }
     }
-    return this.resolveParentRowId(childRow, parentByRowId);
+    return this.resolveParentRowId(childRow);
   }
 
   // ==================== EXPAND / COLLAPSE ====================

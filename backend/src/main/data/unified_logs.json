@@ -1,6 +1,46 @@
 {
   "logs": [
     {
+      "log_id": 34,
+      "module": "restore",
+      "action": "manual_cleaning",
+      "description": "Manual cleaning saved as run #42 (1418 row(s) saved)",
+      "performed_by": "user_1",
+      "performed_at": "2026-03-23T03:53:25.738112",
+      "entity_id": 42,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 42,
+        "processing_type": "MANUAL",
+        "session_id": "manual_color_1_20260323_035134",
+        "buffer_cleared_count": 1
+      }
+    },
+    {
+      "log_id": 33,
+      "module": "restore",
+      "action": "manual_cleaning",
+      "description": "Manual cleaning saved as run #39 (8 row(s) saved)",
+      "performed_by": "user_1",
+      "performed_at": "2026-03-23T03:29:43.485749",
+      "entity_id": 39,
+      "entity_name": null,
+      "can_revert": false,
+      "revert_data": {},
+      "reverted_at": null,
+      "reverted_by": null,
+      "metadata": {
+        "run_id": 39,
+        "processing_type": "MANUAL",
+        "session_id": "manual_color_1_20260323_032835",
+        "buffer_cleared_count": 1
+      }
+    },
+    {
       "log_id": 32,
       "module": "restore",
       "action": "manual_cleaning",
@@ -791,5 +831,5 @@
       }
     }
   ],
-  "next_id": 33
+  "next_id": 35
 }

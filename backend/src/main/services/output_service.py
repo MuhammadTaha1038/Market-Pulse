@@ -9,8 +9,9 @@ Configuration via OUTPUT_DESTINATION in .env:
   both   – append locally AND upload per sub-asset to S3
 
 Duplicate prevention:
-  Rows whose MESSAGE_ID already exists in the local file are replaced by the
-  newest version (old entry removed, new one appended).  No row count limits.
+    Legacy replacement mode dedups by (MESSAGE_ID, CUSIP) composite key so
+    same MESSAGE_ID across different CUSIPs never overwrites each other.
+    No row count limits.
 
 S3 output:
   Each run groups processed rows by SECTOR (which maps to a CLO sub-asset ID).
@@ -213,6 +214,20 @@ class OutputService:
             })
         return pd.DataFrame(records)
 
+    @staticmethod
+    def _build_message_cusip_keys(df: pd.DataFrame) -> list:
+        """Build stable dedup keys as (MESSAGE_ID, CUSIP_UPPER) tuples per row."""
+        if df is None or len(df) == 0:
+            return []
+
+        message_series = df['MESSAGE_ID'] if 'MESSAGE_ID' in df.columns else pd.Series([None] * len(df), index=df.index)
+        cusip_series = df['CUSIP'] if 'CUSIP' in df.columns else pd.Series([''] * len(df), index=df.index)
+
+        message_norm = message_series.apply(lambda v: str(v).strip() if pd.notna(v) else '')
+        cusip_norm = cusip_series.apply(lambda v: str(v).strip().upper() if pd.notna(v) else '')
+
+        return list(zip(message_norm.tolist(), cusip_norm.tolist()))
+
     def _append_to_local_file(self, new_df: pd.DataFrame):
         """
         Merge new rows into the local Excel file.
@@ -229,15 +244,17 @@ class OutputService:
             existing_df = pd.DataFrame()
 
         # Optional legacy dedup path (kept for backward compatibility)
+        # Dedup scope is (MESSAGE_ID, CUSIP) to avoid cross-CUSIP overwrites.
         if (not self._preserve_history) and len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns:
-            new_ids = set(new_df['MESSAGE_ID'].dropna())
+            new_keys = set(self._build_message_cusip_keys(new_df))
             before = len(existing_df)
-            existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
+            existing_keys = self._build_message_cusip_keys(existing_df)
+            existing_df = existing_df[[k not in new_keys for k in existing_keys]]
             replaced = before - len(existing_df)
             if replaced:
                 logger.info(
                     f"Dedup: replaced {replaced} stale row(s) "
-                    f"(same MESSAGE_ID — newest version kept)"
+                    f"(same MESSAGE_ID + CUSIP — newest version kept)"
                 )
 
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
@@ -319,8 +336,9 @@ class OutputService:
             filename = "Processed_Colors_ALL"
             existing = self._s3_dest.load_output(filename)
             if (not self._preserve_history) and len(existing) > 0 and 'MESSAGE_ID' in existing.columns:
-                new_ids = set(new_df['MESSAGE_ID'].dropna())
-                existing = existing[~existing['MESSAGE_ID'].isin(new_ids)]
+                new_keys = set(self._build_message_cusip_keys(new_df))
+                existing_keys = self._build_message_cusip_keys(existing)
+                existing = existing[[k not in new_keys for k in existing_keys]]
             merged = pd.concat([existing, new_df], ignore_index=True)
             result = self._s3_dest.save_output(merged, filename)
             logger.info(f"S3 fallback (no SECTOR): {result.get('message', result)}")
@@ -347,9 +365,10 @@ class OutputService:
             # Step 2: optional legacy dedup — remove rows superseded by new batch
             new_sector_df = new_df[new_df['SECTOR'] == sector].copy() if 'SECTOR' in new_df.columns else new_df.copy()
             if (not self._preserve_history) and len(existing_df) > 0 and 'MESSAGE_ID' in existing_df.columns and len(new_sector_df) > 0:
-                new_ids = set(new_sector_df['MESSAGE_ID'].dropna())
+                new_keys = set(self._build_message_cusip_keys(new_sector_df))
                 before = len(existing_df)
-                existing_df = existing_df[~existing_df['MESSAGE_ID'].isin(new_ids)]
+                existing_keys = self._build_message_cusip_keys(existing_df)
+                existing_df = existing_df[[k not in new_keys for k in existing_keys]]
                 replaced = before - len(existing_df)
                 if replaced:
                     logger.info(f"S3 dedup [{sector}]: replaced {replaced} stale row(s)")

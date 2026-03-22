@@ -359,6 +359,7 @@ export class Home implements OnInit, OnDestroy {
             _rowId: `row_${color.message_id}`,
             _selected: false,
             rowNumber: String(index + 1),
+            runId: (color as any).run_id ?? (color as any).RUN_ID ?? null,
             messageId: String(color.message_id),
             ticker: color.ticker,
             sector: color.sector,
@@ -502,6 +503,7 @@ export class Home implements OnInit, OnDestroy {
                             _rowId: `lookup_${event.row._rowId}_${record.MESSAGE_ID || index}_${record.RUN_ID || 'na'}_${Date.now()}_${index}`,
                             _selected: false,
                             rowNumber: String(index + 1),
+                            runId: record.RUN_ID ?? null,
                             messageId: String(record.MESSAGE_ID || ''),
                             ticker: record.TICKER || '',
                             sector: record.SECTOR || '',
@@ -529,6 +531,7 @@ export class Home implements OnInit, OnDestroy {
                         });
 
                         const primaryData: Partial<TableRow> = {
+                            runId: primaryRecord.RUN_ID ?? null,
                             messageId: String(primaryRecord.MESSAGE_ID || ''),
                             ticker: primaryRecord.TICKER || '',
                             sector: primaryRecord.SECTOR || '',
@@ -579,6 +582,7 @@ export class Home implements OnInit, OnDestroy {
 
                     const record = response.results[0];
                     const rowData: Partial<TableRow> = {
+                        runId: record.RUN_ID ?? null,
                         // When input was a CUSIP, keep messageId from record only (don't fall back to rawValue).
                         messageId: isCusipInput ? String(record.MESSAGE_ID || '') : String(record.MESSAGE_ID || rawValue),
                         ticker: record.TICKER || '',
@@ -803,6 +807,7 @@ export class Home implements OnInit, OnDestroy {
                         _rowId: `row_${record.MESSAGE_ID || index}`,
                         _selected: false,
                         rowNumber: String(index + 1),
+                        runId: record.RUN_ID ?? null,
                         messageId: String(record.MESSAGE_ID || ''),
                         ticker: record.TICKER || '',
                         sector: record.SECTOR || '',
@@ -880,6 +885,7 @@ export class Home implements OnInit, OnDestroy {
                     _rowId: `row_${record.MESSAGE_ID || index}`,
                     _selected: false,
                     rowNumber: String(index + 1),
+                    runId: record.RUN_ID ?? null,
                     messageId: String(record.MESSAGE_ID || ''),
                     ticker: record.TICKER || '',
                     sector: record.SECTOR || '',
@@ -1025,138 +1031,62 @@ export class Home implements OnInit, OnDestroy {
     runAutomation(override: boolean) {
         this.showAutomationMenu = false;
 
-        if (override) {
-            this.runningAutomation = true;
-            this.automationStatusService.beginRun();
-            this.messageService.add({
-                severity: 'info',
-                summary: 'Override & Run',
-                detail: 'Overriding cron schedule and running automation...'
-            });
+        this.runningAutomation = true;
+        this.automationStatusService.beginRun();
+        this.messageService.add({
+            severity: 'info',
+            summary: override ? 'Override & Run' : 'Run Now',
+            detail: override
+                ? 'Overriding cron schedule and running automation...'
+                : 'Running automation now and keeping next scheduled run...'
+        });
 
-            this.apiService.getActiveCronJobs().subscribe({
-                next: (response) => {
-                    if (response.jobs.length === 0) {
-                        this.messageService.add({
-                            severity: 'warn',
-                            summary: 'No Active Jobs',
-                            detail: 'No active cron jobs found to override'
-                        });
-                        this.runningAutomation = false;
-                        this.automationStatusService.endRun();
-                        return;
-                    }
-
-                    const job = response.jobs[0];
-                    this.apiService.triggerCronJob(job.id, true).subscribe({
-                        next: (res) => {
-                            this.messageService.add({
-                                severity: 'success',
-                                summary: 'Automation Complete',
-                                detail: res.message || 'Cron job overridden and executed'
-                            });
-                            this.loadDataFromBackend(true);
-                            this.runningAutomation = false;
-                            this.automationStatusService.endRun();
-                        },
-                        error: (err) => {
-                            this.messageService.add({
-                                severity: 'error',
-                                summary: 'Error',
-                                detail: err.error?.detail || 'Failed to trigger automation'
-                            });
-                            this.runningAutomation = false;
-                            this.automationStatusService.endRun();
-                        }
-                    });
-                },
-                error: () => {
+        this.apiService.getActiveCronJobs().subscribe({
+            next: (response) => {
+                if (response.jobs.length === 0) {
                     this.messageService.add({
-                        severity: 'error',
-                        summary: 'Error',
-                        detail: 'Failed to fetch active cron jobs'
+                        severity: 'warn',
+                        summary: 'No Active Jobs',
+                        detail: 'No active cron jobs found to run'
                     });
                     this.runningAutomation = false;
                     this.automationStatusService.endRun();
+                    return;
                 }
-            });
-        } else {
-            if (this.tableData.length === 0) {
-                this.messageService.add({
-                    severity: 'warn',
-                    summary: 'No Data',
-                    detail: 'No data in the table to process'
+
+                const job = response.jobs[0];
+                this.apiService.triggerCronJob(job.id, override).subscribe({
+                    next: (res) => {
+                        this.messageService.add({
+                            severity: 'success',
+                            summary: 'Automation Complete',
+                            detail: res.message || 'Cron job triggered successfully'
+                        });
+                        this.loadDataFromBackend(true);
+                        this.runningAutomation = false;
+                        this.automationStatusService.endRun();
+                    },
+                    error: (err) => {
+                        this.messageService.add({
+                            severity: 'error',
+                            summary: 'Error',
+                            detail: err.error?.detail || 'Failed to trigger automation'
+                        });
+                        this.runningAutomation = false;
+                        this.automationStatusService.endRun();
+                    }
                 });
-                return;
+            },
+            error: () => {
+                this.messageService.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: 'Failed to fetch active cron jobs'
+                });
+                this.runningAutomation = false;
+                this.automationStatusService.endRun();
             }
-
-            this.runningAutomation = true;
-            this.automationStatusService.beginRun();
-            this.messageService.add({
-                severity: 'info',
-                summary: 'Processing',
-                detail: 'Running all active rules...'
-            });
-
-            this.apiService.getActiveRules().subscribe({
-                next: (response) => {
-                    const activeRules = response.rules;
-                    if (activeRules.length === 0) {
-                        this.messageService.add({
-                            severity: 'warn',
-                            summary: 'No Active Rules',
-                            detail: 'No active rules found. Go to Settings to configure rules.'
-                        });
-                        this.runningAutomation = false;
-                        this.automationStatusService.endRun();
-                        return;
-                    }
-
-                    const originalCount = this.tableData.length;
-
-                    const filteredData = this.tableData.filter((row) => {
-                        for (const rule of activeRules) {
-                            if (this.evaluateRule(row, rule)) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    });
-
-                    const excludedCount = originalCount - filteredData.length;
-                    this.tableData = filteredData;
-
-                    this.apiService.createBackup('Automation run - ' + new Date().toISOString()).subscribe({
-                        next: () => {
-                            this.messageService.add({
-                                severity: 'success',
-                                summary: 'Automation Complete',
-                                detail: `${activeRules.length} rule(s) applied. ${excludedCount} row(s) excluded, ${filteredData.length} remaining. Data saved.`
-                            });
-                        },
-                        error: () => {
-                            this.messageService.add({
-                                severity: 'success',
-                                summary: 'Automation Complete',
-                                detail: `${activeRules.length} rule(s) applied. ${excludedCount} row(s) excluded, ${filteredData.length} remaining.`
-                            });
-                        }
-                    });
-
-                    this.runningAutomation = false;
-                    this.automationStatusService.endRun();
-                },
-                error: () => {
-                    this.messageService.add({
-                        severity: 'error',
-                        summary: 'Error',
-                        detail: 'Failed to fetch active rules'
-                    });
-                    this.runningAutomation = false;
-                    this.automationStatusService.endRun();
-                }
-            });
-        }
+        });
     }
 
     // ==================== PRESETS ====================
